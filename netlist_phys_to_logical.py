@@ -27,6 +27,11 @@ class NetlistPhysToLogical:
         netlist_ir = sdn.parse(self.netlist_in)
         top = netlist_ir.top_instance
 
+        # Get const0
+        const0 = [wire for wire in top.get_wires() if wire.cable.name == r"\<const0>"]
+        assert len(const0) == 1
+        const0 = const0[0]
+
         # Constant generator LUTs
         netlist_wrapper = SdnNetlistWrapper(top)
         for instance_wrapper in netlist_wrapper.instances:
@@ -39,10 +44,48 @@ class NetlistPhysToLogical:
             assert init_int != 0xFFFFFFFFFFFFFFFF, "Found a LUT with INIT=FFFFFFFFFFFFFFFF"
 
             if init_int == 0:
-                logging.info("Removing instance: %s", instance_wrapper.name)
-                raise NotImplementedError
+                logging.info("")
+                logging.info(
+                    "Processing constant-0 generator LUT instance: %s", instance_wrapper.name
+                )
 
-            # print("INIT value:", init_int)
+                pin_wrapper = instance_wrapper.get_pin("I0")
+
+                outputs = ("O5", "O6")
+
+                for output in outputs:
+                    pin_wrapper = instance_wrapper.get_pin(output)
+                    assert pin_wrapper
+
+                    wire = pin_wrapper.pin.wire
+                    assert wire
+
+                    pins_to_remove = []
+                    for pin2 in wire.pins:
+                        if pin2 == pin_wrapper.pin:
+                            continue
+                        pins_to_remove.append(pin2)
+
+                    for pin2 in pins_to_remove:
+                        logging.info(
+                            "Disconnecting wire %s from %s.%s[%d]",
+                            pin2.wire.cable.name,
+                            pin2.instance.name,
+                            pin2.inner_pin.port.name,
+                            pin2.inner_pin.port.pins.index(pin2.inner_pin),
+                        )
+                        wire.disconnect_pin(pin2)
+
+                        logging.info(
+                            r"Connecting \<const0> to %s.%s[%d]",
+                            pin2.instance.name,
+                            pin2.inner_pin.port.name,
+                            pin2.inner_pin.port.pins.index(pin2.inner_pin),
+                        )
+                        const0.connect_pin(pin2)
+
+                logging.info("Removing instance: %s", instance_wrapper.name)
+                top.reference.remove_child(instance_wrapper.instance)
 
         # Write out netlist
         sdn.compose(netlist_ir, self.netlist_out, write_blackbox=False)
