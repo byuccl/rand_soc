@@ -52,9 +52,8 @@ class NetlistCleaner:
                 logging.info("Removing instance: %s", instance)
                 top.reference.remove_child(instance)
 
-        netlist_wrapper = SdnNetlistWrapper(top)
-
         # Remove unused LUTs
+        netlist_wrapper = SdnNetlistWrapper(top)
         for instance_wrapper in netlist_wrapper.instances:
             if instance_wrapper.instance.reference.name != "LUT6_2":
                 continue
