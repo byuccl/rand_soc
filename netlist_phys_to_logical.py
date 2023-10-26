@@ -28,12 +28,13 @@ class NetlistPhysToLogical:
         top = netlist_ir.top_instance
 
         # Get const0
-        const0 = [wire for wire in top.get_wires() if wire.cable.name == r"\<const0>"]
-        assert len(const0) == 1
-        const0 = const0[0]
+        # const0 = [wire for wire in top.get_wires() if wire.cable.name == r"\<const0>"]
+        # assert len(const0) == 1
+        # const0 = const0[0]
 
         # Constant generator LUTs
         netlist_wrapper = SdnNetlistWrapper(top)
+        const0 = netlist_wrapper.get_const0_wire()
         for instance_wrapper in netlist_wrapper.instances:
             if instance_wrapper.instance.reference.name != "LUT6_2":
                 continue
