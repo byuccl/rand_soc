@@ -2,9 +2,19 @@ import argparse
 import logging
 import pathlib
 
+import boolean
+
 import spydrnet as sdn
 from bfasst.utils.general import convert_verilog_literal_to_int
 from bfasst.utils.sdn_helpers import SdnNetlistWrapper
+
+from bfasst import jpype_jvm
+
+jpype_jvm.start()
+from com.xilinx.rapidwright.design.tools import LUTTools
+
+
+# from gmt_tools.sop_eqn import SopEqn
 
 
 class NetlistPhysToLogical:
@@ -26,11 +36,6 @@ class NetlistPhysToLogical:
         # Read netlist with spydrnet
         netlist_ir = sdn.parse(self.netlist_in)
         top = netlist_ir.top_instance
-
-        # Get const0
-        # const0 = [wire for wire in top.get_wires() if wire.cable.name == r"\<const0>"]
-        # assert len(const0) == 1
-        # const0 = const0[0]
 
         # Constant generator LUTs
         netlist_wrapper = SdnNetlistWrapper(top)
@@ -87,6 +92,49 @@ class NetlistPhysToLogical:
 
                 logging.info("Removing instance: %s", instance_wrapper.name)
                 top.reference.remove_child(instance_wrapper.instance)
+
+        # Next split all LUT6_2s into logical LUTs
+        netlist_wrapper = SdnNetlistWrapper(top)
+        for instance_wrapper in netlist_wrapper.instances:
+            if instance_wrapper.instance.reference.name != "LUT6_2":
+                continue
+
+            logging.info(instance_wrapper.name)
+            o6_pin_wrapper = instance_wrapper.get_pin("O6")
+            o6_wire = o6_pin_wrapper.pin.wire
+            assert o6_wire
+            o6_net = netlist_wrapper.wire_to_net[o6_wire]
+            assert o6_net
+            o6_net_connected = o6_net.is_connected
+
+            o5_pin_wrapper = instance_wrapper.get_pin("O5")
+            o5_wire = o5_pin_wrapper.pin.wire
+            assert o5_wire
+            o5_net = netlist_wrapper.wire_to_net[o5_wire]
+            assert o5_net
+            o5_net_connected = o5_net.is_connected
+
+            assert o6_net_connected or o5_net_connected
+
+            if o6_net_connected and not o5_net_connected:
+                init_str = instance_wrapper.properties["INIT"]
+                eqn = LUTTools.getLUTEquation(init_str)
+
+                eqn = eqn[2:]
+                print(eqn)
+                eqn.replace("!", "~")
+                sop_eqn = boolean.BooleanAlgebra().parse(eqn)
+                sop_eqn = sop_eqn.simplify()
+                print(sop_eqn)
+
+                mapping = {}
+                logical_idx = 0
+                for symbol in sop_eqn.symbols:
+                    mapping[symbol.obj] = "I%d" % logical_idx
+                    logical_idx += 1
+                print(mapping)
+
+            assert o6_net_connected and o5_net_connected
 
         # Write out netlist
         sdn.compose(netlist_ir, self.netlist_out, write_blackbox=False)

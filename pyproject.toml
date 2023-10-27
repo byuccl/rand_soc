@@ -1,0 +1,9 @@
+
+[build-system]
+requires = [
+    "setuptools>=60",
+    "setuptools-scm>=8.0"]
+    
+[project]
+name = "gmt_tools"
+dynamic = ["version"]
