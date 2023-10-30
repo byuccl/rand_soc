@@ -35,10 +35,14 @@ class NetlistPhysToLogical:
 
         # Read netlist with spydrnet
         netlist_ir = sdn.parse(self.netlist_in)
-        top = netlist_ir.top_instance
+        self.top = netlist_ir.top_instance
+
+        for library in netlist_ir.get_libraries():
+            if library.name == "hdi_primitives":
+                self.library_hdi_primitives = library
 
         # Constant generator LUTs
-        netlist_wrapper = SdnNetlistWrapper(top)
+        netlist_wrapper = SdnNetlistWrapper(self.top)
         const0 = netlist_wrapper.get_const0_wire()
         for instance_wrapper in netlist_wrapper.instances:
             if instance_wrapper.instance.reference.name != "LUT6_2":
@@ -91,15 +95,16 @@ class NetlistPhysToLogical:
                         const0.connect_pin(pin2)
 
                 logging.info("Removing instance: %s", instance_wrapper.name)
-                top.reference.remove_child(instance_wrapper.instance)
+                self.top.reference.remove_child(instance_wrapper.instance)
 
         # Next split all LUT6_2s into logical LUTs
-        netlist_wrapper = SdnNetlistWrapper(top)
+        netlist_wrapper = SdnNetlistWrapper(self.top)
         for instance_wrapper in netlist_wrapper.instances:
             if instance_wrapper.instance.reference.name != "LUT6_2":
                 continue
 
-            logging.info(instance_wrapper.name)
+            logging.info("=" * 80)
+            logging.info("Creating logical LUT(s) for LUT6_2 instance: %s" % instance_wrapper.name)
             o6_pin_wrapper = instance_wrapper.get_pin("O6")
             o6_wire = o6_pin_wrapper.pin.wire
             assert o6_wire
@@ -116,28 +121,80 @@ class NetlistPhysToLogical:
 
             assert o6_net_connected or o5_net_connected
 
-            if o6_net_connected and not o5_net_connected:
-                init_str = instance_wrapper.properties["INIT"]
-                eqn = LUTTools.getLUTEquation(init_str)
+            # Get equation for LUT outputs
+            eqn = LUTTools.getLUTEquation(instance_wrapper.properties["INIT"])[2:].replace("!", "~")
+            eqn = boolean.BooleanAlgebra().parse(eqn)
 
-                eqn = eqn[2:]
-                print(eqn)
-                eqn.replace("!", "~")
-                sop_eqn = boolean.BooleanAlgebra().parse(eqn)
-                sop_eqn = sop_eqn.simplify()
-                print(sop_eqn)
+            if o6_net_connected and o5_net_connected:
+                o5_eqn = eqn.subs({boolean.Symbol("I5"): eqn.FALSE}).simplify()
+                self.create_new_lut(o5_eqn, instance_wrapper, name=instance_wrapper.name + "O5")
 
-                mapping = {}
-                logical_idx = 0
-                for symbol in sop_eqn.symbols:
-                    mapping[symbol.obj] = "I%d" % logical_idx
-                    logical_idx += 1
-                print(mapping)
+                o6_eqn = eqn.subs({boolean.Symbol("I5"): eqn.TRUE}).simplify()
+                self.create_new_lut(o6_eqn, instance_wrapper, name=instance_wrapper.name + "O6")
 
-            assert o6_net_connected and o5_net_connected
+            elif o6_net_connected and not o5_net_connected:
+                name = instance_wrapper.name
+                instance_wrapper.instance.name = instance_wrapper.instance.name + ".OLD"
+                self.create_new_lut(eqn, instance_wrapper, name=name)
+            else:
+                raise NotImplementedError
 
         # Write out netlist
         sdn.compose(netlist_ir, self.netlist_out, write_blackbox=False)
+
+    def create_new_lut(self, eqn, old_instance_wrapper, name):
+        num_inputs = len(eqn.symbols)
+        logging.info("Creating new LUT %s with %d inputs" % (name, num_inputs))
+
+        try:
+            defn = next(
+                d for d in self.library_hdi_primitives.definitions if d.name == "LUT%d" % num_inputs
+            )
+        except StopIteration:
+            defn = self.library_hdi_primitives.create_definition(name="LUT%d" % num_inputs)
+
+        logging.info("  equation: %s" % eqn)
+
+        # Replace constant inputs in equation
+        inputs = eqn.symbols
+        for lut_input in inputs:
+            pin_wrapper = old_instance_wrapper.get_pin(str(lut_input))
+
+            if pin_wrapper.net.is_vdd:
+                eqn = eqn.subs({lut_input: eqn.TRUE}).simplify()
+            elif pin_wrapper.net.is_gnd:
+                eqn = eqn.subs({lut_input: eqn.FALSE}).simplify()
+        logging.info("  equation after constant inputs: %s" % eqn)
+
+        mapping = {}
+        logical_idx = 0
+        for symbol in eqn.symbols:
+            mapping[symbol] = boolean.Symbol("I%d" % logical_idx)
+            logical_idx += 1
+        logging.info(
+            "  physical to logical mapping: %s" % {str(k): str(v) for k, v in mapping.items()}
+        )
+
+        eqn = eqn.subs(mapping).simplify()
+        logging.info("  equation after mapping: %s" % eqn)
+
+        eqn = str(eqn)
+        eqn = eqn.replace("~", "!")
+        eqn = eqn.replace("|", "+")
+        eqn = "O=" + eqn
+        init = str(LUTTools.getLUTInitFromEquation(eqn, num_inputs))
+        logging.info("  INIT: %s" % init)
+
+        instance = self.top.reference.create_child(
+            name, reference=defn, properties={"VERILOG.Parameters": {"INIT": init}}
+        )
+
+        # Wire up the inputs
+        for logical, physical in mapping.items():
+            pin_wrapper = old_instance_wrapper.get_pin(str(physical))
+            pin_wrapper.pin.wire.connect_pin(instance.get_pin(str(logical)).pin)
+
+        return instance
 
 
 if __name__ == "__main__":
