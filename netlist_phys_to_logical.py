@@ -5,7 +5,7 @@ import pathlib
 import boolean
 
 import spydrnet as sdn
-from bfasst.utils.general import convert_verilog_literal_to_int
+from bfasst.utils.general import convert_verilog_literal_to_int, properties_are_equal
 from bfasst.utils.sdn_helpers import SdnInstanceWrapper, SdnNetlistWrapper
 
 from bfasst import jpype_jvm
@@ -156,6 +156,48 @@ class NetlistPhysToLogical:
 
             logging.info("Removing instance: %s", instance_wrapper.name)
             self.top.reference.remove_child(instance_wrapper.instance)
+
+        # Remove LUT Routthroughs
+        netlist_wrapper = SdnNetlistWrapper(self.top)
+        for instance_wrapper in netlist_wrapper.instances:
+            if instance_wrapper.instance.reference.name == "LUT1" and properties_are_equal(
+                2, instance_wrapper.properties["INIT"]
+            ):
+                logging.info("=" * 80)
+                logging.info("Removing LUT routethru: %s", instance_wrapper.name)
+
+                output_pin = instance_wrapper.get_pin("O")
+                output_wire = output_pin.pin.wire
+                input_wire = instance_wrapper.get_pin("I0").pin.wire
+
+                pins_to_remove = []
+
+                # Loop through all pins this wire drives, and drive them by the
+                # input wir einstead
+                for pin in output_wire.pins:
+                    if pin == output_pin.pin:
+                        continue
+                    pins_to_remove.append(pin)
+
+                for pin in pins_to_remove:
+                    logging.info(
+                        "Disconnecting wire %s from %s.%s[%d]",
+                        output_wire.cable.name,
+                        pin.instance.name,
+                        pin.inner_pin.port.name,
+                        pin.inner_pin.port.pins.index(pin.inner_pin),
+                    )
+                    wire.disconnect_pin(pin)
+
+                    logging.info(
+                        "Connecting wire %s to %s.%s[%d]",
+                        input_wire.cable.name,
+                        pin.instance.name,
+                        pin.inner_pin.port.name,
+                        pin.inner_pin.port.pins.index(pin.inner_pin),
+                    )
+                    input_wire.connect_pin(pin)
+                raise NotImplementedError(instance_wrapper.name)
 
         # Write out netlist
         sdn.compose(netlist_ir, self.netlist_out, write_blackbox=False)
