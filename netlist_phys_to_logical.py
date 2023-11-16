@@ -41,9 +41,7 @@ class NetlistPhysToLogical:
             if library.name == "hdi_primitives":
                 self.library_hdi_primitives = library
 
-        # Constant generator LUTs
-        netlist_wrapper = SdnNetlistWrapper(self.top)
-
+        # Get or create contsant nets (used by constant generator LUTs)
         self.const0 = netlist_wrapper.get_const_wire(is_gnd=True)
         self.const1 = netlist_wrapper.get_const_wire(is_gnd=False)
 
