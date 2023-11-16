@@ -42,6 +42,7 @@ class NetlistPhysToLogical:
                 self.library_hdi_primitives = library
 
         # Get or create contsant nets (used by constant generator LUTs)
+        netlist_wrapper = SdnNetlistWrapper(self.top)
         self.const0 = netlist_wrapper.get_const_wire(is_gnd=True)
         self.const1 = netlist_wrapper.get_const_wire(is_gnd=False)
 
@@ -105,53 +106,12 @@ class NetlistPhysToLogical:
             logging.info("Removing instance: %s", instance_wrapper.name)
             self.top.reference.remove_child(instance_wrapper.instance)
 
-        # Remove LUT Routthroughs
-        netlist_wrapper = SdnNetlistWrapper(self.top)
-        for instance_wrapper in netlist_wrapper.instances:
-            if instance_wrapper.instance.reference.name == "LUT1" and properties_are_equal(
-                2, instance_wrapper.properties["INIT"]
-            ):
-                logging.info("=" * 80)
-                logging.info("Removing LUT routethru: %s", instance_wrapper.name)
-
-                output_pin = instance_wrapper.get_pin("O")
-                output_wire = output_pin.pin.wire
-                input_wire = instance_wrapper.get_pin("I0").pin.wire
-
-                pins_to_remove = []
-
-                # Loop through all pins this wire drives, and drive them by the
-                # input wir einstead
-                for pin in output_wire.pins:
-                    if pin == output_pin.pin:
-                        continue
-                    pins_to_remove.append(pin)
-
-                for pin in pins_to_remove:
-                    logging.info(
-                        "Disconnecting wire %s from %s.%s[%d]",
-                        output_wire.cable.name,
-                        pin.instance.name,
-                        pin.inner_pin.port.name,
-                        pin.inner_pin.port.pins.index(pin.inner_pin),
-                    )
-                    wire.disconnect_pin(pin)
-
-                    logging.info(
-                        "Connecting wire %s to %s.%s[%d]",
-                        input_wire.cable.name,
-                        pin.instance.name,
-                        pin.inner_pin.port.name,
-                        pin.inner_pin.port.pins.index(pin.inner_pin),
-                    )
-                    input_wire.connect_pin(pin)
-                raise NotImplementedError(instance_wrapper.name)
-
         # Write out netlist
         sdn.compose(netlist_ir, self.netlist_out, write_blackbox=False)
 
     def replace_lut_with_constant(self, old_pin_wrapper, is_gnd):
-        logging.info("")
+        """Replace a LUT with a constant generator"""
+
         logging.info(" Creating constant-%d generator", 0 if is_gnd else 1)
 
         assert old_pin_wrapper
@@ -189,8 +149,40 @@ class NetlistPhysToLogical:
             else:
                 self.const1.connect_pin(pin)
 
-        # logging.info("Removing instance: %s", instance_wrapper.name)
-        # self.top.reference.remove_child(instance_wrapper.instance)
+    def remove_lut_routethru(self, input_pin_wrapper, output_pin_wrapper):
+        """Remove a LUT routethru by connecting the input wire to the output wire"""
+
+        logging.info("  LUT routethru detected.  LUT can be removed and wiring fixed.")
+
+        output_wire = output_pin_wrapper.pin.wire
+        input_wire = input_pin_wrapper.pin.wire
+
+        # Loop through all pins this wire drives, and drive them by the
+        # input wire instead
+        pins_to_remove = []
+        for pin in output_wire.pins:
+            if pin == output_pin_wrapper.pin:
+                continue
+            pins_to_remove.append(pin)
+
+        for pin in pins_to_remove:
+            logging.info(
+                "  Disconnecting wire %s from %s.%s[%d]",
+                output_wire.cable.name,
+                pin.instance.name,
+                pin.inner_pin.port.name,
+                pin.inner_pin.port.pins.index(pin.inner_pin),
+            )
+            output_wire.disconnect_pin(pin)
+
+            logging.info(
+                "  Connecting wire %s to %s.%s[%d]",
+                input_wire.cable.name,
+                pin.instance.name,
+                pin.inner_pin.port.name,
+                pin.inner_pin.port.pins.index(pin.inner_pin),
+            )
+            input_wire.connect_pin(pin)
 
     def create_new_lut(self, netlist_wrapper, eqn, old_instance_wrapper, name, output_pin):
         """Create a new logical LUT given the old physical LUT instance wrapper and a new name"""
@@ -198,7 +190,7 @@ class NetlistPhysToLogical:
         assert isinstance(old_instance_wrapper, SdnInstanceWrapper)
         logging.info("Creating new LUT %s", name)
 
-        old_pin_wrapper = old_instance_wrapper.get_pin(output_pin)
+        old_output_pin_wrapper = old_instance_wrapper.get_pin(output_pin)
 
         logging.info("  equation: %s", eqn)
 
@@ -216,14 +208,24 @@ class NetlistPhysToLogical:
 
         # If constant generator, handle and exit out here
         if eqn == eqn.FALSE:
-            self.replace_lut_with_constant(old_pin_wrapper, is_gnd=True)
+            self.replace_lut_with_constant(old_output_pin_wrapper, is_gnd=True)
             return
         elif eqn == eqn.TRUE:
-            self.replace_lut_with_constant(old_pin_wrapper, is_gnd=False)
+            self.replace_lut_with_constant(old_output_pin_wrapper, is_gnd=False)
             return
 
         num_inputs = len(eqn.symbols)
         assert num_inputs >= 1
+
+        # Handle buffer equation (LUT routethru)
+        # These are cases where the logic equation would be something like "I3" (not "~I3")
+        if num_inputs == 1 and str(eqn).startswith("I"):
+            self.remove_lut_routethru(
+                input_pin_wrapper=old_instance_wrapper.get_pin(str(eqn)),
+                output_pin_wrapper=old_output_pin_wrapper,
+            )
+            return
+
         try:
             defn = next(
                 d for d in self.library_hdi_primitives.definitions if d.name == "LUT%d" % num_inputs
@@ -279,7 +281,7 @@ class NetlistPhysToLogical:
         # Wire up the output
         new_pin_wrapper = instance_wrapper.get_pin("O")
         assert new_pin_wrapper.pin.inner_pin.port.name == "O"
-        wire_driver = old_pin_wrapper.pin.wire
+        wire_driver = old_output_pin_wrapper.pin.wire
         logging.info(
             "  Connecting %s to %s.%s",
             wire_driver.cable.name,
