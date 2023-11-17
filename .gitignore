@@ -1,2 +1,8 @@
 *.egg-info
 *.pyc
+
+*.log
+*.xpr
+*.jou
+*.str
+.venv
