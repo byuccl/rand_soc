@@ -15,18 +15,63 @@ class Microblaze(IP):
         self.new_instance("xilinx.com:ip:microblaze:11.0", self.instance_name)
 
         # Instruction memory
-        insn_mem_name = "lmb_i"
+        mem_bus_insn_name = "lmb_i"
+        mem_ctrl_insn_name = "lmb_ctrl_i"
         self.instance_str += "# Instruction memory\n"
-        self.new_instance("xilinx.com:ip:lmb_v10:3.0", insn_mem_name)
-        self.instance_str += f"connect_bd_intf_net [get_bd_intf_pins {self.hier_name}/{self.instance_name}/ILMB] [get_bd_intf_pins {self.hier_name}/{insn_mem_name}/LMB_M]\n"
+        self.new_instance("xilinx.com:ip:lmb_v10:3.0", mem_bus_insn_name)
+        self.new_instance("xilinx.com:ip:lmb_bram_if_cntlr:4.0", mem_ctrl_insn_name)
+        self.connect_instance_pin(
+            f"{self.instance_name}/ILMB", f"{mem_bus_insn_name}/LMB_M"
+        )
+        self.connect_instance_pin(
+            f"{mem_bus_insn_name}/LMB_Sl_0", f"{mem_ctrl_insn_name}/SLMB"
+        )
 
         # Data memory
-        data_mem_name = "lmb_d"
+        mem_bus_data_name = "lmb_d"
+        mem_ctrl_data_name = "lmb_ctrl_d"
         self.instance_str += "# Data memory\n"
-        self.new_instance("xilinx.com:ip:lmb_v10:3.0", data_mem_name)
-        self.instance_str += f"connect_bd_intf_net [get_bd_intf_pins {self.hier_name}/{self.instance_name}/DLMB] [get_bd_intf_pins {self.hier_name}/{data_mem_name}/LMB_M]\n"
+        self.new_instance("xilinx.com:ip:lmb_v10:3.0", mem_bus_data_name)
+        self.new_instance("xilinx.com:ip:lmb_bram_if_cntlr:4.0", mem_ctrl_data_name)
+        self.connect_instance_pin(
+            f"{self.instance_name}/DLMB", f"{mem_bus_data_name}/LMB_M"
+        )
+        self.connect_instance_pin(
+            f"{mem_bus_data_name}/LMB_Sl_0", f"{mem_ctrl_data_name}/SLMB"
+        )
+
+        # Memory
+        self.instance_str += "# Memory\n"
+        mem_name = "mem"
+        self.new_instance(
+            "xilinx.com:ip:blk_mem_gen:8.4",
+            mem_name,
+            properties={"CONFIG.Memory_Type": "True_Dual_Port_RAM"},
+        )
+        self.connect_instance_pin(
+            f"{mem_ctrl_insn_name}/BRAM_PORT", f"{mem_name}/BRAM_PORTA"
+        )
+        self.connect_instance_pin(
+            f"{mem_ctrl_data_name}/BRAM_PORT", f"{mem_name}/BRAM_PORTB"
+        )
 
         # Create BD pins
+        self.instance_str += "# Create BD pins\n"
+        self.create_hier_pin("I", "clk")
+        self.clk_inputs.append("clk")
+        self.connect_bd_pin("clk", f"{self.instance_name}/Clk")
+        self.connect_bd_pin("clk", f"{mem_bus_insn_name}/LMB_Clk")
+        self.connect_bd_pin("clk", f"{mem_ctrl_insn_name}/LMB_Clk")
+        self.connect_bd_pin("clk", f"{mem_bus_data_name}/LMB_Clk")
+        self.connect_bd_pin("clk", f"{mem_ctrl_data_name}/LMB_Clk")
+
+        self.create_hier_pin("I", "reset")
+        self.reset_inputs.append("reset")
+        self.connect_bd_pin("reset", f"{self.instance_name}/Reset")
+        self.connect_bd_pin("reset", f"{mem_bus_insn_name}/SYS_Rst")
+        self.connect_bd_pin("reset", f"{mem_ctrl_insn_name}/LMB_Rst")
+        self.connect_bd_pin("reset", f"{mem_bus_data_name}/SYS_Rst")
+        self.connect_bd_pin("reset", f"{mem_ctrl_data_name}/LMB_Rst")
 
     @property
     def name(self):
