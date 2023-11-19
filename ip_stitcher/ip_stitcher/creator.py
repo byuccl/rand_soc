@@ -38,7 +38,7 @@ class DesignCreator:
 
             self._clocks()
             self._resets()
-            self._external_outputs()
+            self._external_io()
             # self._interrupts()
 
             self.out += "\n# Save the block design\n"
@@ -55,10 +55,10 @@ class DesignCreator:
 
         # Create single external clock
         self.out += "\n########## Clocks ##########\n"
-        self.create_port("I", "clk")
+        self._create_port("I", "clk")
 
         for ip, clk in all_clocks:
-            self.connect_port("clk", ip, clk)
+            self._connect_port("clk", ip, clk)
 
     def _resets(self):
         all_resets = []
@@ -68,29 +68,25 @@ class DesignCreator:
 
         # Create single external reset
         self.out += "\n########## Resets ##########\n"
-        self.create_port("I", "reset")
+        self._create_port("I", "reset")
 
         for ip, reset in all_resets:
-            self.connect_port("reset", ip, reset)
+            self._connect_port("reset", ip, reset)
 
-    def _external_outputs(self):
-        all_external_outputs = []
+    def _external_io(self):
+        all_external_io = []
         for ip in self.ip:
-            for external_output in ip.external_outputs:
-                all_external_outputs.append((ip, external_output))
+            for io in ip.external_io_ports:
+                all_external_io.append((ip, io))
 
         # Create external outputs
-        self.out += "\n########## External outputs ##########\n"
-        for ip, external_output in all_external_outputs:
-            self.create_port(
-                "O", f"{ip.hier_name}.{external_output[0]}", width=external_output[1]
-            )
-            self.connect_port(
-                f"{ip.hier_name}.{external_output[0]}", ip, external_output[0]
-            )
+        self.out += "\n########## External I/O ##########\n"
+        for ip, io in all_external_io:
+            self._create_port(io.dir, f"{ip.hier_name}.{io.name}", width=io.width)
+            self._connect_port(f"{ip.hier_name}.{io.name}", ip, io.name)
 
-    def create_port(self, direction, name, width=1):
+    def _create_port(self, direction, name, width=1):
         self.out += f"create_bd_port -dir {direction} -from {width-1} -to 0 {name}\n"
 
-    def connect_port(self, external_port, ip, pin_name):
-        self.out += f"connect_bd_net [get_bd_pins {external_port}] [get_bd_pins {ip.hier_name}/{pin_name}]\n"
+    def _connect_port(self, external_port, ip, name):
+        self.out += f"connect_bd_net [get_bd_pins {external_port}] [get_bd_pins {ip.hier_name}/{name}]\n"

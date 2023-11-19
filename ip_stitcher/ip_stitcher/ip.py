@@ -8,12 +8,12 @@ class IP:
     """Base class for IP"""
 
     def __init__(self, name):
-        self.hier_name = name
+        self.hier_name = name + "_" + self.name
         self.instance_str = f"\n\n########## {self.name} ##########\n"
         self.clk_inputs = []
         self.reset_inputs = []
         self.interrupt_inputs = []
-        self.external_outputs = []
+        self.external_io_ports = []
 
     @abc.abstractmethod
     def instance():
@@ -37,8 +37,11 @@ class IP:
             self._set_instance_properties(instance_name, properties)
 
     def _set_instance_properties(self, instance_name, properties):
-        for prop, value in properties.items():
-            self.instance_str += f'set_property -dict "{prop} {value}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
+        # Combine key, value pairs into a single string
+        prop = ""
+        for key, value in properties.items():
+            prop += f"{key} {value} "
+        self.instance_str += f'set_property -dict "{prop}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
 
     def create_hier_pin(self, direction, name, width=1):
         self.instance_str += f"create_bd_pin -dir {direction} -from {width-1} -to 0 {self.hier_name}/{name}\n"
