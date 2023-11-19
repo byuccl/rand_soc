@@ -1,3 +1,4 @@
+from .ports import Port
 from .ip import IP
 
 
@@ -59,21 +60,27 @@ class Microblaze(IP):
 
         # Create BD pins
         self.instance_str += "# Create BD pins\n"
-        self.create_hier_pin("I", "clk")
-        self.clk_inputs.append("clk")
-        self.connect_bd_pin("clk", f"{self.instance_name}/Clk")
-        self.connect_bd_pin("clk", f"{mem_bus_insn_name}/LMB_Clk")
-        self.connect_bd_pin("clk", f"{mem_ctrl_insn_name}/LMB_Clk")
-        self.connect_bd_pin("clk", f"{mem_bus_data_name}/LMB_Clk")
-        self.connect_bd_pin("clk", f"{mem_ctrl_data_name}/LMB_Clk")
+        self.create_hier_pin(
+            Port(self, "clk", "I", width=1, protocol="clk"),
+            (
+                f"{self.instance_name}/Clk",
+                f"{mem_bus_insn_name}/LMB_Clk",
+                f"{mem_ctrl_insn_name}/LMB_Clk",
+                f"{mem_bus_data_name}/LMB_Clk",
+                f"{mem_ctrl_data_name}/LMB_Clk",
+            ),
+        )
 
-        self.create_hier_pin("I", "reset")
-        self.reset_inputs.append("reset")
-        self.connect_bd_pin("reset", f"{self.instance_name}/Reset")
-        self.connect_bd_pin("reset", f"{mem_bus_insn_name}/SYS_Rst")
-        self.connect_bd_pin("reset", f"{mem_ctrl_insn_name}/LMB_Rst")
-        self.connect_bd_pin("reset", f"{mem_bus_data_name}/SYS_Rst")
-        self.connect_bd_pin("reset", f"{mem_ctrl_data_name}/LMB_Rst")
+        self.create_hier_pin(
+            Port(self, "reset", "I", width=1, protocol="reset"),
+            (
+                f"{self.instance_name}/Reset",
+                f"{mem_bus_insn_name}/SYS_Rst",
+                f"{mem_ctrl_insn_name}/LMB_Rst",
+                f"{mem_bus_data_name}/SYS_Rst",
+                f"{mem_ctrl_data_name}/LMB_Rst",
+            ),
+        )
 
     @property
     def name(self):

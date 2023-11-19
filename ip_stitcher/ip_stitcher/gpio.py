@@ -1,11 +1,13 @@
 import random
 
-from .ports import ExternalPort
+from .ports import Port
 from .ip import IP
 from .utils import all_ones, randbool, randintwidth
 
 
 class Gpio(IP):
+    # TODO: AXI input
+
     @property
     def name(self):
         return "gpio"
@@ -16,29 +18,18 @@ class Gpio(IP):
         gpio_name = "gpio_0"
         config = {}
 
-        # I/O
         if self.config_dir == "I":
             config["CONFIG.C_ALL_INPUTS"] = 1
         elif self.config_dir == "O":
             config["CONFIG.C_ALL_OUTPUTS"] = 1
         elif self.config_dir == "IO":
             config["CONFIG.C_TRI_DEFAULT"] = hex(self.config_default_tristate_val)
-
-        if self.config_dir in ("I", "IO"):
-            self.create_hier_pin("I", "gpio_i", self.config_width)
-            self.external_io_ports.append(
-                ExternalPort("gpio_i", "I", self.config_width)
-            )
+        gpio_pins = [f"{gpio_name}/GPIO"]
 
         if self.config_dir in ("O", "IO"):
-            self.create_hier_pin("O", "gpio_o", self.config_width)
-            self.external_io_ports.append(
-                ExternalPort("gpio_o", "O", self.config_width)
-            )
             config["CONFIG.C_DOUT_DEFAULT"] = hex(self.config_default_out_val)
 
         if self.config_dual_channel:
-            config["CONFIG.C_IS_DUAL"] = 1
             if self.config_dir2 == "I":
                 config["CONFIG.C_ALL_INPUTS_2"] = 1
             elif self.config_dir2 == "O":
@@ -47,29 +38,31 @@ class Gpio(IP):
                 config["CONFIG.C_TRI_DEFAULT_2"] = hex(
                     self.config_default_tristate_val2
                 )
-
-            if self.config_dir2 in ("I", "IO"):
-                self.create_hier_pin("I", "gpio_2_i", self.width2)
-                self.external_io_ports.append(
-                    ExternalPort("gpio_2_i", "I", self.width2)
-                )
+            gpio_pins.append(f"{gpio_name}/GPIO2")
 
             if self.config_dir2 in ("O", "IO"):
-                self.create_hier_pin("O", "gpio_2_o", self.width2)
-                self.external_io_ports.append(
-                    ExternalPort("gpio_2_o", "O", self.width2)
-                )
                 config["CONFIG.C_DOUT_DEFAULT_2"] = hex(self.config_default_out_val2)
 
         self.new_instance("xilinx.com:ip:axi_gpio:2.0", gpio_name, config)
 
         self.instance_str += "# Create BD pins\n"
-        self.create_hier_pin("I", "clk")
-        self.create_hier_pin("I", "reset")
-
-        self.connect_bd_pin("clk", f"{gpio_name}/s_axi_aclk")
-        self.connect_bd_pin("reset", f"{gpio_name}/s_axi_aresetn")
-        self.connect_bd_pin("gpio", f"{gpio_name}/GPIO")
+        self.create_hier_pin(
+            Port(self, "clk", "I", 1, "clk"), (f"{gpio_name}/s_axi_aclk",)
+        )
+        self.create_hier_pin(
+            Port(self, "reset", "I", 1, "reset"), (f"{gpio_name}/s_axi_aresetn",)
+        )
+        self.create_hier_pin(
+            Port(
+                self,
+                "GPIO",
+                self.config_dir,
+                self.config_width,
+                "xilinx.com:interface:gpio_rtl:1.0",
+                mode="Master",
+            ),
+            gpio_pins,
+        )
 
     def randomize(self):
         self.config_dir = "IO"  # random.choice(["I", "O", "IO"])

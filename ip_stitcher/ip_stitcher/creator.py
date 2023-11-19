@@ -1,6 +1,9 @@
 import random
+
 import jinja2
 
+from .ports import Port
+from .utils import pull_from_list
 from .gpio import Gpio
 from .microblaze import Microblaze
 
@@ -36,9 +39,7 @@ class DesignCreator:
             for ip in self.ip:
                 self.out += ip.instance_str
 
-            self._clocks()
-            self._resets()
-            self._external_io()
+            self._ports()
             # self._interrupts()
 
             self.out += "\n# Save the block design\n"
@@ -47,46 +48,69 @@ class DesignCreator:
             with open(output_path / "design.tcl", "w", encoding="utf-8") as f:
                 f.write(self.out)
 
-    def _clocks(self):
-        all_clocks = []
-        for ip in self.ip:
-            for clk in ip.clk_inputs:
-                all_clocks.append((ip, clk))
+    def _ports(self):
+        all_ports = [port for ip in self.ip for port in ip.ports]
 
+        # Clock ports
+        clock_ports = []
+        pull_from_list(all_ports, clock_ports, lambda p: p.protocol == "clk")
+        self._clocks(clock_ports)
+
+        # Reset ports
+        reset_ports = []
+        pull_from_list(all_ports, reset_ports, lambda p: p.protocol == "reset")
+        self._resets(reset_ports)
+
+        # GPIO ports
+        gpio_ports = []
+        pull_from_list(
+            all_ports,
+            gpio_ports,
+            lambda p: p.protocol == "xilinx.com:interface:gpio_rtl:1.0",
+        )
+        self._gpio(gpio_ports)
+
+        for port in all_ports:
+            print("Unhandled port:", port)
+        if all_ports:
+            raise Exception("Unhandled ports")
+
+    def _clocks(self, clock_ports):
         # Create single external clock
         self.out += "\n########## Clocks ##########\n"
-        self._create_port("I", "clk")
+        self._create_external_port(
+            Port(None, "clk", "I", width=1, protocol="clk"), clock_ports
+        )
 
-        for ip, clk in all_clocks:
-            self._connect_port("clk", ip, clk)
-
-    def _resets(self):
-        all_resets = []
-        for ip in self.ip:
-            for reset in ip.reset_inputs:
-                all_resets.append((ip, reset))
-
+    def _resets(self, reset_ports):
         # Create single external reset
         self.out += "\n########## Resets ##########\n"
-        self._create_port("I", "reset")
+        self._create_external_port(
+            Port(None, "reset", "I", width=1, protocol="reset"), reset_ports
+        )
 
-        for ip, reset in all_resets:
-            self._connect_port("reset", ip, reset)
+        for port in reset_ports:
+            self._connect_port(reset_port, port)
 
-    def _external_io(self):
-        all_external_io = []
-        for ip in self.ip:
-            for io in ip.external_io_ports:
-                all_external_io.append((ip, io))
-
+    def _gpio(self, ports):
         # Create external outputs
-        self.out += "\n########## External I/O ##########\n"
-        for ip, io in all_external_io:
-            self._create_port(io.dir, f"{ip.hier_name}.{io.name}", width=io.width)
-            self._connect_port(f"{ip.hier_name}.{io.name}", ip, io.name)
+        self.out += "\n########## GPIO ##########\n"
+        for port in ports:
+            external_port_name = f"{port.ip.hier_name}.{port.name}"
+            self._create_external_port(port.dir, external_port_name, width=port.width)
+            self._connect_port(external_port_name, port)
 
-    def _create_port(self, direction, name, width=1):
-        self.out += f"create_bd_port -dir {direction} -from {width-1} -to 0 {name}\n"
+    def _create_external_port(self, port, connect_to_ports=None):
+        assert isinstance(port, Port)
+        if port.protocol.startswith("xilinx.com:interface:"):
+            self.out += f"create_bd_intf_port -mode {port.mode} -vlnv {port.protocol} {port.name}\n"
+        else:
+            self.out += f"create_bd_port -dir {port.dir} -from {port.width-1} -to 0 {port.name}\n"
+        if connect_to_ports:
+            for port_to in connect_to_ports:
+                self._connect_port(port, port_to)
 
-    def _connect_port(self, external_port, ip, name):
-        self.out += f"connect_bd_net [get_bd_pins {external_port}] [get_bd_pins {ip.hier_name}/{name}]\n"
+    def _connect_port(self, port1, port2):
+        assert isinstance(port1, Port)
+        assert isinstance(port2, Port)
+        self.out += f"connect_bd_net [get_bd_pins {external_port_name}] [get_bd_pins {port.hier_name}]\n"
