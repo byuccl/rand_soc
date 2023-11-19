@@ -4,9 +4,11 @@ from .ip import IP
 class Microblaze(IP):
     """Microblaze class"""
 
-    def __init__(self, name):
-        super().__init__()
-        self.hier_name = name
+    # def __init__(self, name):
+    #     super().__init__(name)
+
+    def randomize(self):
+        pass
 
     def instance(self):
         self.instance_str += f"create_bd_cell -type hier {self.hier_name}\n"
@@ -76,8 +78,3 @@ class Microblaze(IP):
     @property
     def name(self):
         return "microblaze"
-
-
-# create_bd_cell -type ip -vlnv xilinx.com:ip:lmb_v10:3.0 lmb_v10_0
-
-# connect_bd_intf_net [get_bd_intf_pins microblaze_0/DLMB] [get_bd_intf_pins lmb_v10_0/LMB_M]

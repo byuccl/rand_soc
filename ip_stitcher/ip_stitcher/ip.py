@@ -7,12 +7,13 @@ import abc
 class IP:
     """Base class for IP"""
 
-    def __init__(self):
-        self.hier_name = None
+    def __init__(self, name):
+        self.hier_name = name
         self.instance_str = f"\n\n########## {self.name} ##########\n"
         self.clk_inputs = []
         self.reset_inputs = []
         self.interrupt_inputs = []
+        self.external_outputs = []
 
     @abc.abstractmethod
     def instance():
@@ -21,6 +22,10 @@ class IP:
     @property
     @abc.abstractmethod
     def name():
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def randomize():
         raise NotImplementedError
 
     def new_instance(self, ip_name, instance_name, properties=None):
@@ -35,8 +40,8 @@ class IP:
         for prop, value in properties.items():
             self.instance_str += f'set_property -dict "{prop} {value}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
 
-    def create_hier_pin(self, direction, name):
-        self.instance_str += f"create_bd_pin -dir {direction} {self.hier_name}/{name}\n"
+    def create_hier_pin(self, direction, name, width=1):
+        self.instance_str += f"create_bd_pin -dir {direction} -from {width-1} -to 0 {self.hier_name}/{name}\n"
 
     def connect_bd_pin(self, hier_pin, instance_pin):
         self.instance_str += f"connect_bd_net [get_bd_pins {self.hier_name}/{hier_pin}] [get_bd_pins {self.hier_name}/{instance_pin}]\n"

@@ -1,38 +1,51 @@
+import random
 import jinja2
 
+from .gpio import Gpio
 from .microblaze import Microblaze
 
 
 class DesignCreator:
     def __init__(self):
-        self.out = ""
+        random.seed(0)
 
-    def run(self):
+    def run(self, output_dir_path, num_designs):
         env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 
         project_config = {"part": "xc7a200tsbg484-1", "bd_name": "design_1"}
 
         template = env.get_template("run.tcl.j2")
 
-        self.out += template.render(project_config)
+        for i in range(num_designs):
+            # Create design directory
+            output_path = output_dir_path / f"design_{i}"
+            output_path.mkdir(parents=True, exist_ok=True)
 
-        microblaze = Microblaze("ip_0")
-        self.ip = [microblaze]
+            self.out = template.render(project_config)
 
-        for module in self.ip:
-            module.instance()
+            microblaze = Microblaze("ip_0")
+            gpio = Gpio("ip_1")
+            self.ip = [microblaze, gpio]
 
-        for module in self.ip:
-            self.out += module.instance_str
+            for ip in self.ip:
+                ip.randomize()
 
-        self._clocks()
-        self._resets()
-        self._interrupts()
+            for ip in self.ip:
+                ip.instance()
 
-        self.out += "\n# Save the block design\n"
-        self.out += f"save_bd_design\n"
+            for ip in self.ip:
+                self.out += ip.instance_str
 
-        self.project_tcl_str = self.out
+            self._clocks()
+            self._resets()
+            self._external_outputs()
+            # self._interrupts()
+
+            self.out += "\n# Save the block design\n"
+            self.out += f"save_bd_design\n"
+
+            with open(output_path / "design.tcl", "w", encoding="utf-8") as f:
+                f.write(self.out)
 
     def _clocks(self):
         all_clocks = []
@@ -60,8 +73,24 @@ class DesignCreator:
         for ip, reset in all_resets:
             self.connect_port("reset", ip, reset)
 
-    def create_port(self, direction, name):
-        self.out += f"create_bd_port -dir {direction} {name}\n"
+    def _external_outputs(self):
+        all_external_outputs = []
+        for ip in self.ip:
+            for external_output in ip.external_outputs:
+                all_external_outputs.append((ip, external_output))
+
+        # Create external outputs
+        self.out += "\n########## External outputs ##########\n"
+        for ip, external_output in all_external_outputs:
+            self.create_port(
+                "O", f"{ip.hier_name}.{external_output[0]}", width=external_output[1]
+            )
+            self.connect_port(
+                f"{ip.hier_name}.{external_output[0]}", ip, external_output[0]
+            )
+
+    def create_port(self, direction, name, width=1):
+        self.out += f"create_bd_port -dir {direction} -from {width-1} -to 0 {name}\n"
 
     def connect_port(self, external_port, ip, pin_name):
         self.out += f"connect_bd_net [get_bd_pins {external_port}] [get_bd_pins {ip.hier_name}/{pin_name}]\n"
