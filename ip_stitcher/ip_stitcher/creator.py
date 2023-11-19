@@ -89,16 +89,21 @@ class DesignCreator:
             Port(None, "reset", "I", width=1, protocol="reset"), reset_ports
         )
 
-        for port in reset_ports:
-            self._connect_port(reset_port, port)
-
     def _gpio(self, ports):
         # Create external outputs
         self.out += "\n########## GPIO ##########\n"
         for port in ports:
-            external_port_name = f"{port.ip.hier_name}.{port.name}"
-            self._create_external_port(port.dir, external_port_name, width=port.width)
-            self._connect_port(external_port_name, port)
+            self._create_external_port(
+                Port(
+                    None,
+                    f"{port.ip.hier_name}_{port.name}",
+                    port.dir,
+                    port.width,
+                    port.protocol,
+                    port.mode,
+                ),
+                (port,),
+            )
 
     def _create_external_port(self, port, connect_to_ports=None):
         assert isinstance(port, Port)
@@ -113,4 +118,7 @@ class DesignCreator:
     def _connect_port(self, port1, port2):
         assert isinstance(port1, Port)
         assert isinstance(port2, Port)
-        self.out += f"connect_bd_net [get_bd_pins {external_port_name}] [get_bd_pins {port.hier_name}]\n"
+        if port1.protocol.startswith("xilinx.com:interface:"):
+            self.out += f"connect_bd_intf_net [get_bd_intf_pins {port1.name}] [get_bd_intf_pins {port2.hier_name}]\n"
+        else:
+            self.out += f"connect_bd_net [get_bd_pins {port1.name}] [get_bd_pins {port2.hier_name}]\n"
