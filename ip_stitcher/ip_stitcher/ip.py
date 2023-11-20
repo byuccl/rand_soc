@@ -59,3 +59,6 @@ class IP:
 
     def connect_instance_pin(self, instance_pin_a, instance_pin_b):
         self.instance_str += f"connect_bd_intf_net [get_bd_intf_pins {self.hier_name}/{instance_pin_a}] [get_bd_intf_pins {self.hier_name}/{instance_pin_b}]\n"
+
+    def assign_bd_address(self, instance_addr_space_name, slave_name):
+        self.instance_str += f"assign_bd_address -target_address_space /{self.hier_name}/{instance_addr_space_name} [get_bd_addr_segs {self.hier_name}/{slave_name}] -force\n"

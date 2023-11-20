@@ -14,8 +14,8 @@ class Microblaze(IP):
     def instance(self):
         self.instance_str += f"create_bd_cell -type hier {self.hier_name}\n"
 
-        self.instance_name = "microblaze_0"
-        self.new_instance("xilinx.com:ip:microblaze:11.0", self.instance_name)
+        instance_name = "microblaze_0"
+        self.new_instance("xilinx.com:ip:microblaze:11.0", instance_name)
 
         # Instruction memory
         mem_bus_insn_name = "lmb_i"
@@ -23,9 +23,7 @@ class Microblaze(IP):
         self.instance_str += "# Instruction memory\n"
         self.new_instance("xilinx.com:ip:lmb_v10:3.0", mem_bus_insn_name)
         self.new_instance("xilinx.com:ip:lmb_bram_if_cntlr:4.0", mem_ctrl_insn_name)
-        self.connect_instance_pin(
-            f"{self.instance_name}/ILMB", f"{mem_bus_insn_name}/LMB_M"
-        )
+        self.connect_instance_pin(f"{instance_name}/ILMB", f"{mem_bus_insn_name}/LMB_M")
         self.connect_instance_pin(
             f"{mem_bus_insn_name}/LMB_Sl_0", f"{mem_ctrl_insn_name}/SLMB"
         )
@@ -36,9 +34,7 @@ class Microblaze(IP):
         self.instance_str += "# Data memory\n"
         self.new_instance("xilinx.com:ip:lmb_v10:3.0", mem_bus_data_name)
         self.new_instance("xilinx.com:ip:lmb_bram_if_cntlr:4.0", mem_ctrl_data_name)
-        self.connect_instance_pin(
-            f"{self.instance_name}/DLMB", f"{mem_bus_data_name}/LMB_M"
-        )
+        self.connect_instance_pin(f"{instance_name}/DLMB", f"{mem_bus_data_name}/LMB_M")
         self.connect_instance_pin(
             f"{mem_bus_data_name}/LMB_Sl_0", f"{mem_ctrl_data_name}/SLMB"
         )
@@ -58,12 +54,16 @@ class Microblaze(IP):
             f"{mem_ctrl_data_name}/BRAM_PORT", f"{mem_name}/BRAM_PORTB"
         )
 
+        # Address space
+        self.assign_bd_address(f"{instance_name}/Data", "lmb_ctrl_d/SLMB/Mem")
+        self.assign_bd_address(f"{instance_name}/Instruction", "lmb_ctrl_i/SLMB/Mem")
+
         # Create BD pins
         self.instance_str += "# Create BD pins\n"
         self.create_hier_pin(
             Port(self, "clk", "I", width=1, protocol="clk"),
             (
-                f"{self.instance_name}/Clk",
+                f"{instance_name}/Clk",
                 f"{mem_bus_insn_name}/LMB_Clk",
                 f"{mem_ctrl_insn_name}/LMB_Clk",
                 f"{mem_bus_data_name}/LMB_Clk",
@@ -74,7 +74,7 @@ class Microblaze(IP):
         self.create_hier_pin(
             Port(self, "reset", "I", width=1, protocol="reset"),
             (
-                f"{self.instance_name}/Reset",
+                f"{instance_name}/Reset",
                 f"{mem_bus_insn_name}/SYS_Rst",
                 f"{mem_ctrl_insn_name}/LMB_Rst",
                 f"{mem_bus_data_name}/SYS_Rst",
