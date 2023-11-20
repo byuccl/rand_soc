@@ -13,40 +13,45 @@ class DesignCreator:
         random.seed(0)
 
     def run(self, output_dir_path, num_designs):
-        env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
-
-        project_config = {"part": "xc7a200tsbg484-1", "bd_name": "design_1"}
-
-        template = env.get_template("run.tcl.j2")
-
         for i in range(num_designs):
             # Create design directory
             output_path = output_dir_path / f"design_{i}"
             output_path.mkdir(parents=True, exist_ok=True)
 
-            self.out = template.render(project_config)
-
-            microblaze = Microblaze("ip_0")
-            gpio = Gpio("ip_1")
-            self.ip = [microblaze, gpio]
-
-            for ip in self.ip:
-                ip.randomize()
-
-            for ip in self.ip:
-                ip.instance()
-
-            for ip in self.ip:
-                self.out += ip.instance_str
-
-            self._ports()
-            # self._interrupts()
-
-            self.out += "\n# Save the block design\n"
-            self.out += f"save_bd_design\n"
-
+            design = RandomDesign()
+            design.create()
             with open(output_path / "design.tcl", "w", encoding="utf-8") as f:
-                f.write(self.out)
+                f.write(design.tcl_str)
+
+
+class RandomDesign:
+    def __init__(self):
+        self.tcl_str = ""
+        self._bd_str = ""
+        self.ip = []
+
+    def create(self):
+        project_config = {"part": "xc7a200tsbg484-1", "bd_name": "design_1"}
+
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
+
+        template = env.get_template("run.tcl.j2")
+
+        microblaze = Microblaze("ip_0")
+        gpio = Gpio("ip_1")
+        self.ip = [microblaze, gpio]
+
+        for ip in self.ip:
+            ip.randomize()
+
+        for ip in self.ip:
+            ip.instance()
+            self._bd_str += ip.instance_str
+
+        self._ports()
+
+        project_config["block_diagram"] = self._bd_str
+        self.tcl_str = template.render(project_config)
 
     def _ports(self):
         all_ports = [port for ip in self.ip for port in ip.ports]
@@ -77,21 +82,21 @@ class DesignCreator:
 
     def _clocks(self, clock_ports):
         # Create single external clock
-        self.out += "\n########## Clocks ##########\n"
+        self._bd_str += "\n########## Clocks ##########\n"
         self._create_external_port(
             Port(None, "clk", "I", width=1, protocol="clk"), clock_ports
         )
 
     def _resets(self, reset_ports):
         # Create single external reset
-        self.out += "\n########## Resets ##########\n"
+        self._bd_str += "\n########## Resets ##########\n"
         self._create_external_port(
             Port(None, "reset", "I", width=1, protocol="reset"), reset_ports
         )
 
     def _gpio(self, ports):
         # Create external outputs
-        self.out += "\n########## GPIO ##########\n"
+        self._bd_str += "\n########## GPIO ##########\n"
         for port in ports:
             self._create_external_port(
                 Port(
@@ -108,9 +113,9 @@ class DesignCreator:
     def _create_external_port(self, port, connect_to_ports=None):
         assert isinstance(port, Port)
         if port.protocol.startswith("xilinx.com:interface:"):
-            self.out += f"create_bd_intf_port -mode {port.mode} -vlnv {port.protocol} {port.name}\n"
+            self._bd_str += f"create_bd_intf_port -mode {port.mode} -vlnv {port.protocol} {port.name}\n"
         else:
-            self.out += f"create_bd_port -dir {port.dir} -from {port.width-1} -to 0 {port.name}\n"
+            self._bd_str += f"create_bd_port -dir {port.dir} -from {port.width-1} -to 0 {port.name}\n"
         if connect_to_ports:
             for port_to in connect_to_ports:
                 self._connect_port(port, port_to)
@@ -119,6 +124,6 @@ class DesignCreator:
         assert isinstance(port1, Port)
         assert isinstance(port2, Port)
         if port1.protocol.startswith("xilinx.com:interface:"):
-            self.out += f"connect_bd_intf_net [get_bd_intf_pins {port1.name}] [get_bd_intf_pins {port2.hier_name}]\n"
+            self._bd_str += f"connect_bd_intf_net [get_bd_intf_pins {port1.name}] [get_bd_intf_pins {port2.hier_name}]\n"
         else:
-            self.out += f"connect_bd_net [get_bd_pins {port1.name}] [get_bd_pins {port2.hier_name}]\n"
+            self._bd_str += f"connect_bd_net [get_bd_pins {port1.name}] [get_bd_pins {port2.hier_name}]\n"
