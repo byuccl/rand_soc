@@ -3,7 +3,7 @@
     * [ ] Configurations
 * Clock system
     * [x] Single external clock
-    * [ ] Single clock generator
+    * [x] Single clock generator
     * [ ] Multiple clock sources
 * Reset system
     * [x] Single external reset

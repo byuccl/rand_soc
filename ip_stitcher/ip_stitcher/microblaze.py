@@ -108,6 +108,17 @@ class Microblaze(IP):
             ),
         )
 
+        self._create_hier_pin(
+            Port(
+                "interrupt",
+                "I",
+                protocol="xilinx.com:interface:mbinterrupt_rtl:1.0",
+                mode="Slave",
+                ip=self,
+            ),
+            (f"{instance_name}/INTERRUPT",),
+        )
+
     @property
     def name(self):
         return "microblaze"

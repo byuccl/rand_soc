@@ -4,7 +4,6 @@ run: .venv/bin/activate
 	$(IN_ENV) python main.py
 
 vivado:
-	cd designs/design_0 && rm -rf test
 	cd designs/design_0 && /tools/Xilinx/Vivado/2022.2/bin/vivado -source design.tcl
 
 env: .venv/bin/activate

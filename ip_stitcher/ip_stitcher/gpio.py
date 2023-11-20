@@ -56,6 +56,9 @@ class Gpio(IP):
             if self.config_dir2 in ("O", "IO"):
                 config["CONFIG.C_DOUT_DEFAULT_2"] = hex(self.config_default_out_val2)
 
+        if self.config_interrupt_enabled:
+            config["CONFIG.C_INTERRUPT_PRESENT"] = 1
+
         self._new_instance("xilinx.com:ip:axi_gpio:2.0", gpio_name, config)
 
         self._create_hier_pin(
@@ -102,6 +105,18 @@ class Gpio(IP):
             ),
             (f"{gpio_name}/S_AXI",),
         )
+
+        if self.config_interrupt_enabled:
+            self._create_hier_pin(
+                Port(
+                    "irq",
+                    "O",
+                    width=1,
+                    protocol="irq",
+                    ip=self,
+                ),
+                (f"{gpio_name}/ip2intc_irpt",),
+            )
         # self.assign_bd_address
 
     def randomize(self):
@@ -128,5 +143,6 @@ class Gpio(IP):
                 self.config_default_tristate_val2 = random.choice(
                     (0, all_ones(self.config_width2), randintwidth(self.config_width2))
                 )
+        self.config_interrupt_enabled = randbool()
 
         # TODO: GPIO Interrupt

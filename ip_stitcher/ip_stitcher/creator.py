@@ -36,6 +36,8 @@ class RandomDesign:
         self.ip = []
         self.clock_port = None
         self.reset_port = None
+        self.ip_idx = 0
+        self.unhandled_ports = []
 
     def create(self):
         """Create the design tcl"""
@@ -45,13 +47,12 @@ class RandomDesign:
 
         template = env.get_template("run.tcl.j2")
 
-        ip_idx = 0
         ip_available = [Gpio, Microblaze, Uartlite]
         for ip in ip_available:
             num_ip = random.randint(1, 3)
             for _ in range(num_ip):
-                self.ip.append(ip(f"ip_{ip_idx}"))
-                ip_idx += 1
+                self.ip.append(ip(f"ip_{self.ip_idx}"))
+                self.ip_idx += 1
 
         for ip in self.ip:
             ip.randomize()
@@ -66,22 +67,24 @@ class RandomDesign:
         self.tcl_str = template.render(project_config)
 
     def _ports(self):
-        all_ports = [port for ip in self.ip for port in ip.ports]
+        self.unhandled_ports += [port for ip in self.ip for port in ip.ports]
 
         # Reset ports
         reset_ports = []
-        pull_from_list(all_ports, reset_ports, lambda p: p.protocol == "reset")
+        pull_from_list(
+            self.unhandled_ports, reset_ports, lambda p: p.protocol == "reset"
+        )
         self._resets(reset_ports)
 
         # Clock ports
         clock_ports = []
-        pull_from_list(all_ports, clock_ports, lambda p: p.protocol == "clk")
+        pull_from_list(self.unhandled_ports, clock_ports, lambda p: p.protocol == "clk")
         self._clocks(clock_ports)
 
         # GPIO, UART ports
         gpio_ports = []
         pull_from_list(
-            all_ports,
+            self.unhandled_ports,
             gpio_ports,
             lambda p: p.protocol
             in (
@@ -91,29 +94,45 @@ class RandomDesign:
         )
         self._gpio(gpio_ports)
 
+        # Interrupt ports
+        interrupt_outputs = []
+        interrupt_microblaze_inputs = []
+        pull_from_list(
+            self.unhandled_ports, interrupt_outputs, lambda p: p.protocol == "irq"
+        )
+        pull_from_list(
+            self.unhandled_ports,
+            interrupt_microblaze_inputs,
+            lambda p: p.protocol == "xilinx.com:interface:mbinterrupt_rtl:1.0",
+        )
+        self._interrupts(interrupt_outputs, interrupt_microblaze_inputs)
+
         # AXI ports
         axi_ports = []
         pull_from_list(
-            all_ports,
+            self.unhandled_ports,
             axi_ports,
             lambda p: p.protocol == "xilinx.com:interface:aximm_rtl:1.0",
         )
         self._axi(axi_ports)
 
-        for port in all_ports:
+        for port in self.unhandled_ports:
             print("Unhandled port:", port)
-        if all_ports:
+        if self.unhandled_ports:
             raise Exception("Unhandled ports")
 
     def _clocks(self, clock_ports):
         # Create single external clock
         self._bd_str += "\n########## Clocks ##########\n"
-        self._new_instance("xilinx.com:ip:clk_wiz:6.0", "clk_gen")
+        clk_gen_name = f"ip_{self.ip_idx}_clk_gen"
+        self._new_instance("xilinx.com:ip:clk_wiz:6.0", clk_gen_name)
+        self.ip_idx += 1
         self._create_external_port(
-            Port("clk", "I", width=1, protocol="clk"), (Port("clk_gen/clk_in1"),)
+            Port("clk", "I", width=1, protocol="clk"),
+            (Port(f"{clk_gen_name}/clk_in1"),),
         )
-        self._connect_port(self.reset_port, Port("clk_gen/reset"))
-        self.clock_port = Port("clk_gen/clk_out1", protocol="clk")
+        self._connect_port(self.reset_port, Port(f"{clk_gen_name}/reset"))
+        self.clock_port = Port(f"{clk_gen_name}/clk_out1", protocol="clk")
         for clock_port in clock_ports:
             self._connect_port(self.clock_port, clock_port)
 
@@ -122,6 +141,23 @@ class RandomDesign:
         self._bd_str += "\n########## Resets ##########\n"
         self.reset_port = Port("reset", "I", width=1, protocol="reset")
         self._create_external_port(self.reset_port, reset_ports)
+
+    def _interrupts(self, interrupt_outputs, interrupt_microblaze_inputs):
+        self._bd_str += "\n########## Interrupts ##########\n"
+        for interrupt_input in interrupt_microblaze_inputs:
+            intc_name = f"intc_{interrupt_input.ip.hier_name}"
+            self._new_instance("xilinx.com:ip:axi_intc:4.1", intc_name)
+            self._connect_port(self.clock_port, Port(f"{intc_name}/s_axi_aclk"))
+            self._connect_port(self.reset_port, Port(f"{intc_name}/s_axi_aresetn"))
+            self.unhandled_ports.append(
+                Port(
+                    f"{intc_name}/s_axi",
+                    protocol="xilinx.com:interface:aximm_rtl:1.0",
+                    mode="Slave",
+                )
+            )
+
+            # self._connect_port
 
     def _gpio(self, ports):
         # Create external outputs
@@ -145,16 +181,18 @@ class RandomDesign:
         assert len(slaves) > 0
 
         self._bd_str += "\n########## AXI ##########\n"
+        axi_name = f"ip_{self.ip_idx}_axi"
+        self.ip_idx += 1
         self._new_instance(
             "xilinx.com:ip:smartconnect:1.0",
-            "axi",
+            axi_name,
             {"CONFIG.NUM_MI": len(slaves), "CONFIG.NUM_SI": len(masters)},
         )
         for i, master in enumerate(masters):
             self._connect_port(
                 master,
                 Port(
-                    f"axi/S{i:02}_AXI",
+                    f"{axi_name}/S{i:02}_AXI",
                     protocol="xilinx.com:ip:smartconnect:1.0",
                 ),
             )
@@ -162,14 +200,14 @@ class RandomDesign:
             self._connect_port(
                 slave,
                 Port(
-                    f"axi/M{i:02}_AXI",
+                    f"{axi_name}/M{i:02}_AXI",
                     protocol="xilinx.com:ip:smartconnect:1.0",
                 ),
             )
             for master in masters:
                 self._assign_bd_address(master, slave)
-        self._connect_port(self.clock_port, Port("axi/aclk"))
-        self._connect_port(self.reset_port, Port("axi/aresetn"))
+        self._connect_port(self.clock_port, Port(f"{axi_name}/aclk"))
+        self._connect_port(self.reset_port, Port(f"{axi_name}/aresetn"))
 
         # assign_bd_address -target_address_space /ip_0_microblaze/microblaze_0/Data [get_bd_addr_segs ip_2_gpio/gpio_0/S_AXI/Reg] -force
 
