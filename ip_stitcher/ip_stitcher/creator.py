@@ -56,15 +56,15 @@ class RandomDesign:
     def _ports(self):
         all_ports = [port for ip in self.ip for port in ip.ports]
 
-        # Clock ports
-        clock_ports = []
-        pull_from_list(all_ports, clock_ports, lambda p: p.protocol == "clk")
-        self._clocks(clock_ports)
-
         # Reset ports
         reset_ports = []
         pull_from_list(all_ports, reset_ports, lambda p: p.protocol == "reset")
         self._resets(reset_ports)
+
+        # Clock ports
+        clock_ports = []
+        pull_from_list(all_ports, clock_ports, lambda p: p.protocol == "clk")
+        self._clocks(clock_ports)
 
         # GPIO ports
         gpio_ports = []
@@ -75,6 +75,15 @@ class RandomDesign:
         )
         self._gpio(gpio_ports)
 
+        # AXI ports
+        axi_ports = []
+        pull_from_list(
+            all_ports,
+            axi_ports,
+            lambda p: p.protocol == "xilinx.com:interface:aximm_rtl:1.0",
+        )
+        self._axi(axi_ports)
+
         for port in all_ports:
             print("Unhandled port:", port)
         if all_ports:
@@ -83,16 +92,20 @@ class RandomDesign:
     def _clocks(self, clock_ports):
         # Create single external clock
         self._bd_str += "\n########## Clocks ##########\n"
+        self._new_instance("xilinx.com:ip:clk_wiz:6.0", "clk_gen")
         self._create_external_port(
-            Port(None, "clk", "I", width=1, protocol="clk"), clock_ports
+            Port("clk", "I", width=1, protocol="clk"), (Port("clk_gen/clk_in1"),)
         )
+        self._connect_port(self.reset_port, Port("clk_gen/reset"))
+        self.clock_port = Port("clk_gen/clk_out1", protocol="clk")
+        for clock_port in clock_ports:
+            self._connect_port(self.clock_port, clock_port)
 
     def _resets(self, reset_ports):
         # Create single external reset
         self._bd_str += "\n########## Resets ##########\n"
-        self._create_external_port(
-            Port(None, "reset", "I", width=1, protocol="reset"), reset_ports
-        )
+        self.reset_port = Port("reset", "I", width=1, protocol="reset")
+        self._create_external_port(self.reset_port, reset_ports)
 
     def _gpio(self, ports):
         # Create external outputs
@@ -100,15 +113,47 @@ class RandomDesign:
         for port in ports:
             self._create_external_port(
                 Port(
-                    None,
                     f"{port.ip.hier_name}_{port.name}",
-                    port.dir,
-                    port.width,
-                    port.protocol,
-                    port.mode,
+                    protocol=port.protocol,
+                    mode=port.mode,
                 ),
                 (port,),
             )
+
+    def _axi(self, ports):
+        """Create AXI ports"""
+        masters = [p for p in ports if p.mode == "Master"]
+        slaves = [p for p in ports if p.mode == "Slave"]
+
+        if len(masters) > 1:
+            # TODO: Support multiple AXI masters
+            raise NotImplementedError("Multiple AXI masters not yet supported")
+        # assert len(slaves) > 0
+
+        self._bd_str += "\n########## AXI ##########\n"
+        self._new_instance(
+            "xilinx.com:ip:smartconnect:1.0",
+            "axi",
+            {"CONFIG.NUM_MI": len(slaves), "CONFIG.NUM_SI": len(masters)},
+        )
+        for i, master in enumerate(masters):
+            self._connect_port(
+                master,
+                Port(
+                    f"axi/S{i:02}_AXI",
+                    protocol="xilinx.com:ip:smartconnect:1.0",
+                ),
+            )
+        for i, slave in enumerate(slaves):
+            self._connect_port(
+                slave,
+                Port(
+                    f"axi/M{i:02}_AXI",
+                    protocol="xilinx.com:ip:smartconnect:1.0",
+                ),
+            )
+        self._connect_port(self.clock_port, Port("axi/aclk"))
+        self._connect_port(self.reset_port, Port("axi/aresetn"))
 
     def _create_external_port(self, port, connect_to_ports=None):
         assert isinstance(port, Port)
@@ -124,6 +169,18 @@ class RandomDesign:
         assert isinstance(port1, Port)
         assert isinstance(port2, Port)
         if port1.protocol.startswith("xilinx.com:interface:"):
-            self._bd_str += f"connect_bd_intf_net [get_bd_intf_pins {port1.name}] [get_bd_intf_pins {port2.hier_name}]\n"
+            self._bd_str += f"connect_bd_intf_net [get_bd_intf_pins {port1.hier_name}] [get_bd_intf_pins {port2.hier_name}]\n"
         else:
-            self._bd_str += f"connect_bd_net [get_bd_pins {port1.name}] [get_bd_pins {port2.hier_name}]\n"
+            self._bd_str += f"connect_bd_net [get_bd_pins {port1.hier_name}] [get_bd_pins {port2.hier_name}]\n"
+
+    def _new_instance(self, ip_name, instance_name, properties=None):
+        self._bd_str += f"create_bd_cell -type ip -vlnv {ip_name} {instance_name}\n"
+        if properties:
+            self._set_instance_properties(instance_name, properties)
+
+    def _set_instance_properties(self, instance_name, properties):
+        # Combine key, value pairs into a single string
+        prop = ""
+        for key, value in properties.items():
+            prop += f"{key} {value} "
+        self._bd_str += f'set_property -dict "{prop}" [get_bd_cells {instance_name}]\n'

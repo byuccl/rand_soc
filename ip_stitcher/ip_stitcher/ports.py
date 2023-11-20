@@ -1,5 +1,5 @@
 class Port:
-    def __init__(self, ip, name, dir, width=1, protocol=None, mode=None):
+    def __init__(self, name, dir=None, width=None, protocol=None, mode=None, ip=None):
         self.ip = ip
         self.name = name
         self.dir = dir
@@ -9,7 +9,10 @@ class Port:
 
     @property
     def hier_name(self):
-        return f"{self.ip.hier_name}/{self.name}"
+        if self.ip:
+            return f"{self.ip.hier_name}/{self.name}"
+        else:
+            return self.name
 
     def __repr__(self):
         return f"Port({self.ip.name}, {self.name}, {self.dir}, {self.width}, {self.protocol}, {self.mode})"

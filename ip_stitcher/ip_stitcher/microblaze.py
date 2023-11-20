@@ -20,7 +20,7 @@ class Microblaze(IP):
         if self.axi_master:
             microblaze_config["CONFIG.C_D_AXI"] = 1
         self.new_instance(
-            "xilinx.com:ip:microblaze:11.0", self.instance_name, microblaze_config
+            "xilinx.com:ip:microblaze:11.0", instance_name, microblaze_config
         )
 
         # Instruction memory
@@ -65,22 +65,14 @@ class Microblaze(IP):
             self.instance_str += "# AXI\n"
             self.create_hier_pin(
                 Port(
-                    self,
                     "AXI",
                     "O",
                     width=None,
                     protocol="xilinx.com:interface:aximm_rtl:1.0",
                     mode="Master",
+                    ip=self,
                 ),
-                (f"{instance_name}/M_AXI",),
-            )
-            axi_name = "axi"
-            self.new_instance("xilinx.com:ip:axi_bram_ctrl:4.0", axi_name)
-            self.connect_instance_pin(
-                f"{mem_name}/BRAM_PORTA", f"{axi_name}/BRAM_PORTA"
-            )
-            self.connect_instance_pin(
-                f"{mem_name}/BRAM_PORTB", f"{axi_name}/BRAM_PORTB"
+                (f"{instance_name}/M_AXI_DP",),
             )
 
         # Address space
@@ -90,7 +82,7 @@ class Microblaze(IP):
         # Create BD pins
         self.instance_str += "# Create BD pins\n"
         self.create_hier_pin(
-            Port(self, "clk", "I", width=1, protocol="clk"),
+            Port("clk", "I", width=1, protocol="clk", ip=self),
             (
                 f"{instance_name}/Clk",
                 f"{mem_bus_insn_name}/LMB_Clk",
@@ -101,7 +93,7 @@ class Microblaze(IP):
         )
 
         self.create_hier_pin(
-            Port(self, "reset", "I", width=1, protocol="reset"),
+            Port("reset", "I", width=1, protocol="reset", ip=self),
             (
                 f"{instance_name}/Reset",
                 f"{mem_bus_insn_name}/SYS_Rst",

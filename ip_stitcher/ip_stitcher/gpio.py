@@ -47,22 +47,34 @@ class Gpio(IP):
 
         self.instance_str += "# Create BD pins\n"
         self.create_hier_pin(
-            Port(self, "clk", "I", 1, "clk"), (f"{gpio_name}/s_axi_aclk",)
+            Port("clk", "I", 1, "clk", ip=self), (f"{gpio_name}/s_axi_aclk",)
         )
         self.create_hier_pin(
-            Port(self, "reset", "I", 1, "reset"), (f"{gpio_name}/s_axi_aresetn",)
+            Port("reset", "I", 1, "reset", ip=self), (f"{gpio_name}/s_axi_aresetn",)
         )
         self.create_hier_pin(
             Port(
-                self,
                 "GPIO",
                 self.config_dir,
                 self.config_width,
                 "xilinx.com:interface:gpio_rtl:1.0",
                 mode="Master",
+                ip=self,
             ),
             gpio_pins,
         )
+        self.create_hier_pin(
+            Port(
+                "AXI",
+                "I",
+                width=None,
+                protocol="xilinx.com:interface:aximm_rtl:1.0",
+                mode="Slave",
+                ip=self,
+            ),
+            (f"{gpio_name}/S_AXI",),
+        )
+        # self.assign_bd_address
 
     def randomize(self):
         self.config_dir = "IO"  # random.choice(["I", "O", "IO"])
