@@ -19,7 +19,7 @@ class Microblaze(IP):
         microblaze_config = {}
         if self.axi_master:
             microblaze_config["CONFIG.C_D_AXI"] = 1
-        self.new_instance(
+        self._new_instance(
             "xilinx.com:ip:microblaze:11.0", instance_name, microblaze_config
         )
 
@@ -27,10 +27,12 @@ class Microblaze(IP):
         mem_bus_insn_name = "lmb_i"
         mem_ctrl_insn_name = "lmb_ctrl_i"
         self.instance_str += "# Instruction memory\n"
-        self.new_instance("xilinx.com:ip:lmb_v10:3.0", mem_bus_insn_name)
-        self.new_instance("xilinx.com:ip:lmb_bram_if_cntlr:4.0", mem_ctrl_insn_name)
-        self.connect_instance_pin(f"{instance_name}/ILMB", f"{mem_bus_insn_name}/LMB_M")
-        self.connect_instance_pin(
+        self._new_instance("xilinx.com:ip:lmb_v10:3.0", mem_bus_insn_name)
+        self._new_instance("xilinx.com:ip:lmb_bram_if_cntlr:4.0", mem_ctrl_insn_name)
+        self._connect_instance_pin(
+            f"{instance_name}/ILMB", f"{mem_bus_insn_name}/LMB_M"
+        )
+        self._connect_instance_pin(
             f"{mem_bus_insn_name}/LMB_Sl_0", f"{mem_ctrl_insn_name}/SLMB"
         )
 
@@ -38,32 +40,34 @@ class Microblaze(IP):
         mem_bus_data_name = "lmb_d"
         mem_ctrl_data_name = "lmb_ctrl_d"
         self.instance_str += "# Data memory\n"
-        self.new_instance("xilinx.com:ip:lmb_v10:3.0", mem_bus_data_name)
-        self.new_instance("xilinx.com:ip:lmb_bram_if_cntlr:4.0", mem_ctrl_data_name)
-        self.connect_instance_pin(f"{instance_name}/DLMB", f"{mem_bus_data_name}/LMB_M")
-        self.connect_instance_pin(
+        self._new_instance("xilinx.com:ip:lmb_v10:3.0", mem_bus_data_name)
+        self._new_instance("xilinx.com:ip:lmb_bram_if_cntlr:4.0", mem_ctrl_data_name)
+        self._connect_instance_pin(
+            f"{instance_name}/DLMB", f"{mem_bus_data_name}/LMB_M"
+        )
+        self._connect_instance_pin(
             f"{mem_bus_data_name}/LMB_Sl_0", f"{mem_ctrl_data_name}/SLMB"
         )
 
         # Memory
         self.instance_str += "# Memory\n"
         mem_name = "mem"
-        self.new_instance(
+        self._new_instance(
             "xilinx.com:ip:blk_mem_gen:8.4",
             mem_name,
             properties={"CONFIG.Memory_Type": "True_Dual_Port_RAM"},
         )
-        self.connect_instance_pin(
+        self._connect_instance_pin(
             f"{mem_ctrl_insn_name}/BRAM_PORT", f"{mem_name}/BRAM_PORTA"
         )
-        self.connect_instance_pin(
+        self._connect_instance_pin(
             f"{mem_ctrl_data_name}/BRAM_PORT", f"{mem_name}/BRAM_PORTB"
         )
 
         # AXI
         if self.axi_master:
             self.instance_str += "# AXI\n"
-            self.create_hier_pin(
+            self._create_hier_pin(
                 Port(
                     "AXI",
                     "O",
@@ -71,17 +75,18 @@ class Microblaze(IP):
                     protocol="xilinx.com:interface:aximm_rtl:1.0",
                     mode="Master",
                     ip=self,
+                    addr_seg_name=f"{instance_name}/Data",
                 ),
                 (f"{instance_name}/M_AXI_DP",),
             )
 
         # Address space
-        self.assign_bd_address(f"{instance_name}/Data", "lmb_ctrl_d/SLMB/Mem")
-        self.assign_bd_address(f"{instance_name}/Instruction", "lmb_ctrl_i/SLMB/Mem")
+        self._assign_bd_address(f"{instance_name}/Data", "lmb_ctrl_d/SLMB/Mem")
+        self._assign_bd_address(f"{instance_name}/Instruction", "lmb_ctrl_i/SLMB/Mem")
 
         # Create BD pins
         self.instance_str += "# Create BD pins\n"
-        self.create_hier_pin(
+        self._create_hier_pin(
             Port("clk", "I", width=1, protocol="clk", ip=self),
             (
                 f"{instance_name}/Clk",
@@ -92,7 +97,7 @@ class Microblaze(IP):
             ),
         )
 
-        self.create_hier_pin(
+        self._create_hier_pin(
             Port("reset", "I", width=1, protocol="reset", ip=self),
             (
                 f"{instance_name}/Reset",

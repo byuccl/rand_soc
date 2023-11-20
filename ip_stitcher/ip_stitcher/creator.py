@@ -37,9 +37,13 @@ class RandomDesign:
 
         template = env.get_template("run.tcl.j2")
 
-        microblaze = Microblaze("ip_0")
-        gpio = Gpio("ip_1")
-        self.ip = [microblaze, gpio]
+        ip_idx = 0
+        ip_available = [Gpio, Microblaze]
+        for ip in ip_available:
+            num_ip = random.randint(1, 3)
+            for _ in range(num_ip):
+                self.ip.append(ip(f"ip_{ip_idx}"))
+                ip_idx += 1
 
         for ip in self.ip:
             ip.randomize()
@@ -125,10 +129,8 @@ class RandomDesign:
         masters = [p for p in ports if p.mode == "Master"]
         slaves = [p for p in ports if p.mode == "Slave"]
 
-        if len(masters) > 1:
-            # TODO: Support multiple AXI masters
-            raise NotImplementedError("Multiple AXI masters not yet supported")
-        # assert len(slaves) > 0
+        # TODO: Non-complete crossbars
+        assert len(slaves) > 0
 
         self._bd_str += "\n########## AXI ##########\n"
         self._new_instance(
@@ -152,15 +154,19 @@ class RandomDesign:
                     protocol="xilinx.com:ip:smartconnect:1.0",
                 ),
             )
+            for master in masters:
+                self._assign_bd_address(master, slave)
         self._connect_port(self.clock_port, Port("axi/aclk"))
         self._connect_port(self.reset_port, Port("axi/aresetn"))
+
+        # assign_bd_address -target_address_space /ip_0_microblaze/microblaze_0/Data [get_bd_addr_segs ip_2_gpio/gpio_0/S_AXI/Reg] -force
 
     def _create_external_port(self, port, connect_to_ports=None):
         assert isinstance(port, Port)
         if port.protocol.startswith("xilinx.com:interface:"):
             self._bd_str += f"create_bd_intf_port -mode {port.mode} -vlnv {port.protocol} {port.name}\n"
         else:
-            self._bd_str += f"create_bd_port -dir {port.dir} -from {port.width-1} -to 0 {port.name}\n"
+            self._bd_str += f"create_bd_port -dir {port.direction} -from {port.width-1} -to 0 {port.name}\n"
         if connect_to_ports:
             for port_to in connect_to_ports:
                 self._connect_port(port, port_to)
@@ -184,3 +190,7 @@ class RandomDesign:
         for key, value in properties.items():
             prop += f"{key} {value} "
         self._bd_str += f'set_property -dict "{prop}" [get_bd_cells {instance_name}]\n'
+
+    def _assign_bd_address(self, master_port, slave_port):
+        # assign_bd_address -target_address_space /ip_0_microblaze/microblaze_0/Data [get_bd_addr_segs ip_2_gpio/gpio_0/S_AXI/Reg] -force
+        self._bd_str += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} [get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
