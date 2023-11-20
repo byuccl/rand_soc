@@ -2,6 +2,7 @@ import random
 
 import jinja2
 
+from .uartlite import Uartlite
 from .ports import Port
 from .utils import pull_from_list
 from .gpio import Gpio
@@ -9,6 +10,8 @@ from .microblaze import Microblaze
 
 
 class DesignCreator:
+    """Creates multiple designs"""
+
     def __init__(self):
         random.seed(0)
 
@@ -25,12 +28,17 @@ class DesignCreator:
 
 
 class RandomDesign:
+    """Creates a random design"""
+
     def __init__(self):
         self.tcl_str = ""
         self._bd_str = ""
         self.ip = []
+        self.clock_port = None
+        self.reset_port = None
 
     def create(self):
+        """Create the design tcl"""
         project_config = {"part": "xc7a200tsbg484-1", "bd_name": "design_1"}
 
         env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
@@ -38,7 +46,7 @@ class RandomDesign:
         template = env.get_template("run.tcl.j2")
 
         ip_idx = 0
-        ip_available = [Gpio, Microblaze]
+        ip_available = [Gpio, Microblaze, Uartlite]
         for ip in ip_available:
             num_ip = random.randint(1, 3)
             for _ in range(num_ip):
@@ -70,12 +78,16 @@ class RandomDesign:
         pull_from_list(all_ports, clock_ports, lambda p: p.protocol == "clk")
         self._clocks(clock_ports)
 
-        # GPIO ports
+        # GPIO, UART ports
         gpio_ports = []
         pull_from_list(
             all_ports,
             gpio_ports,
-            lambda p: p.protocol == "xilinx.com:interface:gpio_rtl:1.0",
+            lambda p: p.protocol
+            in (
+                "xilinx.com:interface:gpio_rtl:1.0",
+                "xilinx.com:interface:uart_rtl:1.0",
+            ),
         )
         self._gpio(gpio_ports)
 
@@ -113,7 +125,7 @@ class RandomDesign:
 
     def _gpio(self, ports):
         # Create external outputs
-        self._bd_str += "\n########## GPIO ##########\n"
+        self._bd_str += "\n########## GPIO, UART ##########\n"
         for port in ports:
             self._create_external_port(
                 Port(

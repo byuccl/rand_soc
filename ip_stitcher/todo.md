@@ -12,10 +12,13 @@
 * GPIO
     * [x] Basic GPIO
     * [x] Configurations
+* [x] UART
 * AXI Bus
     * [x] Single master
-    * [ ] Multiple masters
+    * [x] Multiple masters
+    * [ ] Non-complete interconnects
 * Interrupts
-* Multiple IP instances
+    * [ ] Point to point
+* [x] Multiple IP instances
 * IP
     * [ ] DMA

@@ -1,3 +1,5 @@
+""" GPIO IP """
+
 import random
 
 from .ports import Port
@@ -6,6 +8,8 @@ from .utils import all_ones, randbool, randintwidth
 
 
 class Gpio(IP):
+    """GPIO IP class"""
+
     def __init__(self, name):
         super().__init__(name)
         self.config_dir = None
