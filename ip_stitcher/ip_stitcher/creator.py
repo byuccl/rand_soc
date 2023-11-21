@@ -1,10 +1,13 @@
 import random
+import sys
 
 import jinja2
 
+from .axi import Axi
+from .clk_gen import ClkGen
+from .intc import Intc
 from .uartlite import Uartlite
-from .ports import Port
-from .utils import pull_from_list
+from .ports import ExternalPortInterface, ExternalPortRegular, Port
 from .gpio import Gpio
 from .microblaze import Microblaze
 
@@ -32,12 +35,15 @@ class RandomDesign:
 
     def __init__(self):
         self.tcl_str = ""
+
+        # Block diagram string
         self._bd_str = ""
+        self.ip_to_ip_connections_str = "# IP to IP connections\n"
         self.ip = []
-        self.clock_port = None
-        self.reset_port = None
+        self.port_clock = None
+        self.port_reset = None
         self.ip_idx = 0
-        self.unhandled_ports = []
+        self.axi_complete = False
 
     def create(self):
         """Create the design tcl"""
@@ -51,183 +57,188 @@ class RandomDesign:
         for ip in ip_available:
             num_ip = random.randint(1, 3)
             for _ in range(num_ip):
-                self.ip.append(ip(f"ip_{self.ip_idx}"))
-                self.ip_idx += 1
+                self._new_ip(ip)
 
         for ip in self.ip:
             ip.randomize()
 
         for ip in self.ip:
             ip.instance()
-            self._bd_str += ip.instance_str
 
         self._ports()
+
+        ip_str = "".join([ip.bd_str for ip in self.ip])
+
+        self._bd_str = ip_str + self._bd_str + self.ip_to_ip_connections_str
 
         project_config["block_diagram"] = self._bd_str
         self.tcl_str = template.render(project_config)
 
     def _ports(self):
-        self.unhandled_ports += [port for ip in self.ip for port in ip.ports]
+        disconnected_ports_old = []
 
-        # Reset ports
-        reset_ports = []
-        pull_from_list(
-            self.unhandled_ports, reset_ports, lambda p: p.protocol == "reset"
-        )
-        self._resets(reset_ports)
+        while True:
+            disconnected_ports = [
+                p for ip in self.ip for p in ip.ports if not p.connected
+            ]
+            if len(disconnected_ports) == 0:
+                break
 
-        # Clock ports
-        clock_ports = []
-        pull_from_list(self.unhandled_ports, clock_ports, lambda p: p.protocol == "clk")
-        self._clocks(clock_ports)
+            still_disconnected_ports = [
+                p for p in disconnected_ports if p in disconnected_ports_old
+            ]
+            if still_disconnected_ports:
+                for port in still_disconnected_ports:
+                    print("Unhandled port:", port)
+                break
 
-        # GPIO, UART ports
-        gpio_ports = []
-        pull_from_list(
-            self.unhandled_ports,
-            gpio_ports,
-            lambda p: p.protocol
+            disconnected_ports_old = disconnected_ports
+
+            # Reset ports
+            self._resets()
+
+            # Clock ports
+            self._clocks()
+
+            # GPIO, UART ports
+            self._gpio()
+
+            # Interrupt ports
+            self._interrupts()
+
+            # AXI ports
+            self._axi()
+
+    def _clocks(self):
+        clock_inputs = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "clk" and not p.connected and p.direction == "I"
+        ]
+
+        # Create single external clock
+        self._bd_str += "\n########## Clocks ##########\n"
+        if self.port_clock is None:
+            clk_ip = self._new_ip(ClkGen)
+            self._create_external_port("clk", "clk", "I", width=1).connect(
+                clk_ip.port_clk_in
+            )
+            self.port_clock = clk_ip.port_clk_out
+
+        self.port_clock.connect(clock_inputs)
+        for port in clock_inputs:
+            port.connected = True
+
+    def _resets(self):
+        # Collect unconnected reset inputs
+        reset_inputs = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "reset" and not p.connected and p.direction == "I"
+        ]
+
+        # Create single external reset
+        self._bd_str += "\n########## Resets ##########\n"
+        # self.reset_port = Port("reset", "I", width=1, protocol="reset")
+        self.port_reset = self._create_external_port("reset", "reset", "I", 1)
+        self.port_reset.connect(reset_inputs)
+        for port in reset_inputs:
+            port.connected = True
+
+    def _interrupts(
+        self,
+    ):
+        interrupt_outputs = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "irq" and not p.connected and p.direction == "O"
+        ]
+        interrupt_microblaze_inputs = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "xilinx.com:interface:mbinterrupt_rtl:1.0"
+            and not p.connected
+            and p.direction == "Slave"
+        ]
+
+        self._bd_str += "\n########## Interrupts ##########\n"
+        for interrupt_input in interrupt_microblaze_inputs:
+            intc = self._new_ip(Intc)
+
+    def _gpio(self):
+        ports = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol
             in (
                 "xilinx.com:interface:gpio_rtl:1.0",
                 "xilinx.com:interface:uart_rtl:1.0",
-            ),
-        )
-        self._gpio(gpio_ports)
-
-        # Interrupt ports
-        interrupt_outputs = []
-        interrupt_microblaze_inputs = []
-        pull_from_list(
-            self.unhandled_ports, interrupt_outputs, lambda p: p.protocol == "irq"
-        )
-        pull_from_list(
-            self.unhandled_ports,
-            interrupt_microblaze_inputs,
-            lambda p: p.protocol == "xilinx.com:interface:mbinterrupt_rtl:1.0",
-        )
-        self._interrupts(interrupt_outputs, interrupt_microblaze_inputs)
-
-        # AXI ports
-        axi_ports = []
-        pull_from_list(
-            self.unhandled_ports,
-            axi_ports,
-            lambda p: p.protocol == "xilinx.com:interface:aximm_rtl:1.0",
-        )
-        self._axi(axi_ports)
-
-        for port in self.unhandled_ports:
-            print("Unhandled port:", port)
-        if self.unhandled_ports:
-            raise Exception("Unhandled ports")
-
-    def _clocks(self, clock_ports):
-        # Create single external clock
-        self._bd_str += "\n########## Clocks ##########\n"
-        clk_gen_name = f"ip_{self.ip_idx}_clk_gen"
-        self._new_instance("xilinx.com:ip:clk_wiz:6.0", clk_gen_name)
-        self.ip_idx += 1
-        self._create_external_port(
-            Port("clk", "I", width=1, protocol="clk"),
-            (Port(f"{clk_gen_name}/clk_in1"),),
-        )
-        self._connect_port(self.reset_port, Port(f"{clk_gen_name}/reset"))
-        self.clock_port = Port(f"{clk_gen_name}/clk_out1", protocol="clk")
-        for clock_port in clock_ports:
-            self._connect_port(self.clock_port, clock_port)
-
-    def _resets(self, reset_ports):
-        # Create single external reset
-        self._bd_str += "\n########## Resets ##########\n"
-        self.reset_port = Port("reset", "I", width=1, protocol="reset")
-        self._create_external_port(self.reset_port, reset_ports)
-
-    def _interrupts(self, interrupt_outputs, interrupt_microblaze_inputs):
-        self._bd_str += "\n########## Interrupts ##########\n"
-        for interrupt_input in interrupt_microblaze_inputs:
-            intc_name = f"intc_{interrupt_input.ip.hier_name}"
-            self._new_instance("xilinx.com:ip:axi_intc:4.1", intc_name)
-            self._connect_port(self.clock_port, Port(f"{intc_name}/s_axi_aclk"))
-            self._connect_port(self.reset_port, Port(f"{intc_name}/s_axi_aresetn"))
-            self.unhandled_ports.append(
-                Port(
-                    f"{intc_name}/s_axi",
-                    protocol="xilinx.com:interface:aximm_rtl:1.0",
-                    mode="Slave",
-                )
             )
+            and not p.connected
+        ]
 
-            # self._connect_port
-
-    def _gpio(self, ports):
         # Create external outputs
         self._bd_str += "\n########## GPIO, UART ##########\n"
         for port in ports:
             self._create_external_port(
-                Port(
-                    f"{port.ip.hier_name}_{port.name}",
-                    protocol=port.protocol,
-                    mode=port.mode,
-                ),
-                (port,),
-            )
+                f"{port.ip.hier_name}_{port.name}", port.protocol, port.direction
+            ).connect(port)
+            port.connected = True
 
-    def _axi(self, ports):
+    def _axi(self):
         """Create AXI ports"""
-        masters = [p for p in ports if p.mode == "Master"]
-        slaves = [p for p in ports if p.mode == "Slave"]
+        masters = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "xilinx.com:interface:aximm_rtl:1.0"
+            and not p.connected
+            and p.direction == "Master"
+        ]
+        slaves = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "xilinx.com:interface:aximm_rtl:1.0"
+            and not p.connected
+            and p.direction == "Slave"
+        ]
+        if not masters or not slaves:
+            return
+
+        # Incremental AXI not supported
+        assert not self.axi_complete
+        self.axi_complete = True
 
         # TODO: Non-complete crossbars
-        assert len(slaves) > 0
+        assert len(slaves)
+        assert len(masters)
 
         self._bd_str += "\n########## AXI ##########\n"
-        axi_name = f"ip_{self.ip_idx}_axi"
-        self.ip_idx += 1
-        self._new_instance(
-            "xilinx.com:ip:smartconnect:1.0",
-            axi_name,
-            {"CONFIG.NUM_MI": len(slaves), "CONFIG.NUM_SI": len(masters)},
-        )
+        axi = self._new_ip(Axi, (len(masters), len(slaves)))
+
         for i, master in enumerate(masters):
-            self._connect_port(
-                master,
-                Port(
-                    f"{axi_name}/S{i:02}_AXI",
-                    protocol="xilinx.com:ip:smartconnect:1.0",
-                ),
-            )
+            master.connect(axi.port_masters[i])
+            master.connected = True
         for i, slave in enumerate(slaves):
-            self._connect_port(
-                slave,
-                Port(
-                    f"{axi_name}/M{i:02}_AXI",
-                    protocol="xilinx.com:ip:smartconnect:1.0",
-                ),
-            )
+            slave.connect(axi.port_slaves[i])
+            slave.connected = True
             for master in masters:
                 self._assign_bd_address(master, slave)
-        self._connect_port(self.clock_port, Port(f"{axi_name}/aclk"))
-        self._connect_port(self.reset_port, Port(f"{axi_name}/aresetn"))
 
         # assign_bd_address -target_address_space /ip_0_microblaze/microblaze_0/Data [get_bd_addr_segs ip_2_gpio/gpio_0/S_AXI/Reg] -force
 
-    def _create_external_port(self, port, connect_to_ports=None):
-        assert isinstance(port, Port)
-        if port.protocol.startswith("xilinx.com:interface:"):
-            self._bd_str += f"create_bd_intf_port -mode {port.mode} -vlnv {port.protocol} {port.name}\n"
+    def _create_external_port(self, name, protocol, direction, width=None):
+        if protocol.startswith("xilinx.com:interface:"):
+            port = ExternalPortInterface(self, name, protocol, direction)
         else:
-            self._bd_str += f"create_bd_port -dir {port.direction} -from {port.width-1} -to 0 {port.name}\n"
-        if connect_to_ports:
-            for port_to in connect_to_ports:
-                self._connect_port(port, port_to)
-
-    def _connect_port(self, port1, port2):
-        assert isinstance(port1, Port)
-        assert isinstance(port2, Port)
-        if port1.protocol.startswith("xilinx.com:interface:"):
-            self._bd_str += f"connect_bd_intf_net [get_bd_intf_pins {port1.hier_name}] [get_bd_intf_pins {port2.hier_name}]\n"
-        else:
-            self._bd_str += f"connect_bd_net [get_bd_pins {port1.hier_name}] [get_bd_pins {port2.hier_name}]\n"
+            port = ExternalPortRegular(self, name, protocol, direction, width)
+        return port
 
     def _new_instance(self, ip_name, instance_name, properties=None):
         self._bd_str += f"create_bd_cell -type ip -vlnv {ip_name} {instance_name}\n"
@@ -243,4 +254,17 @@ class RandomDesign:
 
     def _assign_bd_address(self, master_port, slave_port):
         # assign_bd_address -target_address_space /ip_0_microblaze/microblaze_0/Data [get_bd_addr_segs ip_2_gpio/gpio_0/S_AXI/Reg] -force
-        self._bd_str += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} [get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
+        self._bd_str += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} "
+        if slave_port.ip:
+            self._bd_str += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
+        else:
+            self._bd_str += f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+
+    def _new_ip(self, ip_class, args=None):
+        """Create a new IP instance"""
+        if args is None:
+            args = []
+        new_ip = ip_class(self, f"ip_{self.ip_idx}", *args)
+        self.ip.append(new_ip)
+        self.ip_idx += 1
+        return new_ip

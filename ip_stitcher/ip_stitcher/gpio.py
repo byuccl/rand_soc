@@ -3,15 +3,15 @@
 import random
 
 from .ports import Port
-from .ip import IP
+from .ip import IPrandom
 from .utils import all_ones, randbool, randintwidth
 
 
-class Gpio(IP):
+class Gpio(IPrandom):
     """GPIO IP class"""
 
-    def __init__(self, name):
-        super().__init__(name)
+    def __init__(self, design, name):
+        super().__init__(design, name)
         self.config_dir = None
         self.config_width = None
         self.config_default_out_val = None
@@ -27,7 +27,7 @@ class Gpio(IP):
         return "gpio"
 
     def instance(self):
-        self.instance_str += f"create_bd_cell -type hier {self.hier_name}\n"
+        super().instance()
 
         gpio_name = "gpio_0"
         config = {}
@@ -62,62 +62,27 @@ class Gpio(IP):
         self._new_instance("xilinx.com:ip:axi_gpio:2.0", gpio_name, config)
 
         self._create_hier_pin(
-            Port(
-                "GPIO",
-                self.config_dir,
-                self.config_width,
-                "xilinx.com:interface:gpio_rtl:1.0",
-                mode="Master",
-                ip=self,
-            ),
-            (f"{gpio_name}/GPIO",),
-        )
+            "GPIO", "xilinx.com:interface:gpio_rtl:1.0", direction="Master"
+        ).connect(f"{gpio_name}/GPIO")
+
         if self.config_dual_channel:
             self._create_hier_pin(
-                Port(
-                    "GPIO2",
-                    self.config_dir2,
-                    self.config_width2,
-                    "xilinx.com:interface:gpio_rtl:1.0",
-                    mode="Master",
-                    ip=self,
-                ),
-                (f"{gpio_name}/GPIO2",),
-            )
+                "GPIO2", "xilinx.com:interface:gpio_rtl:1.0", direction="Master"
+            ).connect(f"{gpio_name}/GPIO2")
 
-        self.instance_str += "# Create BD pins\n"
-        self._create_hier_pin(
-            Port("clk", "I", 1, "clk", ip=self), (f"{gpio_name}/s_axi_aclk",)
+        self._bd_str += "# Create BD pins\n"
+        self._create_hier_pin("clk", "clk", "I", 1).connect(f"{gpio_name}/s_axi_aclk")
+        self._create_hier_pin("reset", "reset", "I", 1).connect(
+            f"{gpio_name}/s_axi_aresetn"
         )
         self._create_hier_pin(
-            Port("reset", "I", 1, "reset", ip=self), (f"{gpio_name}/s_axi_aresetn",)
-        )
-
-        self._create_hier_pin(
-            Port(
-                "AXI",
-                "I",
-                width=None,
-                protocol="xilinx.com:interface:aximm_rtl:1.0",
-                mode="Slave",
-                ip=self,
-                addr_seg_name=f"{gpio_name}/S_AXI/Reg",
-            ),
-            (f"{gpio_name}/S_AXI",),
-        )
+            "AXI", "xilinx.com:interface:aximm_rtl:1.0", "Slave"
+        ).connect(f"{gpio_name}/S_AXI")
 
         if self.config_interrupt_enabled:
-            self._create_hier_pin(
-                Port(
-                    "irq",
-                    "O",
-                    width=1,
-                    protocol="irq",
-                    ip=self,
-                ),
-                (f"{gpio_name}/ip2intc_irpt",),
+            self._create_hier_pin("irq", "irq", "O", 1).connect(
+                f"{gpio_name}/ip2intc_irpt"
             )
-        # self.assign_bd_address
 
     def randomize(self):
         self.config_dir = "IO"  # random.choice(["I", "O", "IO"])
