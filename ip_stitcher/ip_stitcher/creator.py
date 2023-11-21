@@ -37,8 +37,9 @@ class RandomDesign:
         self.tcl_str = ""
 
         # Block diagram string
-        self._bd_str = ""
-        self.ip_to_ip_connections_str = "# IP to IP connections\n"
+        self._bd_tcl = ""
+        self.ip_to_ip_connections_tcl = "\n########## IP to IP connections ##########\n"
+        self._addr_space_tcl = "\n########## Address space ##########\n"
         self.ip = []
         self.port_clock = None
         self.port_reset = None
@@ -69,28 +70,37 @@ class RandomDesign:
 
         ip_str = "".join([ip.bd_str for ip in self.ip])
 
-        self._bd_str = ip_str + self._bd_str + self.ip_to_ip_connections_str
+        self._bd_tcl = (
+            ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
+        )
 
-        project_config["block_diagram"] = self._bd_str
+        project_config["block_diagram"] = self._bd_tcl
         self.tcl_str = template.render(project_config)
 
     def _ports(self):
-        disconnected_ports_old = []
+        unhandled_ports = set()
+        disconnected_ports_old = set()
 
         while True:
-            disconnected_ports = [
-                p for ip in self.ip for p in ip.ports if not p.connected
-            ]
+            if len(unhandled_ports) > 10000:
+                print("Too many unhandled ports - endless loop of port creation?")
+                sys.exit(1)
+
+            # Get disconnected ports, that we haven't previously ignored.
+            # If there are no more ports to handle, exit the loop.
+            disconnected_ports = set(
+                p
+                for ip in self.ip
+                for p in ip.ports
+                if (not p.connected) and (not p in unhandled_ports)
+            )
             if len(disconnected_ports) == 0:
                 break
 
-            still_disconnected_ports = [
-                p for p in disconnected_ports if p in disconnected_ports_old
-            ]
-            if still_disconnected_ports:
-                for port in still_disconnected_ports:
-                    print("Unhandled port:", port)
-                break
+            # Ignore ports that are still disconnected from last iteration
+            for p in disconnected_ports:
+                if p in disconnected_ports_old:
+                    unhandled_ports.add(p)
 
             disconnected_ports_old = disconnected_ports
 
@@ -109,6 +119,9 @@ class RandomDesign:
             # AXI ports
             self._axi()
 
+        for port in unhandled_ports:
+            print("Unhandled port:", port)
+
     def _clocks(self):
         clock_inputs = [
             p
@@ -118,7 +131,7 @@ class RandomDesign:
         ]
 
         # Create single external clock
-        self._bd_str += "\n########## Clocks ##########\n"
+        self._bd_tcl += "\n########## Clocks ##########\n"
         if self.port_clock is None:
             clk_ip = self._new_ip(ClkGen)
             self._create_external_port("clk", "clk", "I", width=1).connect(
@@ -127,8 +140,6 @@ class RandomDesign:
             self.port_clock = clk_ip.port_clk_out
 
         self.port_clock.connect(clock_inputs)
-        for port in clock_inputs:
-            port.connected = True
 
     def _resets(self):
         # Collect unconnected reset inputs
@@ -140,12 +151,11 @@ class RandomDesign:
         ]
 
         # Create single external reset
-        self._bd_str += "\n########## Resets ##########\n"
-        # self.reset_port = Port("reset", "I", width=1, protocol="reset")
-        self.port_reset = self._create_external_port("reset", "reset", "I", 1)
+        if self.port_reset is None:
+            self._bd_tcl += "\n########## Resets ##########\n"
+            self.port_reset = self._create_external_port("reset", "reset", "I", 1)
+
         self.port_reset.connect(reset_inputs)
-        for port in reset_inputs:
-            port.connected = True
 
     def _interrupts(
         self,
@@ -165,9 +175,12 @@ class RandomDesign:
             and p.direction == "Slave"
         ]
 
-        self._bd_str += "\n########## Interrupts ##########\n"
+        self._bd_tcl += "\n########## Interrupts ##########\n"
         for interrupt_input in interrupt_microblaze_inputs:
-            intc = self._new_ip(Intc)
+            intc = self._new_ip(Intc, (len(interrupt_outputs),))
+            for i, interrupt_output in enumerate(interrupt_outputs):
+                intc.input_ports[i].connect(interrupt_output)
+            interrupt_input.connect(intc.port_irq)
 
     def _gpio(self):
         ports = [
@@ -183,12 +196,11 @@ class RandomDesign:
         ]
 
         # Create external outputs
-        self._bd_str += "\n########## GPIO, UART ##########\n"
+        self._bd_tcl += "\n########## GPIO, UART ##########\n"
         for port in ports:
             self._create_external_port(
                 f"{port.ip.hier_name}_{port.name}", port.protocol, port.direction
             ).connect(port)
-            port.connected = True
 
     def _axi(self):
         """Create AXI ports"""
@@ -219,19 +231,15 @@ class RandomDesign:
         assert len(slaves)
         assert len(masters)
 
-        self._bd_str += "\n########## AXI ##########\n"
+        self._bd_tcl += "\n########## AXI ##########\n"
         axi = self._new_ip(Axi, (len(masters), len(slaves)))
 
         for i, master in enumerate(masters):
             master.connect(axi.port_masters[i])
-            master.connected = True
         for i, slave in enumerate(slaves):
             slave.connect(axi.port_slaves[i])
-            slave.connected = True
             for master in masters:
                 self._assign_bd_address(master, slave)
-
-        # assign_bd_address -target_address_space /ip_0_microblaze/microblaze_0/Data [get_bd_addr_segs ip_2_gpio/gpio_0/S_AXI/Reg] -force
 
     def _create_external_port(self, name, protocol, direction, width=None):
         if protocol.startswith("xilinx.com:interface:"):
@@ -241,7 +249,7 @@ class RandomDesign:
         return port
 
     def _new_instance(self, ip_name, instance_name, properties=None):
-        self._bd_str += f"create_bd_cell -type ip -vlnv {ip_name} {instance_name}\n"
+        self._bd_tcl += f"create_bd_cell -type ip -vlnv {ip_name} {instance_name}\n"
         if properties:
             self._set_instance_properties(instance_name, properties)
 
@@ -250,15 +258,16 @@ class RandomDesign:
         prop = ""
         for key, value in properties.items():
             prop += f"{key} {value} "
-        self._bd_str += f'set_property -dict "{prop}" [get_bd_cells {instance_name}]\n'
+        self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {instance_name}]\n'
 
     def _assign_bd_address(self, master_port, slave_port):
-        # assign_bd_address -target_address_space /ip_0_microblaze/microblaze_0/Data [get_bd_addr_segs ip_2_gpio/gpio_0/S_AXI/Reg] -force
-        self._bd_str += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} "
+        self._addr_space_tcl += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} "
         if slave_port.ip:
-            self._bd_str += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
+            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
         else:
-            self._bd_str += f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+            self._addr_space_tcl += (
+                f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+            )
 
     def _new_ip(self, ip_class, args=None):
         """Create a new IP instance"""

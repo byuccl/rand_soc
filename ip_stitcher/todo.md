@@ -1,6 +1,4 @@
-* Processing system
-    * [x] Basic Microblaze
-    * [ ] Configurations
+## Interconnect
 * Clock system
     * [x] Single external clock
     * [x] Single clock generator
@@ -9,16 +7,22 @@
     * [x] Single external reset
     * [ ] Single reset generator
     * [ ] Multiple reset sources
-* GPIO
-    * [x] Basic GPIO
-    * [x] Configurations
-* [x] UART
+* Interrupts
+    * [x] Complete pattern
+    * [ ] Sparse pattern
 * AXI Bus
     * [x] Single master
     * [x] Multiple masters
     * [ ] Non-complete interconnects
-* Interrupts
-    * [ ] Point to point
+* [ ] AXI Stream
+
+## IP
+* Processing system
+    * [x] Basic Microblaze
+    * [ ] Configurations
+* [x] GPIO
+* [x] UART
+* [ ] DMA
+
+## Other
 * [x] Multiple IP instances
-* IP
-    * [ ] DMA
