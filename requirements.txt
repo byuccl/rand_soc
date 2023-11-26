@@ -1,0 +1,2 @@
+jinja2
+-e rand_soc/rand_soc
