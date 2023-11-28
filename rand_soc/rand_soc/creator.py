@@ -2,7 +2,7 @@ import pathlib
 import random
 import sys
 
-import jinja2
+import chevron
 
 from .paths import ROOT_PATH
 from .axi import Axi
@@ -33,7 +33,7 @@ class DesignCreator:
 class RandomDesign:
     """Creates a random design"""
 
-    def __init__(self, seed=None):
+    def __init__(self, output_dir_path, seed=None):
         if seed:
             random.seed(seed)
 
@@ -48,24 +48,31 @@ class RandomDesign:
         self._port_reset = None
         self._ip_idx = 0
         self._axi_complete = False
+        self._output_dir_path = pathlib.Path(output_dir_path).resolve()
 
-    def write(self, output_file_path):
-        assert isinstance(output_file_path, pathlib.Path)
+    def write(self):
+        output_file_path = self._output_dir_path / "design.tcl"
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file_path, "w", encoding="utf-8") as f:
             f.write(self.tcl_str)
 
     def create(self):
         """Create the design tcl"""
-        project_config = {"part": "xc7a200tsbg484-1", "bd_name": "design_1"}
+        project_config = {
+            "part": "xc7a200tsbg484-1",
+            "bd_name": "bd_design",
+            "checkpoint_path": self._output_dir_path / "synth.dcp",
+            "verilog_path": self._output_dir_path / "design.v",
+            "edif_path": self._output_dir_path / "design.edf",
+            "top": "bd_design_wrapper",
+        }
 
         # env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 
-        template_path = ROOT_PATH / "run.tcl.j2"
+        template_path = ROOT_PATH / "run.tcl.mustache"
         assert template_path.is_file(), f"Template file {template_path} does not exist"
-        # template = env.get_template(str(template_path))
         with open(template_path) as f:
-            template = jinja2.Template(f.read())
+            template = f.read()
 
         ip_available = [Gpio, Microblaze, Uartlite]
         for ip in ip_available:
@@ -86,7 +93,7 @@ class RandomDesign:
         self._bd_tcl = ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
 
         project_config["block_diagram"] = self._bd_tcl
-        self.tcl_str = template.render(project_config)
+        self.tcl_str = chevron.render(template, project_config)
 
     def _ports(self):
         unhandled_ports = set()

@@ -1,0 +1,19 @@
+create_project test ./test -part {{ part }} -force
+
+create_bd_design {{ bd_name }}
+
+{{{ block_diagram }}}
+
+# Save the block design
+regenerate_bd_layout
+save_bd_design
+
+make_wrapper -files [get_files test/test.srcs/sources_1/bd/{{ bd_name }}/{{ bd_name }}.bd] -top
+add_files -norecurse test/test.gen/sources_1/bd/{{ bd_name }}/hdl/{{ bd_name }}_wrapper.v
+
+launch_runs synth_1
+wait_on_runs synth_1
+open_run synth_1 -name synth_1
+write_checkpoint {{ checkpoint_path }} -force
+write_verilog {{ verilog_path }}
+write_edif {{ edif_path }}

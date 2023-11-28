@@ -6,13 +6,13 @@ from rand_soc.creator import RandomDesign
 
 
 def main(output_dir_path, seed=None):
-    design = RandomDesign(seed=seed)
+    design = RandomDesign(output_dir_path, seed=seed)
     design.create()
-    design.write(output_dir_path / "design.tcl")
+    design.write()
 
     # Write the design yaml file
     with open(output_dir_path / "design.yaml", "w") as f:
-        f.write("top: top\n")
+        f.write("top: bd_design_wrapper\n")
 
 
 if __name__ == "__main__":
