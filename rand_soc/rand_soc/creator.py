@@ -61,9 +61,9 @@ class RandomDesign:
         project_config = {
             "part": "xc7a200tsbg484-1",
             "bd_name": "bd_design",
-            "checkpoint_path": self._output_dir_path / "synth.dcp",
-            "verilog_path": self._output_dir_path / "design.v",
-            "edif_path": self._output_dir_path / "design.edf",
+            "checkpoint_path": "synth.dcp",
+            "verilog_path": "synth.v",
+            "edif_path": "synth.edf",
             "top": "bd_design_wrapper",
         }
 
