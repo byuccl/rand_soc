@@ -10,6 +10,10 @@ def main(output_dir_path, seed=None):
     design.create()
     design.write(output_dir_path / "design.tcl")
 
+    # Write the design yaml file
+    with open(output_dir_path / "design.yaml", "w") as f:
+        f.write("top: top\n")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
