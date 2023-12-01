@@ -1,8 +1,10 @@
+import pathlib
 import random
 import sys
 
-import jinja2
+import chevron
 
+from .paths import ROOT_PATH
 from .axi import Axi
 from .clk_gen import ClkGen
 from .intc import Intc
@@ -21,19 +23,20 @@ class DesignCreator:
     def run(self, output_dir_path, num_designs):
         for i in range(num_designs):
             # Create design directory
-            output_path = output_dir_path / f"design_{i}"
-            output_path.mkdir(parents=True, exist_ok=True)
+            output_path = output_dir_path / f"design_{i}" / "design.tcl"
 
             design = RandomDesign()
             design.create()
-            with open(output_path / "design.tcl", "w", encoding="utf-8") as f:
-                f.write(design.tcl_str)
+            design.write(output_path)
 
 
 class RandomDesign:
     """Creates a random design"""
 
-    def __init__(self):
+    def __init__(self, output_dir_path, seed=None):
+        if seed:
+            random.seed(seed)
+
         self.tcl_str = ""
 
         # Block diagram string
@@ -41,18 +44,35 @@ class RandomDesign:
         self.ip_to_ip_connections_tcl = "\n########## IP to IP connections ##########\n"
         self._addr_space_tcl = "\n########## Address space ##########\n"
         self.ip = []
-        self.port_clock = None
-        self.port_reset = None
-        self.ip_idx = 0
-        self.axi_complete = False
+        self._port_clock = None
+        self._port_reset = None
+        self._ip_idx = 0
+        self._axi_complete = False
+        self._output_dir_path = pathlib.Path(output_dir_path).resolve()
+
+    def write(self):
+        output_file_path = self._output_dir_path / "design.tcl"
+        output_file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_file_path, "w", encoding="utf-8") as f:
+            f.write(self.tcl_str)
 
     def create(self):
         """Create the design tcl"""
-        project_config = {"part": "xc7a200tsbg484-1", "bd_name": "design_1"}
+        project_config = {
+            "part": "xc7a200tsbg484-1",
+            "bd_name": "bd_design",
+            "checkpoint_path": "synth.dcp",
+            "verilog_path": "synth.v",
+            "edif_path": "synth.edf",
+            "top": "bd_design_wrapper",
+        }
 
-        env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
+        # env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 
-        template = env.get_template("run.tcl.j2")
+        template_path = ROOT_PATH / "run.tcl.mustache"
+        assert template_path.is_file(), f"Template file {template_path} does not exist"
+        with open(template_path) as f:
+            template = f.read()
 
         ip_available = [Gpio, Microblaze, Uartlite]
         for ip in ip_available:
@@ -70,12 +90,10 @@ class RandomDesign:
 
         ip_str = "".join([ip.bd_str for ip in self.ip])
 
-        self._bd_tcl = (
-            ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
-        )
+        self._bd_tcl = ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
 
         project_config["block_diagram"] = self._bd_tcl
-        self.tcl_str = template.render(project_config)
+        self.tcl_str = chevron.render(template, project_config)
 
     def _ports(self):
         unhandled_ports = set()
@@ -132,14 +150,12 @@ class RandomDesign:
 
         # Create single external clock
         self._bd_tcl += "\n########## Clocks ##########\n"
-        if self.port_clock is None:
+        if self._port_clock is None:
             clk_ip = self._new_ip(ClkGen)
-            self._create_external_port("clk", "clk", "I", width=1).connect(
-                clk_ip.port_clk_in
-            )
-            self.port_clock = clk_ip.port_clk_out
+            self._create_external_port("clk", "clk", "I", width=1).connect(clk_ip.port_clk_in)
+            self._port_clock = clk_ip.port_clk_out
 
-        self.port_clock.connect(clock_inputs)
+        self._port_clock.connect(clock_inputs)
 
     def _resets(self):
         # Collect unconnected reset inputs
@@ -151,11 +167,11 @@ class RandomDesign:
         ]
 
         # Create single external reset
-        if self.port_reset is None:
+        if self._port_reset is None:
             self._bd_tcl += "\n########## Resets ##########\n"
-            self.port_reset = self._create_external_port("reset", "reset", "I", 1)
+            self._port_reset = self._create_external_port("reset", "reset", "I", 1)
 
-        self.port_reset.connect(reset_inputs)
+        self._port_reset.connect(reset_inputs)
 
     def _interrupts(
         self,
@@ -224,8 +240,8 @@ class RandomDesign:
             return
 
         # Incremental AXI not supported
-        assert not self.axi_complete
-        self.axi_complete = True
+        assert not self._axi_complete
+        self._axi_complete = True
 
         # TODO: Non-complete crossbars
         assert len(slaves)
@@ -263,17 +279,17 @@ class RandomDesign:
     def _assign_bd_address(self, master_port, slave_port):
         self._addr_space_tcl += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} "
         if slave_port.ip:
-            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
-        else:
             self._addr_space_tcl += (
-                f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+                f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
             )
+        else:
+            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
 
     def _new_ip(self, ip_class, args=None):
         """Create a new IP instance"""
         if args is None:
             args = []
-        new_ip = ip_class(self, f"ip_{self.ip_idx}", *args)
+        new_ip = ip_class(self, f"ip_{self._ip_idx}", *args)
         self.ip.append(new_ip)
-        self.ip_idx += 1
+        self._ip_idx += 1
         return new_ip
