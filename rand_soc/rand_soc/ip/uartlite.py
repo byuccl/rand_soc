@@ -2,7 +2,7 @@
 
 import random
 
-from .ip import IPrandom
+from .ip_base import IPrandom
 
 
 class Uartlite(IPrandom):

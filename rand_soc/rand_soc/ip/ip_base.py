@@ -2,7 +2,7 @@
 
 import abc
 
-from .ports import IpPortInterface, IpPortRegular
+from ..ports import IpPortInterface, IpPortRegular
 
 
 class IP:

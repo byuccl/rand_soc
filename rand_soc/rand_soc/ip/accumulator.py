@@ -1,26 +1,39 @@
 """ GPIO IP """
 
+import pathlib
 import random
 
-from .ports import Port
-from .ip import IPrandom
-from .utils import all_ones, randbool, randintwidth
+import yaml
+
+from ..paths import VIVADO_IP_PATH
+
+from ..ports import Port
+from .ip_base import IPrandom
+from ..utils import all_ones, randbool, randintwidth
+from lxml import etree
 
 
-class Gpio(IPrandom):
+class Accumulator(IPrandom):
     """GPIO IP class"""
 
     def __init__(self, design, name):
         super().__init__(design, name)
-        self.config_dir = None
-        self.config_width = None
-        self.config_default_out_val = None
-        self.config_default_tristate_val = None
-        self.config_dual_channel = None
-        self.config_dir2 = None
-        self.config_width2 = None
-        self.config_default_out_val2 = None
-        self.config_default_tristate_val2 = None
+        # self.config_implement_using = None
+        # self.output_width = None
+        # self.accumulation_mode = None
+        # self.latency_configuration = None
+        # self.latency = None
+        # self.accumulator_scaling = None
+        # self.clock_enable_enabled = None
+        # self.carry_in_enabled = None
+        # self.synchronous_clear_enabled = None
+        # self.synchronous_set_enabled = None
+        # self.synchronous_init_value = None
+        # self.synchronous_power_on_reset_value = None
+        # self.synchronous_control_ce_priority = None
+        # self.synchronous_set_clear_priority = None
+        # self.bypass_enabled = None
+        # self.
 
     @property
     def name(self):
@@ -28,6 +41,8 @@ class Gpio(IPrandom):
 
     def instance(self):
         super().instance()
+
+        raise NotImplementedError
 
         gpio_name = "gpio_0"
         config = {}
@@ -90,29 +105,25 @@ class Gpio(IPrandom):
             )
 
     def randomize(self):
-        self.config_dir = "IO"  # random.choice(["I", "O", "IO"])
-        self.config_width = random.randint(1, 32)
-        if self.config_dir in ("O", "IO"):
-            self.config_default_out_val = random.choice(
-                (0, all_ones(self.config_width), randintwidth(self.config_width))
-            )
-        if self.config_dir in ("IO",):
-            self.config_default_tristate_val = random.choice(
-                (0, all_ones(self.config_width), randintwidth(self.config_width))
-            )
+        # Read the component.xml file
 
-        self.config_dual_channel = randbool()
-        if self.config_dual_channel:
-            self.config_dir2 = random.choice(["I", "O", "IO"])
-            self.config_width2 = random.randint(1, 32)
-            if self.config_dir2 in ("O", "IO"):
-                self.config_default_out_val2 = random.choice(
-                    (0, all_ones(self.config_width2), randintwidth(self.config_width2))
-                )
-            if self.config_dir2 in ("IO",):
-                self.config_default_tristate_val2 = random.choice(
-                    (0, all_ones(self.config_width2), randintwidth(self.config_width2))
-                )
-        self.config_interrupt_enabled = randbool()
+        yaml_path = pathlib.Path(__file__).with_suffix(".yaml")
 
-        # TODO: GPIO Interrupt
+        self.config = {}
+        with open(yaml_path, "r") as f:
+            options = yaml.safe_load(f)
+
+        for key, val in options.items():
+            print("")
+            print(key)
+
+            if isinstance(val, list):
+                vals = val
+            elif isinstance(val, str):
+                vals = eval(val)
+                print(vals)
+            self.config[f"{key}"] = random.choice(vals)
+
+            print(self.config)
+
+        raise NotImplementedError

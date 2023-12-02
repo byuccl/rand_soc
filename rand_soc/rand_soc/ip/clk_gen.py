@@ -1,8 +1,8 @@
 """ GPIO IP """
 
 
-from .ports import Port
-from .ip import IP
+from ..ports import Port
+from .ip_base import IP
 
 
 class ClkGen(IP):

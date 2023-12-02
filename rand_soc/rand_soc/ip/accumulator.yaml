@@ -1,0 +1,18 @@
+Implementation:
+  values: ["Fabric", "DSP48"]
+
+Output_Width: 
+  values: range(16,259)
+
+Accum_Mode: 
+  values: ["Add", "Subtract", "Add_Subtract"]
+
+Latency_Configuration: 
+  values: ["Automatic", "Manual"]
+
+Latency: 
+  values: range(1,16)
+  enable: "Latency_Configuration == 'Manual'"
+
+Scale: range(9)
+
