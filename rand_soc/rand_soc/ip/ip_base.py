@@ -69,3 +69,38 @@ class IPrandom(IP):
     def randomize(self):
         """Randomize the IP"""
         raise NotImplementedError
+
+    def randomize(self, module_path):
+        # Read the component.xml file
+
+        yaml_path = pathlib.Path(__file__).with_suffix(".yaml")
+
+        self.config = {}
+        with open(yaml_path, "r") as f:
+            options = yaml.safe_load(f)
+
+        for config in options["Configuration"]:
+            print("")
+            print(config)
+
+            if "enable" in config:
+                if not eval(config["enable"], None, self.config):
+                    print("Skipping")
+                    continue
+
+            if isinstance(config["values"], list):
+                # If the value is a list, do nothing
+                vals = config["values"]
+            elif isinstance(config["values"], str):
+                # If the value is a string, then it must be an expression that
+                # generates a list.  Evalute it.
+                vals = eval(config["values"])
+                print(vals)
+
+            choice = random.choice(vals)
+            print(choice)
+            self.config[f"{config['name']}"] = choice
+
+            print(self.config)
+
+        raise NotImplementedError

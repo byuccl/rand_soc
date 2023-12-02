@@ -1,18 +1,22 @@
-Implementation:
-  values: ["Fabric", "DSP48"]
+Configuration:
+  - name: Implementation
+    values: ["Fabric", "DSP48"]
 
-Output_Width: 
-  values: range(16,259)
+  - name: Output_Width
+    values: range(16,259)
 
-Accum_Mode: 
-  values: ["Add", "Subtract", "Add_Subtract"]
+  - name: Accum_Mode
+    values: ["Add", "Subtract", "Add_Subtract"]
 
-Latency_Configuration: 
-  values: ["Automatic", "Manual"]
+  - name: Latency_Configuration
+    values: ["Automatic", "Manual"]
 
-Latency: 
-  values: range(1,16)
-  enable: "Latency_Configuration == 'Manual'"
+  - name: Latency
+    values: range(1,16)
+    enable: "Latency_Configuration == 'Manual'"
 
-Scale: range(9)
+  - name: Scale
+    values: range(0,9)
+    enable: "Latency_Configuration == 'Manual'"
+
 

@@ -103,27 +103,3 @@ class Accumulator(IPrandom):
             self._create_hier_pin("irq", "irq", "O", 1).connect_internal(
                 f"{gpio_name}/ip2intc_irpt"
             )
-
-    def randomize(self):
-        # Read the component.xml file
-
-        yaml_path = pathlib.Path(__file__).with_suffix(".yaml")
-
-        self.config = {}
-        with open(yaml_path, "r") as f:
-            options = yaml.safe_load(f)
-
-        for key, val in options.items():
-            print("")
-            print(key)
-
-            if isinstance(val, list):
-                vals = val
-            elif isinstance(val, str):
-                vals = eval(val)
-                print(vals)
-            self.config[f"{key}"] = random.choice(vals)
-
-            print(self.config)
-
-        raise NotImplementedError
