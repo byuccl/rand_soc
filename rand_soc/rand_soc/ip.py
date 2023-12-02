@@ -34,8 +34,8 @@ class IP:
     def _set_instance_properties(self, instance_name, properties):
         # Combine key, value pairs into a single string
         prop = ""
-        for key, value in properties.items():
-            prop += f"{key} {value} "
+        for key in sorted(properties.keys()):
+            prop += f"{key} {properties[key]} "
         self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
 
     def _create_hier_pin(
