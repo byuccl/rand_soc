@@ -1,9 +1,17 @@
-Configuration:
+- id: "accumulator_0"
+  definition: "xilinx.com:ip:c_accum:12.0"
+  configuration:
   - name: Implementation
     values: ["Fabric", "DSP48"]
 
+  - name: Input_Type
+    values: ["Signed", "Unsigned"]
+
+  - name: Input_Width
+    values_eval: "range(1 if Input_Type == 'Unsigned' else 2, 267 if Implementation == 'Fabric' else (49 if Input_Type == 'Signed' else 48))"
+
   - name: Output_Width
-    values: range(16,259)
+    values_eval: "range(Input_Width,259 if Implementation == 'Fabric' else 49)"
 
   - name: Accum_Mode
     values: ["Add", "Subtract", "Add_Subtract"]
@@ -12,11 +20,101 @@ Configuration:
     values: ["Automatic", "Manual"]
 
   - name: Latency
-    values: range(1,16)
+    values_eval: "range(1,min(Output_Width,32)) if Implementation == 'Fabric' else range(1,3)"
     enable: "Latency_Configuration == 'Manual'"
 
   - name: Scale
     values: range(0,9)
     enable: "Latency_Configuration == 'Manual'"
+
+  - name: CE # Clock Enable
+    values: [false, true]
+
+  - name: C_In # Carry In
+    values: [false, true]
+
+  - name: SCLR # Synchronous Clear
+    values: [false, true]
+
+  - name: SSET
+    values: [false, true]
+    enable: "Implementation == 'Fabric'"
+    default: false
+
+  - name: SINIT
+    values: [false, true]
+    enable: "(Implementation == 'Fabric') and not SSET"
+    default: false
+  
+  ports:
+  - name: clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - accumulator_0/CLK
+
+  - name: B
+    protocol: "data"
+    direction: I
+    width: Input_Width
+    connections:
+    - accumulator_0/B
+
+  - name: Q
+    protocol: "data"
+    direction: O
+    width: Output_Width
+    connections:
+    - accumulator_0/Q
+
+  - name: ADD
+    protocol: "control"
+    direction: I
+    width: 1
+    enable: "Accum_Mode == 'Add_Subtract'"
+    connections:
+    - accumulator_0/ADD
+
+  - name: CE
+    protocol: "control"
+    direction: I
+    width: 1
+    enable: "CE"
+    connections:
+    - accumulator_0/CE
+
+  - name: C_IN
+    protocol: "control"
+    direction: I
+    width: 1
+    enable: C_In
+    connections:
+    - accumulator_0/C_IN
+
+  - name: SCLR
+    protocol: "control"
+    direction: I
+    width: 1
+    enable: SCLR
+    connections:
+    - accumulator_0/SCLR
+
+  - name: SSET
+    protocol: "control"
+    direction: I
+    width: 1
+    enable: SSET
+    connections:
+    - accumulator_0/SSET
+
+  - name: SINIT
+    protocol: "control"
+    direction: I
+    width: 1
+    enable: SINIT
+    connections:
+    - accumulator_0/SINIT
+
 
 

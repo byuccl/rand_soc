@@ -84,7 +84,7 @@ class IPrandom(IP):
             ip_config = {
                 f"CONFIG.{config_name}": config_props["value"]
                 for config_name, config_props in ip_props["configuration"].items()
-                if not config_props["internal"]
+                if not config_props.get("internal")
             }
             self._new_instance(ip_props["definition"], ip_id, ip_config)
 
@@ -123,10 +123,12 @@ class IPrandom(IP):
             for item in ip_yaml["configuration"]:
                 name = item["name"]
 
+                enabled = True
                 if "enable" in item:
                     if not eval(item["enable"], None, self.config_vars):
-                        # print("Skipping")
-                        continue
+                        enabled = False
+                        if "default" not in item:
+                            continue
 
                 config_item = {}
                 assert name not in config, f"Duplicate config name: {name}"
@@ -137,11 +139,14 @@ class IPrandom(IP):
                 if "internal" in item:
                     internal = item["internal"]
                     assert isinstance(internal, bool)
+                    config_item["internal"] = internal
                 else:
                     internal = False
-                config_item["internal"] = internal
 
-                if "value" in item:
+                if not enabled:
+                    value = item["default"]
+
+                elif "value" in item:
                     value = item["value"]
 
                 elif "values" in item:
@@ -203,7 +208,7 @@ class IPrandom(IP):
                 port["direction"] = item["direction"]
                 port["connections"] = item["connections"]
                 if "width" in item:
-                    port["width"] = item["width"]
+                    port["width"] = eval(str(item["width"]), None, self.config_vars)
                 if "addr_seg_name" in item:
                     port["addr_seg_name"] = item["addr_seg_name"]
 
