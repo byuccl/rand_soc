@@ -1,3 +1,4 @@
+import logging
 import pathlib
 import random
 import sys
@@ -35,7 +36,7 @@ class RandomDesign:
     """Creates a random design"""
 
     def __init__(self, output_dir_path, seed=None):
-        if seed:
+        if seed is not None:
             random.seed(seed)
 
         self.tcl_str = ""
@@ -50,6 +51,16 @@ class RandomDesign:
         self._ip_idx = 0
         self._axi_complete = False
         self._output_dir_path = pathlib.Path(output_dir_path).resolve()
+
+        # Enable logging
+        log_file = self._output_dir_path / "log.txt"
+        self._output_dir_path.mkdir(parents=True, exist_ok=True)
+        logging.basicConfig(
+            filename=log_file,
+            filemode="w",
+            format="%(asctime)s %(levelname)s: %(message)s",
+            level=logging.DEBUG,
+        )
 
     def write(self):
         output_file_path = self._output_dir_path / "design.tcl"

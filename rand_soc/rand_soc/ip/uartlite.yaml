@@ -1,0 +1,57 @@
+- id: "uart_0"
+  definition: "xilinx.com:ip:axi_uartlite:2.0"
+  configuration:
+    - name: C_BAUDRATE
+      values:
+        [
+          110,
+          300,
+          1200,
+          2400,
+          4800,
+          9600,
+          19200,
+          38400,
+          57600,
+          115200,
+          128000,
+          230400,
+        ]
+
+    - name: PARITY
+      values: ["No_Parity", "Odd", "Even"]
+
+  ports:
+    - name: UART
+      protocol: "xilinx.com:interface:uart_rtl:1.0"
+      direction: Master
+      connections:
+        - uart_0/UART
+
+    - name: clk
+      protocol: "clk"
+      direction: I
+      width: 1
+      connections:
+        - uart_0/s_axi_aclk
+
+    - name: reset
+      protocol: "reset"
+      direction: I
+      width: 1
+      connections:
+        - uart_0/s_axi_aresetn
+
+    - name: AXI
+      protocol: "xilinx.com:interface:aximm_rtl:1.0"
+      direction: Slave
+      connections:
+        - uart_0/S_AXI
+      addr_seg_name: "uart_0/S_AXI/Reg"
+
+    - name: irq
+      protocol: "irq"
+      direction: O
+      width: 1
+      connections:
+        - uart_0/interrupt

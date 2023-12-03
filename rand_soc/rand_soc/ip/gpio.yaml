@@ -1,0 +1,124 @@
+- id: "gpio_0"
+  definition: "xilinx.com:ip:axi_gpio:2.0"
+  configuration:
+  - name: direction
+    internal: true
+    values: ["I", "O", "IO"]
+
+  - name: C_GPIO_WIDTH
+    values_eval: range(1,33)
+
+  - name: C_ALL_INPUTS
+    enable: "direction == 'I'"
+    value: 1
+
+  - name: C_ALL_OUTPUTS
+    enable: "direction == 'O'"
+    value: 1
+
+  - name: C_TRI_DEFAULT
+    values_eval: ["0", "all_ones(C_GPIO_WIDTH)", "randintwidth(C_GPIO_WIDTH)"]
+    enable: "direction == 'IO'"
+    format: hex
+
+  - name: C_DOUT_DEFAULT
+    values_eval: ["0", "all_ones(C_GPIO_WIDTH)", "randintwidth(C_GPIO_WIDTH)"]
+    enable: "direction in ('O', 'IO')"
+    format: hex
+  
+  - name: C_INTERRUPT_PRESENT
+    values: [true, false]
+
+  - name: C_IS_DUAL
+    values: [true, false]
+
+  - name: C_GPIO_WIDTH_2
+    values_eval: range(1,33)
+    enable: "C_IS_DUAL"
+
+  - name: C_ALL_INPUTS_2
+    enable: "C_IS_DUAL and (direction == 'I')"
+    value: 1
+
+  - name: C_ALL_OUTPUTS_2
+    enable: "C_IS_DUAL and (direction == 'O')"
+    value: 1
+
+  - name: C_TRI_DEFAULT_2
+    values_eval: ["0", "all_ones(C_GPIO_WIDTH)", "randintwidth(C_GPIO_WIDTH)"]
+    enable: "C_IS_DUAL and (direction == 'IO')"
+    format: hex
+
+  - name: C_DOUT_DEFAULT_2
+    values_eval: ["0", "all_ones(C_GPIO_WIDTH)", "randintwidth(C_GPIO_WIDTH)"]
+    enable: "C_IS_DUAL and (direction in ('O', 'IO'))"
+    format: hex
+
+  ports:
+  - name: GPIO
+    protocol: "xilinx.com:interface:gpio_rtl:1.0"
+    direction: Master
+    connections:
+    - gpio_0/GPIO
+  - name: GPIO2
+    protocol: "xilinx.com:interface:gpio_rtl:1.0"
+    direction: Master
+    enable: "C_IS_DUAL"
+    connections:
+    - gpio_0/GPIO2
+  - name: clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - gpio_0/s_axi_aclk
+  - name: rst
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - gpio_0/s_axi_aresetn
+  - name: AXI
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Slave
+    connections:
+    - gpio_0/S_AXI
+    addr_seg_name: "gpio_0/S_AXI/Reg"
+  - name: irq
+    protocol: "irq"
+    direction: O
+    width: 1
+    connections:
+    - gpio_0/ip2intc_irpt
+    enable: "C_INTERRUPT_PRESENT"
+
+
+
+
+
+
+
+
+
+
+  # - name: Implementation
+  #   values: ["Fabric", "DSP48"]
+
+  # - name: Output_Width
+  #   values: range(16,259)
+
+  # - name: Accum_Mode
+  #   values: ["Add", "Subtract", "Add_Subtract"]
+
+  # - name: Latency_Configuration
+  #   values: ["Automatic", "Manual"]
+
+  # - name: Latency
+  #   values: range(1,16)
+  #   enable: "Latency_Configuration == 'Manual'"
+
+  # - name: Scale
+  #   values: range(0,9)
+  #   enable: "Latency_Configuration == 'Manual'"
+
+
