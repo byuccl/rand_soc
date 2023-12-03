@@ -88,7 +88,7 @@ class RandomDesign:
 
         ip_available = [Gpio, Microblaze, Uartlite]
         for ip in ip_available:
-            num_ip = random.randint(1, 1)
+            num_ip = random.randint(1, 3)
             for _ in range(num_ip):
                 self._new_ip(ip)
 

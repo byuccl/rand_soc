@@ -73,7 +73,7 @@
     connections:
     - gpio_0/s_axi_aclk
   - name: rst
-    protocol: "rst"
+    protocol: "reset"
     direction: I
     width: 1
     connections:
@@ -83,6 +83,7 @@
     direction: Slave
     connections:
     - gpio_0/S_AXI
+    addr_seg_name: "gpio_0/S_AXI/Reg"
   - name: irq
     protocol: "irq"
     direction: O
