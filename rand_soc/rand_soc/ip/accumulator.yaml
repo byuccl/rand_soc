@@ -45,6 +45,14 @@
     values: [false, true]
     enable: "(Implementation == 'Fabric') and not SSET"
     default: false
+
+  - name: SINIT_Value
+    values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
+    enable: "SINIT"
+
+  - name: AINIT_Value
+    values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
+    enable: "not SINIT"
   
   ports:
   - name: clk

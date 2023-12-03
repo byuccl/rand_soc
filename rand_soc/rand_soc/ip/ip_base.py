@@ -157,27 +157,7 @@ class IPrandom(IP):
                     value = random.choice(values)
 
                 elif "values_eval" in item:
-                    values = item["values_eval"]
-                    if isinstance(values, list):
-                        # If a list, evaluate each item
-                        try:
-                            values = [
-                                eval(value, None, self.config_vars) for value in values
-                            ]
-                        except TypeError as exc:
-                            print(f"All arguments of {values} must be strings")
-                            raise exc
-                        except NameError as exc:
-                            print(f"Error evaluting {values}")
-                            raise exc
-                    elif isinstance(values, str):
-                        # If the value is a string, then it must be an expression that
-                        # generates a list.  Evalute it.
-                        values = eval(values, None, self.config_vars)
-                    else:
-                        raise NotImplementedError(
-                            f"values of {name} must be a list or string: {values}"
-                        )
+                    values = eval(item["values_eval"], None, self.config_vars)
                     value = random.choice(values)
                 else:
                     raise NotImplementedError(f"{item} must have a value or values")
