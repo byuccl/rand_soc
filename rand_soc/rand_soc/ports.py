@@ -31,6 +31,7 @@ class IpPortRegular(IpPort):
 
     def __init__(self, ip, name, protocol, direction, width):
         super().__init__(ip, name, protocol, direction)
+        assert width, f"Port {name} has no width"
         self.width = width
         self.ip._bd_tcl += f"create_bd_pin -dir {self.direction} -from {self.width-1} -to 0 {self.hier_name}\n"
 

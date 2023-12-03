@@ -1,17 +1,19 @@
+import logging
 import pathlib
 import random
 import sys
 
 import chevron
 
+from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
-from .axi import Axi
-from .clk_gen import ClkGen
-from .intc import Intc
-from .uartlite import Uartlite
+from .ip.axi import Axi
+from .ip.clk_gen import ClkGen
+from .ip.intc import Intc
+from .ip.uartlite import Uartlite
 from .ports import ExternalPortInterface, ExternalPortRegular, Port
-from .gpio import Gpio
-from .microblaze import Microblaze
+from .ip.gpio import Gpio
+from .ip.microblaze import Microblaze
 
 
 class DesignCreator:
@@ -34,7 +36,7 @@ class RandomDesign:
     """Creates a random design"""
 
     def __init__(self, output_dir_path, seed=None):
-        if seed:
+        if seed is not None:
             random.seed(seed)
 
         self.tcl_str = ""
@@ -49,6 +51,16 @@ class RandomDesign:
         self._ip_idx = 0
         self._axi_complete = False
         self._output_dir_path = pathlib.Path(output_dir_path).resolve()
+
+        # Enable logging
+        log_file = self._output_dir_path / "log.txt"
+        self._output_dir_path.mkdir(parents=True, exist_ok=True)
+        logging.basicConfig(
+            filename=log_file,
+            filemode="w",
+            format="%(asctime)s %(levelname)s: %(message)s",
+            level=logging.DEBUG,
+        )
 
     def write(self):
         output_file_path = self._output_dir_path / "design.tcl"
@@ -76,7 +88,7 @@ class RandomDesign:
 
         ip_available = [Gpio, Microblaze, Uartlite]
         for ip in ip_available:
-            num_ip = random.randint(1, 3)
+            num_ip = random.randint(1, 1)
             for _ in range(num_ip):
                 self._new_ip(ip)
 
@@ -90,7 +102,9 @@ class RandomDesign:
 
         ip_str = "".join([ip.bd_str for ip in self.ip])
 
-        self._bd_tcl = ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
+        self._bd_tcl = (
+            ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
+        )
 
         project_config["block_diagram"] = self._bd_tcl
         self.tcl_str = chevron.render(template, project_config)
@@ -152,7 +166,9 @@ class RandomDesign:
         self._bd_tcl += "\n########## Clocks ##########\n"
         if self._port_clock is None:
             clk_ip = self._new_ip(ClkGen)
-            self._create_external_port("clk", "clk", "I", width=1).connect(clk_ip.port_clk_in)
+            self._create_external_port("clk", "clk", "I", width=1).connect(
+                clk_ip.port_clk_in
+            )
             self._port_clock = clk_ip.port_clk_out
 
         self._port_clock.connect(clock_inputs)
@@ -279,11 +295,11 @@ class RandomDesign:
     def _assign_bd_address(self, master_port, slave_port):
         self._addr_space_tcl += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} "
         if slave_port.ip:
-            self._addr_space_tcl += (
-                f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
-            )
+            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
         else:
-            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+            self._addr_space_tcl += (
+                f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+            )
 
     def _new_ip(self, ip_class, args=None):
         """Create a new IP instance"""
