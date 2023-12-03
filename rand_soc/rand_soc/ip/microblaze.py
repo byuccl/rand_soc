@@ -1,5 +1,5 @@
-from .ports import Port
-from .ip import IPrandom
+from ..ports import Port
+from .ip_base import IPrandom
 
 
 class Microblaze(IPrandom):

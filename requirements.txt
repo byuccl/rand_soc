@@ -1,2 +1,4 @@
 chevron
+lxml
+pyyaml
 -e rand_soc/rand_soc
