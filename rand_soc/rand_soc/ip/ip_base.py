@@ -79,7 +79,25 @@ class IPrandom(IP):
         """Randomize the IP"""
         raise NotImplementedError
 
-    def randomize(self, module_path):
+    def instance_using_yaml_data(self):
+        for ip_id, ip_props in self.data.items():
+            ip_config = {
+                f"CONFIG.{config_name}": config_props["value"]
+                for config_name, config_props in ip_props["configuration"].items()
+                if not config_props["internal"]
+            }
+            self._new_instance(ip_props["definition"], ip_id, ip_config)
+
+            for port_name, port_props in ip_props["ports"].items():
+                self._create_hier_pin(
+                    port_name,
+                    port_props["protocol"],
+                    port_props["direction"],
+                    port_props.get("width"),
+                    port_props.get("addr_seg_name"),
+                ).connect_internal(port_props["connections"])
+
+    def load_data_from_yaml(self, module_path):
         # Read the component.xml file
 
         yaml_path = pathlib.Path(module_path).with_suffix(".yaml")
@@ -186,5 +204,7 @@ class IPrandom(IP):
                 port["connections"] = item["connections"]
                 if "width" in item:
                     port["width"] = item["width"]
+                if "addr_seg_name" in item:
+                    port["addr_seg_name"] = item["addr_seg_name"]
 
         logging.info("%s randomized to:\n%s", self.hier_name, pformat(self.data))
