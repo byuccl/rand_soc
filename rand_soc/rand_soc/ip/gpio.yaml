@@ -17,12 +17,12 @@
     value: 1
 
   - name: C_TRI_DEFAULT
-    values_eval: ["0", "all_ones(C_GPIO_WIDTH)", "randintwidth(C_GPIO_WIDTH)"]
+    values_eval: "[0, all_ones(C_GPIO_WIDTH), randintwidth(C_GPIO_WIDTH)]"
     enable: "direction == 'IO'"
     format: hex
 
   - name: C_DOUT_DEFAULT
-    values_eval: ["0", "all_ones(C_GPIO_WIDTH)", "randintwidth(C_GPIO_WIDTH)"]
+    values_eval: "[0, all_ones(C_GPIO_WIDTH), randintwidth(C_GPIO_WIDTH)]"
     enable: "direction in ('O', 'IO')"
     format: hex
   

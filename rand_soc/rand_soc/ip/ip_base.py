@@ -157,11 +157,17 @@ class IPrandom(IP):
                     value = random.choice(values)
 
                 elif "values_eval" in item:
-                    values = eval(item["values_eval"], None, self.config_vars)
+                    try:
+                        values = eval(item["values_eval"], None, self.config_vars)
+                    except Exception as e:
+                        print(f"Error evaluating {item['values_eval']} in {yaml_path}")
+                        raise e
                     value = random.choice(values)
                 else:
                     raise NotImplementedError(f"{item} must have a value or values")
 
+                if isinstance(value, bool):
+                    value = int(value)
                 if "format" in item:
                     format = item["format"]
                     if format == "hex":
