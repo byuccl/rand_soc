@@ -15,5 +15,6 @@ launch_runs synth_1
 wait_on_runs synth_1
 open_run synth_1 -name synth_1
 write_checkpoint {{ checkpoint_path }} -force
-write_verilog {{ verilog_path }}
-write_edif {{ edif_path }}
+write_verilog {{ verilog_path }} -force
+write_edif {{ edif_path }} -force
+report_io -force -file {{ io_report_path }}

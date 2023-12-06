@@ -75,8 +75,9 @@ class RandomDesign:
             "bd_name": "bd_design",
             "checkpoint_path": "synth.dcp",
             "verilog_path": "synth.v",
-            "edif_path": "synth.edf",
+            "edif_path": "viv_synth.edf",
             "top": "bd_design_wrapper",
+            "io_report_path": "report_io.txt",
         }
 
         # env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
@@ -86,9 +87,9 @@ class RandomDesign:
         with open(template_path) as f:
             template = f.read()
 
-        ip_available = [Gpio, Microblaze, Uartlite, Accumulator]
+        ip_available = [Gpio, Microblaze, Uartlite]
         for ip in ip_available:
-            num_ip = random.randint(1, 3)
+            num_ip = random.randint(1, 1)
             for _ in range(num_ip):
                 self._new_ip(ip)
 
@@ -102,9 +103,7 @@ class RandomDesign:
 
         ip_str = "".join([ip.bd_str for ip in self.ip])
 
-        self._bd_tcl = (
-            ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
-        )
+        self._bd_tcl = ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
 
         project_config["block_diagram"] = self._bd_tcl
         self.tcl_str = chevron.render(template, project_config)
@@ -166,9 +165,7 @@ class RandomDesign:
         self._bd_tcl += "\n########## Clocks ##########\n"
         if self._port_clock is None:
             clk_ip = self._new_ip(ClkGen)
-            self._create_external_port("clk", "clk", "I", width=1).connect(
-                clk_ip.port_clk_in
-            )
+            self._create_external_port("clk", "clk", "I", width=1).connect(clk_ip.port_clk_in)
             self._port_clock = clk_ip.port_clk_out
 
         self._port_clock.connect(clock_inputs)
@@ -295,11 +292,11 @@ class RandomDesign:
     def _assign_bd_address(self, master_port, slave_port):
         self._addr_space_tcl += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} "
         if slave_port.ip:
-            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
-        else:
             self._addr_space_tcl += (
-                f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+                f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
             )
+        else:
+            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
 
     def _new_ip(self, ip_class, args=None):
         """Create a new IP instance"""
