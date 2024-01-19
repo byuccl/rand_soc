@@ -113,6 +113,10 @@ class ExternalPort(Port):
         super().__init__(name, protocol, direction)
         self.design = design
 
+    @property
+    def hier_name(self):
+        return f"{self.name}"
+
 
 class ExternalPortRegular(ExternalPort):
     """Top-level regular port"""

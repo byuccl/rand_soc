@@ -24,8 +24,8 @@
     enable: "Latency_Configuration == 'Manual'"
 
   - name: Scale
-    values: range(0,9)
-    enable: "Latency_Configuration == 'Manual'"
+    values_eval: range(0,9)
+    enable: "Latency_Configuration == 'Manual' and Latency == 1"
 
   - name: CE # Clock Enable
     values: [false, true]
@@ -38,12 +38,12 @@
 
   - name: SSET
     values: [false, true]
-    enable: "Implementation == 'Fabric'"
+    enable: "Implementation == 'Fabric' and (Latency_Configuration == 'Automatic' or Latency == 1)"
     default: false
 
   - name: SINIT
     values: [false, true]
-    enable: "(Implementation == 'Fabric') and not SSET"
+    enable: "(Implementation == 'Fabric') and not SSET and not SCLR and (Latency_Configuration == 'Automatic' or Latency == 1)"
     default: false
 
   - name: SINIT_Value
@@ -53,6 +53,13 @@
   - name: AINIT_Value
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
     enable: "not SINIT"
+
+  - name: Bypass
+    values: [false, true]
+
+  - name: Bypass_Sense
+    enable: Bypass
+    values: [Active_Low, Active_High]
   
   ports:
   - name: clk
@@ -123,6 +130,14 @@
     enable: SINIT
     connections:
     - accumulator_0/SINIT
+
+  - name: Bypass
+    protocol: "control"
+    direction: I
+    width: 1
+    enable: Bypass
+    connections:
+    - accumulator_0/Bypass
 
 
 
