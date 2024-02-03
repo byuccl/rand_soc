@@ -50,8 +50,10 @@ class RandomDesign:
         self._port_clock = None
         self._port_reset = None
         self._pi_port = None
+        self._pi_port_control = None
         self._po_port = None
         self.data_ports_initialized = False
+        self.control_ports_initialized = False
         self._ip_idx = 0
         self._axi_complete = False
         self._output_dir_path = pathlib.Path(output_dir_path).resolve()
@@ -107,9 +109,7 @@ class RandomDesign:
 
         ip_str = "".join([ip.bd_str for ip in self.ip])
 
-        self._bd_tcl = (
-            ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
-        )
+        self._bd_tcl = ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
 
         project_config["block_diagram"] = self._bd_tcl
         self.tcl_str = chevron.render(template, project_config)
@@ -158,9 +158,49 @@ class RandomDesign:
 
             # Data and control ports
             self._data_ports()
+            self._control_ports()
 
         for port in unhandled_ports:
             print("Unhandled port:", port)
+
+    def _control_ports(self):
+        if self.control_ports_initialized:
+            return
+        self.control_ports_initialized = True
+
+        self._bd_tcl += "\n########## Control ports ##########\n"
+        """Connect control ports."""
+        out_ports = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "control" and not p.connected and p.direction == "O"
+        ]
+        in_ports = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "control" and not p.connected and p.direction == "I"
+        ]
+        num_in_pins = sum([p.width for p in in_ports])
+        num_out_pins = sum([p.width for p in out_ports])
+        print(f"Num input pins: {num_in_pins}")
+        print(f"Num output pins: {num_out_pins}")
+
+        # Create primary inputs for control
+        # max is lesser of 8 and the number of input pins
+        if self._pi_port_control is None:
+            min_pis = 0
+            if num_out_pins == 0 and num_in_pins > 0:
+                min_pis = 1
+            pi_width = random.randint(min_pis, min(8, num_in_pins))
+            if pi_width:
+                self._pi_port_control = self._create_external_port(
+                    "control_I", "control", "I", pi_width
+                )
+                out_ports.insert(0, self._pi_port_control)
+
+        self._random_port_connector(in_ports, out_ports)
 
     def _data_ports(self):
         if self.data_ports_initialized:
@@ -189,9 +229,13 @@ class RandomDesign:
         # Create primary inputs for data
         # max is lesser of 128 and the number of input pins
         if self._pi_port is None:
-            pi_width = random.randint(0, min(128, num_in_pins))
-            self._pi_port = self._create_external_port("data_I", "data", "I", pi_width)
-            out_ports.insert(0, self._pi_port)
+            min_pis = 0
+            if num_out_pins == 0 and num_in_pins > 0:
+                min_pis = 1
+            pi_width = random.randint(min_pis, min(128, num_in_pins))
+            if pi_width:
+                self._pi_port = self._create_external_port("data_I", "data", "I", pi_width)
+                out_ports.insert(0, self._pi_port)
 
         # # Create primary outputs for data
         # # max is lesser of 128 and the number of output pins
@@ -283,7 +327,7 @@ class RandomDesign:
 
         # in_ports_not_driven = in_ports_not_driven[i:]
         # print(in_ports_not_driven)
-        # assert not in_ports_not_driven
+        assert not in_ports_not_driven
 
     def _connect_multiple_drivers_to_port(self, port, drivers):
         """Connect multiple drivers to a port"""
@@ -304,9 +348,7 @@ class RandomDesign:
         self._bd_tcl += "\n########## Clocks ##########\n"
         if self._port_clock is None:
             clk_ip = self._new_ip(ClkGen)
-            self._create_external_port("clk", "clk", "I", width=1).connect(
-                clk_ip.port_clk_in
-            )
+            self._create_external_port("clk", "clk", "I", width=1).connect(clk_ip.port_clk_in)
             self._port_clock = clk_ip.port_clk_out
 
         self._port_clock.connect(clock_inputs)
@@ -433,11 +475,11 @@ class RandomDesign:
     def _assign_bd_address(self, master_port, slave_port):
         self._addr_space_tcl += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} "
         if slave_port.ip:
-            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
-        else:
             self._addr_space_tcl += (
-                f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+                f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
             )
+        else:
+            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
 
     def _new_ip(self, ip_class, args=None):
         """Create a new IP instance"""
