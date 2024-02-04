@@ -38,7 +38,7 @@
 
   - name: SSET
     values: [false, true]
-    enable: "Implementation == 'Fabric' and (Latency_Configuration == 'Automatic' or Latency == 1)"
+    enable: "Implementation == 'Fabric' and ((Latency_Configuration == 'Automatic' and Output_Width <= 12) or (Latency_Configuration == 'Manual' and Latency == 1))"
     default: false
 
   - name: SINIT
