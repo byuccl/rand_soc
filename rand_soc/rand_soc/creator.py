@@ -195,9 +195,20 @@ class RandomDesign:
         # If there are no output pins, then at least one primary input will be created
         if port_type not in self._pi_ports:
             min_pis = 0
+            max_pis = max_randomly_generated_inputs
+
+            # If there are no output pins, then at least one primary input will be created
             if num_out_pins == 0 and num_in_pins > 0:
                 min_pis = 1
-            pi_width = random.randint(min_pis, min(max_randomly_generated_inputs, num_in_pins))
+
+            # Don't create more primary inputs than there are input pins
+            max_pis = min(max_pis, num_in_pins)
+
+            # Don't create too many I/O ports
+            # If we already have more outputs than inputs, then don't create more PIs
+            max_pis = min(max_pis, max(0, num_in_pins - num_out_pins))
+
+            pi_width = random.randint(min_pis, max_pis)
             if pi_width:
                 logging.info(f"Creating primary input port: {port_type}_I, width: {pi_width}")
                 new_port = self._create_external_port(f"{port_type}_I", port_type, "I", pi_width)
