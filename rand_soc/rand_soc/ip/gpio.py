@@ -1,10 +1,16 @@
 """ GPIO IP """
 
-import random
+from ..ports import Port
+from .ip_base import IPrandom
+from ..utils import all_ones, randbool, randintwidth
+import yaml
+
+from ..paths import VIVADO_IP_PATH
 
 from ..ports import Port
 from .ip_base import IPrandom
 from ..utils import all_ones, randbool, randintwidth
+from lxml import etree
 
 
 class Gpio(IPrandom):
@@ -23,4 +29,3 @@ class Gpio(IPrandom):
     def instance(self):
         super().instance()
         self.instance_using_yaml_data()
-    

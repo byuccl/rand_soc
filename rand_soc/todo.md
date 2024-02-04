@@ -16,6 +16,12 @@
     * [ ] Non-complete interconnects
 * [ ] AXI Stream
 
+## Data lines
+* [ ] Basic:
+        - Connect all drivers to input pins. Creating extra outputs as needed
+        - Drive all inputs from outputs, reusing if needed.
+* [ ] Aggregator: If more outputs than inputs, support adding reduction functions
+
 ## IP
 * Processing system
     * [x] Basic Microblaze
