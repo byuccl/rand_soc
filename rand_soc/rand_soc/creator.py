@@ -47,13 +47,9 @@ class RandomDesign:
         self.ip_to_ip_connections_tcl = "\n########## IP to IP connections ##########\n"
         self._addr_space_tcl = "\n########## Address space ##########\n"
         self.ip = []
-        self._port_clock = None
-        self._port_reset = None
-        self._pi_port = None
-        self._pi_port_control = None
-        self._po_port = None
-        self.data_ports_initialized = False
-        self.control_ports_initialized = False
+        self._pi_ports = {}
+        self._po_ports = {}
+        self.port_types_initialized = set()
         self._ip_idx = 0
         self._axi_complete = False
         self._output_dir_path = pathlib.Path(output_dir_path).resolve()
@@ -119,7 +115,7 @@ class RandomDesign:
         disconnected_ports_old = set()
 
         while True:
-            if len(unhandled_ports) > 10000:
+            if len(unhandled_ports) > 1000:
                 print("Too many unhandled ports - endless loop of port creation?")
                 sys.exit(1)
 
@@ -157,113 +153,99 @@ class RandomDesign:
             self._axi()
 
             # Data and control ports
-            self._data_ports()
-            self._control_ports()
+            self._generic_ports(port_type="data", max_randomly_generated_inputs=128)
+            self._generic_ports(port_type="control", max_randomly_generated_inputs=8)
 
+        print("")
         for port in unhandled_ports:
             print("Unhandled port:", port)
+        assert not unhandled_ports
 
-    def _control_ports(self):
-        if self.control_ports_initialized:
-            return
-        self.control_ports_initialized = True
-
-        self._bd_tcl += "\n########## Control ports ##########\n"
-        """Connect control ports."""
-        out_ports = [
-            p
-            for ip in self.ip
-            for p in ip.ports
-            if p.protocol == "control" and not p.connected and p.direction == "O"
-        ]
-        in_ports = [
-            p
-            for ip in self.ip
-            for p in ip.ports
-            if p.protocol == "control" and not p.connected and p.direction == "I"
-        ]
-        num_in_pins = sum([p.width for p in in_ports])
-        num_out_pins = sum([p.width for p in out_ports])
-        print(f"Num input pins: {num_in_pins}")
-        print(f"Num output pins: {num_out_pins}")
-
-        # Create primary inputs for control
-        # max is lesser of 8 and the number of input pins
-        if self._pi_port_control is None:
-            min_pis = 0
-            if num_out_pins == 0 and num_in_pins > 0:
-                min_pis = 1
-            pi_width = random.randint(min_pis, min(8, num_in_pins))
-            if pi_width:
-                self._pi_port_control = self._create_external_port(
-                    "control_I", "control", "I", pi_width
-                )
-                out_ports.insert(0, self._pi_port_control)
-
-        self._random_port_connector(in_ports, out_ports)
-
-    def _data_ports(self):
-        if self.data_ports_initialized:
-            return
-        self.data_ports_initialized = True
-
-        self._bd_tcl += "\n########## Data ports ##########\n"
+    def _generic_ports(self, port_type, max_randomly_generated_inputs):
         """Connect data ports."""
+
+        assert port_type in ("data", "control")
+
+        if port_type in self.port_types_initialized:
+            return
+        self.port_types_initialized.add(port_type)
+
+        print(f"\n########## Connecting {port_type} ports ##########")
+        self._bd_tcl += f"\n########## {port_type} ports ##########\n"
         out_ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "data" and not p.connected and p.direction == "O"
+            if p.protocol == port_type and not p.connected and p.direction == "O"
         ]
         in_ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "data" and not p.connected and p.direction == "I"
+            if p.protocol == port_type and not p.connected and p.direction == "I"
         ]
-        num_in_pins = sum([p.width for p in in_ports])
-        num_out_pins = sum([p.width for p in out_ports])
-        print(f"Num input pins: {num_in_pins}")
-        print(f"Num output pins: {num_out_pins}")
+        num_in_pins = sum(p.width for p in in_ports)
+        num_out_pins = sum(p.width for p in out_ports)
 
-        # Create primary inputs for data
-        # max is lesser of 128 and the number of input pins
-        if self._pi_port is None:
+        # Create primary inputs for data (primary input is an output)
+        #
+        # At most max_randomly_generated_inputs will be created (unless num_in_pins is less than that,
+        # in which case the maximum number of inputs will be num_in_pins)
+        #
+        # If there are no output pins, then at least one primary input will be created
+        if port_type not in self._pi_ports:
             min_pis = 0
             if num_out_pins == 0 and num_in_pins > 0:
                 min_pis = 1
-            pi_width = random.randint(min_pis, min(128, num_in_pins))
+            pi_width = random.randint(min_pis, min(max_randomly_generated_inputs, num_in_pins))
             if pi_width:
-                self._pi_port = self._create_external_port("data_I", "data", "I", pi_width)
-                out_ports.insert(0, self._pi_port)
+                print(f"Creating primary input port: {port_type}_I, width: {pi_width}")
+                new_port = self._create_external_port(f"{port_type}_I", port_type, "I", pi_width)
+                self._pi_ports[port_type] = new_port
+                out_ports.insert(0, new_port)
+                num_out_pins = sum(p.width for p in out_ports)
 
-        # # Create primary outputs for data
-        # # max is lesser of 128 and the number of output pins
-        # if self._po_port is None:
-        #     po_width = random.randint(0, min(128, num_out_pins))
-        #     self._po_port = self._create_external_port("data_O", "data", "O", po_width)
-        #     in_ports.append(self._po_port)
+        # Create primary outputs for data (primary output is an input)
+        #
+        # This will only be done if there are more outputs than inputs,
+        # to prevent unused outputs
+        if num_out_pins > num_in_pins:
+            po_width = num_out_pins - num_in_pins
+            print(f"Creating primary output port: {port_type}_O, width: {po_width}")
+            new_port = self._create_external_port(f"{port_type}_O", port_type, "O", po_width)
+            self._po_ports[port_type] = new_port
+            in_ports.append(new_port)
+            num_in_pins = sum(p.width for p in in_ports)
+
+        print(f"Num input pins: {num_in_pins}")
+        for p in in_ports:
+            print(f"  {p.hier_name} {p.width}")
+        print(f"Num output pins: {num_out_pins}")
+        for p in out_ports:
+            print(f"  {p.hier_name} {p.width}")
 
         self._random_port_connector(in_ports, out_ports)
 
     def _random_port_connector(self, in_ports, out_ports):
-        print(f"Conecting {len(out_ports)} output ports to {len(in_ports)} input ports")
+        print(f"Will randomly connect {len(out_ports)} output ports to {len(in_ports)} input ports")
+
         # Generate list of in and out ports, where each item is a tuple (port, index)
         # where index is the lowest bit number not connected
         in_ports_not_driven = [[port, 0] for port in in_ports]
         random.shuffle(in_ports_not_driven)
 
         out_ports_unused = [[port, 0] for port in out_ports]
-        # random.shuffle(out_ports_unused)
+        assert out_ports_unused
 
         # Connect all in ports
         next_out_port_idx = 0
-        for i in range(len(in_ports_not_driven)):
+
+        for in_port_and_pin_idx in in_ports_not_driven:
             drivers = []
-            in_port = in_ports_not_driven[i][0]
+            in_port = in_port_and_pin_idx[0]
             in_width = in_port.width
             in_width_unconnected = in_width
-            print(f"Connecting drivers of port {in_port.hier_name}, width {in_width}")
+            print(f"Connecting drivers of port {in_port.hier_name} [{in_width-1}:0]")
 
             num_connected = 0
 
@@ -291,32 +273,33 @@ class RandomDesign:
 
                 if out_width == in_width_unconnected:
                     print(
-                        f"  Driving by exact width port {out_port.hier_name}, {out_bit_high} downto {out_bit_low}"
+                        f"  [{in_width_unconnected-1}:0] <-- {out_port.hier_name} [{out_bit_high}:{out_bit_low}]"
                     )
                     drivers.append((out_port, out_bit_high, out_bit_low))
                     num_connected += out_width
                     next_out_port_idx += 1
                     in_width_unconnected = 0
                     break
-                elif out_width > in_width_unconnected:
+
+                if out_width > in_width_unconnected:
                     print(
-                        f"  Driving by wider port {out_port.hier_name}, {out_bit_low + in_width - 1} downto {out_bit_low}"
+                        f"  [{in_width_unconnected-1}:0] <-- {out_port.hier_name} [{out_bit_low + in_width_unconnected - 1}:{out_bit_low}]"
                     )
-                    drivers.append((out_port, out_bit_low + in_width - 1, out_bit_low))
+                    drivers.append((out_port, out_bit_low + in_width_unconnected - 1, out_bit_low))
                     num_connected += in_width_unconnected
                     if out_port_avail:
                         out_port_avail[1] += in_width_unconnected
                     in_width_unconnected = 0
                     break
-                else:
-                    print(
-                        f"  Driving by narrower port {out_port.hier_name}, {out_bit_high} downto {out_bit_low}"
-                    )
-                    drivers.append((out_port, out_bit_high, out_bit_low))
-                    num_connected += out_width
-                    next_out_port_idx += 1
-                    in_width_unconnected -= out_width
-                    # print(f"New in_width: {in_width}")
+
+                # out_width < in_width_unconnected
+                print(
+                    f"  [{in_width_unconnected-1}:{in_width_unconnected-out_width}] <-- {out_port.hier_name} [{out_bit_high}:{out_bit_low}]"
+                )
+                drivers.append((out_port, out_bit_high, out_bit_low))
+                num_connected += out_width
+                next_out_port_idx += 1
+                in_width_unconnected -= out_width
 
             assert (
                 num_connected == in_width
@@ -324,10 +307,6 @@ class RandomDesign:
 
             # Connect all drivers to the in port
             self._connect_multiple_drivers_to_port(in_port, drivers)
-
-        # in_ports_not_driven = in_ports_not_driven[i:]
-        # print(in_ports_not_driven)
-        assert not in_ports_not_driven
 
     def _connect_multiple_drivers_to_port(self, port, drivers):
         """Connect multiple drivers to a port"""
@@ -345,15 +324,19 @@ class RandomDesign:
         ]
 
         # Create single external clock
+        print("\n########## Clocks ##########")
         self._bd_tcl += "\n########## Clocks ##########\n"
-        if self._port_clock is None:
+        if "clock" not in self._pi_ports:
             clk_ip = self._new_ip(ClkGen)
+            print("Creating external clock port: clock")
             self._create_external_port("clk", "clk", "I", width=1).connect(clk_ip.port_clk_in)
-            self._port_clock = clk_ip.port_clk_out
+            self._pi_ports["clock"] = clk_ip.port_clk_out
 
-        self._port_clock.connect(clock_inputs)
+        print(f"Connecting {clock_inputs} to clock")
+        self._pi_ports["clock"].connect(clock_inputs)
 
     def _resets(self):
+        print("\n########## Resets ##########")
         # Collect unconnected reset inputs
         reset_inputs = [
             p
@@ -363,11 +346,13 @@ class RandomDesign:
         ]
 
         # Create single external reset
-        if self._port_reset is None:
+        if "reset" not in self._pi_ports:
             self._bd_tcl += "\n########## Resets ##########\n"
-            self._port_reset = self._create_external_port("reset", "reset", "I", 1)
+            print("Creating external reset port: reset")
+            self._pi_ports["reset"] = self._create_external_port("reset", "reset", "I", 1)
 
-        self._port_reset.connect(reset_inputs)
+        print(f"Connecting {reset_inputs} to reset")
+        self._pi_ports["reset"].connect(reset_inputs)
 
     def _interrupts(
         self,
