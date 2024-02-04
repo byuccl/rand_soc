@@ -42,9 +42,9 @@ class SliceAndConcat(IP):
                     "xilinx.com:ip:xlslice:1.0",
                     f"slice_{i}",
                     {
-                        "DIN_WIDTH": port.width,
-                        "DIN_FROM": bit_high,
-                        "DIN_TO": bit_low,
+                        "CONFIG.DIN_WIDTH": port.width,
+                        "CONFIG.DIN_FROM": bit_high,
+                        "CONFIG.DIN_TO": bit_low,
                     },
                 )
                 port_in.connect_internal(f"slice_{i}/din")
