@@ -238,6 +238,9 @@ class RandomDesign:
         self._random_port_connector(in_ports, out_ports)
 
     def _random_port_connector(self, in_ports, out_ports):
+        if not in_ports and not out_ports:
+            return
+
         logging.info(
             f"Will randomly connect {len(out_ports)} output ports to {len(in_ports)} input ports"
         )
