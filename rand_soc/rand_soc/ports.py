@@ -33,7 +33,9 @@ class IpPortRegular(IpPort):
         super().__init__(ip, name, protocol, direction)
         assert width, f"Port {name} has no width"
         self.width = width
-        self.ip._bd_tcl += f"create_bd_pin -dir {self.direction} -from {self.width-1} -to 0 {self.hier_name}\n"
+        self.ip._bd_tcl += (
+            f"create_bd_pin -dir {self.direction} -from {self.width-1} -to 0 {self.hier_name}\n"
+        )
 
     def __repr__(self) -> str:
         return f"IpPortRegular({self.hier_name}, {self.direction}, {self.width}, {self.protocol})"
@@ -49,7 +51,9 @@ class IpPortRegular(IpPort):
         if isinstance(port, ExternalPortRegular):
             port.connect(self)
         else:
-            self.ip.design.ip_to_ip_connections_tcl += f"connect_bd_net [get_bd_pins {self.hier_name}] [get_bd_pins {port.hier_name}]\n"
+            self.ip.design.ip_to_ip_connections_tcl += (
+                f"connect_bd_net [get_bd_pins {self.hier_name}] [get_bd_pins {port.hier_name}]\n"
+            )
             self.connected = True
             port.connected = True
 
@@ -76,7 +80,9 @@ class IpPortInterface(IpPort):
     ):
         super().__init__(ip, name, protocol, direction)
         self.addr_seg_name = addr_seg_name
-        self.ip._bd_tcl += f"create_bd_intf_pin -mode {self.direction} -vlnv {self.protocol} {self.hier_name}\n"
+        self.ip._bd_tcl += (
+            f"create_bd_intf_pin -mode {self.direction} -vlnv {self.protocol} {self.hier_name}\n"
+        )
 
     def __repr__(self) -> str:
         return f"IpPortInterface({self.hier_name}, {self.direction}, {self.protocol}, {self.addr_seg_name})"
@@ -124,7 +130,9 @@ class ExternalPortRegular(ExternalPort):
     def __init__(self, design, name, protocol, direction, width):
         super().__init__(design, name, protocol, direction)
         self.width = width
-        design._bd_tcl += f"create_bd_port -dir {self.direction} -from {self.width-1} -to 0 {self.name}\n"
+        design._bd_tcl += (
+            f"create_bd_port -dir {self.direction} -from {self.width-1} -to 0 {self.name}\n"
+        )
 
     def connect(self, port):
         """Connect this port to an IP port(s)"""
@@ -143,9 +151,17 @@ class ExternalPortRegular(ExternalPort):
 class ExternalPortInterface(ExternalPort):
     """Top level interface port"""
 
-    def __init__(self, design, name, protocol, direction):
+    def __init__(self, design, name, protocol, direction, properties=None):
         super().__init__(design, name, protocol, direction)
-        design._bd_tcl += f"create_bd_intf_port -mode {self.direction} -vlnv {self.protocol} {self.name}\n"
+        design._bd_tcl += (
+            f"create_bd_intf_port -mode {self.direction} -vlnv {self.protocol} {self.name}\n"
+        )
+        if properties:
+            prop = ""
+            for key in sorted(properties.keys()):
+                prop += f"{key} {properties[key]} "
+
+            design._bd_tcl += f'set_property -dict "{prop}" [get_bd_intf_ports {self.hier_name}]\n'
 
     def connect(self, port):
         """Connect this port to an IP port"""

@@ -74,7 +74,7 @@ class RandomDesign:
     def create(self):
         """Create the design tcl"""
         project_config = {
-            "part": "xc7a200tsbg484-1",
+            "part": "xc7a200tlffv1156-2L",
             "bd_name": "bd_design",
             "checkpoint_path": "synth.dcp",
             "verilog_path": "synth.v",
@@ -399,7 +399,7 @@ class RandomDesign:
         # If there are no microblaze interrupt inputs, create a top-level output
         if not interrupt_inputs:
             irq_out = self._create_external_port(
-                "irq", "xilinx.com:interface:mbinterrupt_rtl:1.0", "Master", 1
+                "irq", "xilinx.com:interface:mbinterrupt_rtl:1.0", "Master"
             )
             interrupt_inputs.append(irq_out)
 
@@ -456,10 +456,14 @@ class RandomDesign:
         assert not self._axi_complete
         self._axi_complete = True
 
+        self._bd_tcl += "\n########## AXI ##########\n"
         if not masters:
             # If we don't have a master, create a top-level master
             master = self._create_external_port(
-                "axi_master", "xilinx.com:interface:aximm_rtl:1.0", "Slave"
+                "axi_master",
+                "xilinx.com:interface:aximm_rtl:1.0",
+                "Slave",
+                properties={"CONFIG.PROTOCOL": "AXI4LITE"},
             )
             masters.append(master)
 
@@ -467,7 +471,6 @@ class RandomDesign:
         assert len(slaves)
         assert len(masters)
 
-        self._bd_tcl += "\n########## AXI ##########\n"
         axi = self._new_ip(Axi, (len(masters), len(slaves)))
 
         for i, master in enumerate(masters):
@@ -478,9 +481,10 @@ class RandomDesign:
                 # External masters don't have an address space?
                 self._assign_bd_address(master, slave)
 
-    def _create_external_port(self, name, protocol, direction, width=None):
+    def _create_external_port(self, name, protocol, direction, width=None, properties=None):
         if protocol.startswith("xilinx.com:interface:"):
-            port = ExternalPortInterface(self, name, protocol, direction)
+            assert width is None
+            port = ExternalPortInterface(self, name, protocol, direction, properties)
         else:
             port = ExternalPortRegular(self, name, protocol, direction, width)
         return port
