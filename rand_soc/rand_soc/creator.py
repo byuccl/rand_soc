@@ -12,7 +12,7 @@ from .ip.axi import Axi
 from .ip.clk_gen import ClkGen
 from .ip.intc import Intc
 from .ip.uartlite import Uartlite
-from .ports import ExternalPortInterface, ExternalPortRegular, Port
+from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
 from .ip.gpio import Gpio
 from .ip.microblaze import Microblaze
 
@@ -52,6 +52,7 @@ class RandomDesign:
         self.port_types_initialized = set()
         self._ip_idx = 0
         self._axi_complete = False
+        self._intc_complete = False
         self._output_dir_path = pathlib.Path(output_dir_path).resolve()
 
         # Enable logging
@@ -158,7 +159,7 @@ class RandomDesign:
 
         logging.info("")
         for port in unhandled_ports:
-            logging.error("Unhandled port:", port)
+            logging.error("Unhandled port: %s", port)
         assert not unhandled_ports
 
     def _generic_ports(self, port_type, max_randomly_generated_inputs):
@@ -379,7 +380,7 @@ class RandomDesign:
             for p in ip.ports
             if p.protocol == "irq" and not p.connected and p.direction == "O"
         ]
-        interrupt_microblaze_inputs = [
+        interrupt_inputs = [
             p
             for ip in self.ip
             for p in ip.ports
@@ -388,8 +389,22 @@ class RandomDesign:
             and p.direction == "Slave"
         ]
 
+        if not interrupt_outputs and not interrupt_inputs:
+            return
+
+        # Incremental interrupts not supported
+        assert not self._intc_complete
+        self._intc_complete = True
+
+        # If there are no microblaze interrupt inputs, create a top-level output
+        if not interrupt_inputs:
+            irq_out = self._create_external_port(
+                "irq", "xilinx.com:interface:mbinterrupt_rtl:1.0", "Master", 1
+            )
+            interrupt_inputs.append(irq_out)
+
         self._bd_tcl += "\n########## Interrupts ##########\n"
-        for interrupt_input in interrupt_microblaze_inputs:
+        for interrupt_input in interrupt_inputs:
             intc = self._new_ip(Intc, (len(interrupt_outputs),))
             for i, interrupt_output in enumerate(interrupt_outputs):
                 intc.input_ports[i].connect(interrupt_output)
@@ -433,12 +448,20 @@ class RandomDesign:
             and not p.connected
             and p.direction == "Slave"
         ]
-        if not masters or not slaves:
+
+        if not masters and not slaves:
             return
 
         # Incremental AXI not supported
         assert not self._axi_complete
         self._axi_complete = True
+
+        if not masters:
+            # If we don't have a master, create a top-level master
+            master = self._create_external_port(
+                "axi_master", "xilinx.com:interface:aximm_rtl:1.0", "Slave"
+            )
+            masters.append(master)
 
         # TODO: Non-complete crossbars
         assert len(slaves)
@@ -452,6 +475,7 @@ class RandomDesign:
         for i, slave in enumerate(slaves):
             slave.connect(axi.port_slaves[i])
             for master in masters:
+                # External masters don't have an address space?
                 self._assign_bd_address(master, slave)
 
     def _create_external_port(self, name, protocol, direction, width=None):
@@ -474,7 +498,11 @@ class RandomDesign:
         self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {instance_name}]\n'
 
     def _assign_bd_address(self, master_port, slave_port):
-        self._addr_space_tcl += f"assign_bd_address -target_address_space /{master_port.ip.hier_name}/{master_port.addr_seg_name} "
+        self._addr_space_tcl += f"assign_bd_address -target_address_space "
+        if isinstance(master_port, ExternalPort):
+            self._addr_space_tcl += f"{master_port.hier_name} "
+        else:
+            self._addr_space_tcl += f"/{master_port.ip.hier_name}/{master_port.addr_seg_name} "
         if slave_port.ip:
             self._addr_space_tcl += (
                 f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
