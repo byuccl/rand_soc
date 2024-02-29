@@ -36,9 +36,12 @@ class DesignCreator:
 class RandomDesign:
     """Creates a random design"""
 
-    def __init__(self, output_dir_path, seed=None):
+    def __init__(self, output_dir_path, seed=None, part=None):
         if seed is not None:
             random.seed(seed)
+        if part is None:
+            part = "xc7a200tsbg484-1"
+        self.part = part
 
         self.tcl_str = ""
 
@@ -74,7 +77,7 @@ class RandomDesign:
     def create(self):
         """Create the design tcl"""
         project_config = {
-            "part": "xc7a200tlffv1156-2L",
+            "part": self.part,
             "bd_name": "bd_design",
             "checkpoint_path": "synth.dcp",
             "verilog_path": "synth.v",
