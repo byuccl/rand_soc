@@ -12,6 +12,7 @@ from .ip.axi import Axi
 from .ip.clk_gen import ClkGen
 from .ip.intc import Intc
 from .ip.uartlite import Uartlite
+from .ip.emc import Emc
 from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
 from .ip.gpio import Gpio
 from .ip.microblaze import Microblaze
@@ -93,7 +94,7 @@ class RandomDesign:
         with open(template_path) as f:
             template = f.read()
 
-        ip_available = [Gpio, Microblaze, Uartlite, Accumulator]
+        ip_available = [Gpio, Microblaze, Uartlite, Accumulator, Emc]
         for ip in ip_available:
             num_ip = random.randint(1, 3)
             for _ in range(num_ip):
@@ -148,7 +149,7 @@ class RandomDesign:
             self._clocks()
 
             # GPIO, UART ports
-            self._gpio()
+            self._external_interfaces()
 
             # Interrupt ports
             self._interrupts()
@@ -413,7 +414,7 @@ class RandomDesign:
                 intc.input_ports[i].connect(interrupt_output)
             interrupt_input.connect(intc.port_irq)
 
-    def _gpio(self):
+    def _external_interfaces(self):
         ports = [
             p
             for ip in self.ip
@@ -422,6 +423,7 @@ class RandomDesign:
             in (
                 "xilinx.com:interface:gpio_rtl:1.0",
                 "xilinx.com:interface:uart_rtl:1.0",
+                "xilinx.com:interface:emc_rtl:1.0",
             )
             and not p.connected
         ]

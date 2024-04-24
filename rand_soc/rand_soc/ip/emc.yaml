@@ -1,0 +1,70 @@
+- id: "emc_0"
+  definition: "xilinx.com:ip:axi_emc:3.0"
+  configuration:
+  - name: C_S_AXI_MEM_DATA_WIDTH
+    values: [32, 64]
+
+  - name: C_NUM_BANKS_MEM
+    values_eval: range(1,5)
+
+  ports:
+  - name: EMC_INTF
+    protocol: "xilinx.com:interface:emc_rtl:1.0"
+    direction: Master
+    connections:
+    - emc_0/EMC_INTF
+  - name: clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - emc_0/s_axi_aclk
+  - name: rdclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - emc_0/rdclk
+  - name: rst
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - emc_0/s_axi_aresetn
+  - name: AXI
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Slave
+    connections:
+    - emc_0/S_AXI_MEM
+    addr_seg_name: "emc_0/S_AXI_MEM/Reg"
+
+
+
+
+
+
+
+
+
+
+  # - name: Implementation
+  #   values: ["Fabric", "DSP48"]
+
+  # - name: Output_Width
+  #   values: range(16,259)
+
+  # - name: Accum_Mode
+  #   values: ["Add", "Subtract", "Add_Subtract"]
+
+  # - name: Latency_Configuration
+  #   values: ["Automatic", "Manual"]
+
+  # - name: Latency
+  #   values: range(1,16)
+  #   enable: "Latency_Configuration == 'Manual'"
+
+  # - name: Scale
+  #   values: range(0,9)
+  #   enable: "Latency_Configuration == 'Manual'"
+
+
