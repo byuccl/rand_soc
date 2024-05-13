@@ -75,7 +75,8 @@ class NetlistPhysToLogical:
             eqn = LUTTools.getLUTEquation(instance_wrapper.properties["INIT"])[2:].replace("!", "~")
             eqn = boolean.BooleanAlgebra().parse(eqn)
 
-            if o6_net_connected and o5_net_connected:
+            if  o5_net_connected:
+                # 05 output uses only half the equation, so perform the substitution and simplification
                 o5_eqn = eqn.subs({boolean.Symbol("I5"): eqn.FALSE}).simplify()
                 self.create_new_lut(
                     netlist_wrapper,
@@ -85,23 +86,26 @@ class NetlistPhysToLogical:
                     output_pin="O5",
                 )
 
-                o6_eqn = eqn.subs({boolean.Symbol("I5"): eqn.TRUE}).simplify()
-                self.create_new_lut(
-                    netlist_wrapper,
-                    o6_eqn,
-                    instance_wrapper,
-                    name=instance_wrapper.name + "O6",
-                    output_pin="O6",
-                )
+            if o6_net_connected:
+                if o5_net_connected:
+                    # 06 output when O5 is also present uses only half the equation, 
+                    # so perform the substitution and simplification
+                    o6_eqn = eqn.subs({boolean.Symbol("I5"): eqn.TRUE}).simplify()
+                    self.create_new_lut(
+                        netlist_wrapper,
+                        o6_eqn,
+                        instance_wrapper,
+                        name=instance_wrapper.name + "O6",
+                        output_pin="O6",
+                    )
 
-            elif o6_net_connected and not o5_net_connected:
-                name = instance_wrapper.name
-                instance_wrapper.instance.name = instance_wrapper.instance.name + ".OLD"
-                self.create_new_lut(
-                    netlist_wrapper, eqn, instance_wrapper, name=name, output_pin="O6"
-                )
-            else:
-                raise NotImplementedError
+                else:
+                    # O6 is connected, but O5 is not. 
+                    name = instance_wrapper.name
+                    instance_wrapper.instance.name = instance_wrapper.instance.name + ".OLD"
+                    self.create_new_lut(
+                        netlist_wrapper, eqn, instance_wrapper, name=name, output_pin="O6"
+                    )
 
             logging.info("Removing instance: %s", instance_wrapper.name)
             self.top.reference.remove_child(instance_wrapper.instance)
