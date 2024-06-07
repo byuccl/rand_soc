@@ -9,6 +9,7 @@ from .ip.slice_and_concat import SliceAndConcat
 from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
 from .ip.axi import Axi
+from .ip.axi_timer import AxiTimer
 from .ip.clk_gen import ClkGen
 from .ip.intc import Intc
 from .ip.uartlite import Uartlite
@@ -94,7 +95,7 @@ class RandomDesign:
         with open(template_path) as f:
             template = f.read()
 
-        ip_available = [Gpio, Microblaze, Uartlite, Accumulator, Emc]
+        ip_available = [Gpio, Microblaze, Uartlite, Accumulator, Emc, AxiTimer]
         for ip in ip_available:
             num_ip = random.randint(1, 3)
             for _ in range(num_ip):

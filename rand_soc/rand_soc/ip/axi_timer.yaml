@@ -1,0 +1,100 @@
+- id: "axi_timer_0"
+  definition: "xilinx.com:ip:axi_timer:2.0"
+  configuration:
+  - name: mode_64bit
+    values: [true, false]
+
+  - name: TIMER_WIDTH
+    enable: "mode_64bit == False"
+    values: [8, 16, 32]
+
+  - name: TRIG0_ASSERT
+    values: ["Active_Low", "Active_High"]
+
+  - name: GEN0_ASSERT
+    values: ["Active_Low", "Active_High"]
+
+  - name: enable_timer2
+    enable: "mode_64bit == False"
+    values: [true, false]
+
+  - name: TRIG1_ASSERT
+    enable: "(mode_64bit == False) and enable_timer2"
+    values: ["Active_Low", "Active_High"]
+
+  - name: GEN1_ASSERT
+    enable: "(mode_64bit == False) and enable_timer2"
+    values: ["Active_Low", "Active_High"]
+
+  ports:
+  - name: S_AXI
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Slave
+    connections:
+    - axi_timer_0/S_AXI
+    addr_seg_name: "axi_timer_0/S_AXI/Reg"
+
+  - name: capturetrig0
+    protocol: "control"
+    direction: I
+    width: 1
+    connections:
+    - axi_timer_0/capturetrig0
+
+  - name: capturetrig1
+    protocol: "control"
+    direction: I
+    width: 1
+    enable: "mode_64bit == False"
+    connections:
+    - axi_timer_0/capturetrig1
+
+  - name: freeze
+    protocol: "control"
+    direction: I
+    width: 1
+    connections:
+    - axi_timer_0/freeze
+
+  - name: s_axi_aclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - axi_timer_0/s_axi_aclk
+
+  - name: s_axi_aresetn
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - axi_timer_0/s_axi_aresetn
+
+  - name: generateout0
+    protocol: "data"
+    direction: O
+    width: 1
+    connections:
+    - axi_timer_0/generateout0
+
+  - name: generateout1
+    protocol: "data"
+    direction: O
+    width: 1
+    connections:
+    - axi_timer_0/generateout1
+
+  - name: pwm0
+    protocol: "data"
+    direction: O
+    width: 1
+    connections:
+    - axi_timer_0/pwm0
+
+  - name: interrupt
+    protocol: "irq"
+    direction: O
+    width: 1
+    connections:
+    - axi_timer_0/interrupt
+    
