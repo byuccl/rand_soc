@@ -4,7 +4,7 @@
   - name: mode_64bit
     values: [true, false]
 
-  - name: TIMER_WIDTH
+  - name: COUNT_WIDTH
     enable: "mode_64bit == False"
     values: [8, 16, 32]
 
