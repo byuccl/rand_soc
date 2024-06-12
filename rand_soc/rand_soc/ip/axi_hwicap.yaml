@@ -1,0 +1,77 @@
+- id: "axi_hwicap_0"
+  definition: "xilinx.com:ip:axi_hwicap:3.0"
+  configuration:
+  - name: C_ICAP_EXTERNAL
+    values: [true, false]
+
+  - name: C_MODE
+    values: [true, false]
+
+  - name: C_NOREAD
+    values: [true, false]
+
+  - name: C_ICAP_DWIDTH
+    values: [8, 16, 32]
+
+  - name: C_INCLUDE_STARTUP
+    values: [true, false]
+
+  - name: C_SHARED_STARTUP
+    enable: "C_INCLUDE_STARTUP"
+    values: [false]
+
+  ports:
+  - name: S_AXI_LITE
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Slave
+    connections:
+    - axi_hwicap_0/S_AXI_LITE
+
+  - name: icap_clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - axi_hwicap_0/icap_clk
+
+  - name: eos_in
+    protocol: "data"
+    direction: I
+    width: 1
+    connections:
+    - axi_hwicap_0/eos_in
+
+  - name: s_axi_aclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - axi_hwicap_0/s_axi_aclk
+
+  - name: s_axi_aresetn
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - axi_hwicap_0/s_axi_aresetn
+
+  - name: ip2intc_irpt
+    protocol: "irq"
+    direction: O
+    width: 1
+    connections:
+    - axi_hwicap_0/ip2intc_irpt
+
+  - name: ICAP
+    protocol: "xilinx.com:interface:icap_rtl:1.0"
+    direction: Master
+    enable: "C_ICAP_EXTERNAL"
+    connections:
+    - axi_hwicap_0/ICAP
+
+  - name: ICAP_ARBITER
+    protocol: "xilinx.com:interface:arb_rtl:1.0"
+    direction: Master
+    enable: "C_ICAP_EXTERNAL"
+    connections:
+    - axi_hwicap_0/ICAP_ARBITER

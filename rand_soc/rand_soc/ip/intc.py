@@ -1,4 +1,4 @@
-""" GPIO IP """
+""" Interrupt controller IP """
 
 
 from ..ports import Port
