@@ -424,10 +424,19 @@ class RandomDesign:
             for p in ip.ports
             if p.protocol
             in (
+                # GPIO general purpose I/O and 3-state pins
                 "xilinx.com:interface:gpio_rtl:1.0",
+
+                # UART master interface
                 "xilinx.com:interface:uart_rtl:1.0",
+
+                # EMC_INTF port
                 "xilinx.com:interface:emc_rtl:1.0",
+
+                # axi_usb2_device ULPI port, for use with USB PHY
                 "xilinx.com:interface:ulpi_rtl:1.0",
+
+                # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
                 "xilinx.com:interface:icap_rtl:1.0",
                 "xilinx.com:interface:arb_rtl:1.0"
             )

@@ -6,9 +6,6 @@ from .ip_base import IPrandom
 class Gpio(IPrandom):
     """GPIO IP class"""
 
-    def __init__(self, design, name):
-        super().__init__(design, name)
-
     @property
     def name(self):
         return "gpio"
