@@ -78,6 +78,10 @@ class IPrandom(IP):
     def randomize(self):
         """Randomize the IP"""
         raise NotImplementedError
+    
+    def instance(self):
+        super().instance()
+        self.instance_using_yaml_data()
 
     def instance_using_yaml_data(self):
         for ip_id, ip_props in self.data.items():

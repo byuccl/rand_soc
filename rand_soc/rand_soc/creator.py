@@ -97,7 +97,18 @@ class RandomDesign:
         with open(template_path) as f:
             template = f.read()
 
-        ip_available = [Gpio, Microblaze, Uartlite, Accumulator, Emc, AxiTimer, AxiHwicap, AxiUsb2Device]
+        ip_available = [
+            Gpio,
+            Microblaze,
+            Uartlite,
+            Accumulator,
+            Emc,
+            AxiHwicap,
+            AxiTimer,
+            AxiUsb2Device
+
+        ]
+
         for ip in ip_available:
             num_ip = random.randint(1, 3)
             for _ in range(num_ip):
