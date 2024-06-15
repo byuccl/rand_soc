@@ -13,7 +13,8 @@ class Microblaze(IPrandom):
         pass
 
     def instance(self):
-        super().instance()
+        # super().instance()
+        self._bd_tcl += f"create_bd_cell -type hier {self.hier_name}\n"
 
         instance_name = "microblaze_0"
         microblaze_config = {}

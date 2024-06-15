@@ -9,7 +9,9 @@ from .ip.slice_and_concat import SliceAndConcat
 from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
 from .ip.axi import Axi
+from .ip.axi_hwicap import AxiHwicap
 from .ip.axi_timer import AxiTimer
+from .ip.axi_usb2_device import AxiUsb2Device
 from .ip.clk_gen import ClkGen
 from .ip.intc import Intc
 from .ip.uartlite import Uartlite
@@ -95,7 +97,18 @@ class RandomDesign:
         with open(template_path) as f:
             template = f.read()
 
-        ip_available = [Gpio, Microblaze, Uartlite, Accumulator, Emc, AxiTimer]
+        ip_available = [
+            Gpio,
+            Microblaze,
+            Uartlite,
+            Accumulator,
+            Emc,
+            AxiHwicap,
+            AxiTimer,
+            AxiUsb2Device
+
+        ]
+
         for ip in ip_available:
             num_ip = random.randint(1, 3)
             for _ in range(num_ip):
@@ -422,9 +435,21 @@ class RandomDesign:
             for p in ip.ports
             if p.protocol
             in (
+                # GPIO general purpose I/O and 3-state pins
                 "xilinx.com:interface:gpio_rtl:1.0",
+
+                # UART master interface
                 "xilinx.com:interface:uart_rtl:1.0",
+
+                # EMC_INTF port
                 "xilinx.com:interface:emc_rtl:1.0",
+
+                # axi_usb2_device ULPI port, for use with USB PHY
+                "xilinx.com:interface:ulpi_rtl:1.0",
+
+                # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
+                "xilinx.com:interface:icap_rtl:1.0",
+                "xilinx.com:interface:arb_rtl:1.0"
             )
             and not p.connected
         ]
