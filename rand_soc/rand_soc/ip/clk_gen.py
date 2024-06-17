@@ -1,12 +1,10 @@
-""" GPIO IP """
+""" Clk Gen IP """
 
-
-from ..ports import Port
 from .ip_base import IP
 
 
 class ClkGen(IP):
-    """Interrupt controller IP class"""
+    """Clock Generator IP class"""
 
     def __init__(self, design, name):
         super().__init__(design, name)
