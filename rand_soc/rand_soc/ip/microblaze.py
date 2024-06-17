@@ -1,4 +1,5 @@
-from ..ports import Port
+""" Microblaze IP """
+
 from .ip_base import IPrandom
 
 
@@ -13,7 +14,7 @@ class Microblaze(IPrandom):
         pass
 
     def instance(self):
-        # super().instance()
+        
         self._bd_tcl += f"create_bd_cell -type hier {self.hier_name}\n"
 
         instance_name = "microblaze_0"

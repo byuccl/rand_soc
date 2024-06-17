@@ -1,12 +1,10 @@
-""" GPIO IP """
+""" AXI Smartconnect IP """
 
-
-from ..ports import Port
 from .ip_base import IP
 
 
 class Axi(IP):
-    """Interrupt controller IP class"""
+    """AXI Smartconnect IP class"""
 
     def __init__(self, design, name, num_masters, num_slaves):
         super().__init__(design, name)

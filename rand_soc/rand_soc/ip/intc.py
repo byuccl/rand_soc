@@ -1,7 +1,6 @@
 """ Interrupt controller IP """
 
 
-from ..ports import Port
 from .ip_base import IP
 
 
