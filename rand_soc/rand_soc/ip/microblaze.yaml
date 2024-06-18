@@ -1,0 +1,32 @@
+- id: "microblaze_0"
+  definition: "xilinx.com:ip:microblaze:11.0"
+  configuration:
+  - name: C_DATA_SIZE
+    values: [32, 64]
+
+  - name: C_AREA_OPTIMIZED
+    values: [0, 1, 2]
+
+  - name: C_DEBUG_ENABLED
+    values: [true, false]
+
+  - name: C_ENABLE_DISCRETE_PORTS
+    values: [true, false]
+
+
+  ports:
+  - name: Clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - microblaze_0/Clk
+
+  - name: Reset
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - microblaze_0/Reset
+
+  - name: 
