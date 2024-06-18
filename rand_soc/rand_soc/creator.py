@@ -13,6 +13,7 @@ from .ip.axi_hwicap import AxiHwicap
 from .ip.axi_timer import AxiTimer
 from .ip.axi_usb2_device import AxiUsb2Device
 from .ip.clk_gen import ClkGen
+from .ip.dft import Dft
 from .ip.intc import Intc
 from .ip.uartlite import Uartlite
 from .ip.emc import Emc
@@ -105,8 +106,8 @@ class RandomDesign:
             Emc,
             AxiHwicap,
             AxiTimer,
-            AxiUsb2Device
-
+            AxiUsb2Device,
+            Dft
         ]
 
         for ip in ip_available:
