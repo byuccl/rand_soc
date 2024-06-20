@@ -32,7 +32,7 @@
   - name: C_IS_DUAL
     values: [true, false]
 
-  - name: C_GPIO_WIDTH_2
+  - name: C_GPIO2_WIDTH
     values_eval: range(1,33)
     enable: "C_IS_DUAL"
 
