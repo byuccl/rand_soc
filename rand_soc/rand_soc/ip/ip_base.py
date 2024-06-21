@@ -116,6 +116,11 @@ class IPrandom(IP):
 
         self.data = {}
         for ip_yaml in ip_data:
+            # Check if IP requires a satisfied condition before instancing
+            if "enable" in ip_yaml:
+                if not eval(ip_yaml["enable"], None, self.config_vars):
+                    continue
+
             # Create entry for this IP
             ip = {}
             self.data[ip_yaml["id"]] = ip
