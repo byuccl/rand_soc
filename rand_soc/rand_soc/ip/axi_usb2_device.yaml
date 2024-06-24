@@ -83,3 +83,4 @@
   #   enable: "C_INCLUDE_DMA"
   #   connections:
   #   - axi_usb2_device_0/M_AXI
+  #   addr_seg_name: "axi_usb2_device_0/DMA_DATA"

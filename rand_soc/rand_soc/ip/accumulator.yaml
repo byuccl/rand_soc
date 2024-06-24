@@ -25,7 +25,7 @@
 
   - name: Scale
     values_eval: range(0,9)
-    enable: "Latency_Configuration == 'Manual' and Latency == 1"
+    enable: "Implementation == 'Fabric' and Latency_Configuration == 'Manual' and Latency == 1"
 
   - name: CE # Clock Enable
     values: [false, true]
@@ -52,7 +52,7 @@
 
   - name: AINIT_Value
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
-    enable: "not SINIT"
+    enable: "(Implementation == 'Fabric') and not SSET and not SCLR and not SINIT"
 
   - name: Bypass
     values: [false, true]
