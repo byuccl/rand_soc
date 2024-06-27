@@ -1,0 +1,310 @@
+- id: "microblaze_0"
+  definition: "xilinx.com:ip:microblaze:11.0"
+  configuration:
+
+  ### GENERAL ###
+  - name: C_USE_BARREL
+    values: [true, false]
+
+  - name: C_USE_FPU
+    values: [0, 1, 2]
+
+  - name: C_USE_HW_MUL
+    values: [0, 1, 2]
+
+  - name: C_USE_DIV
+    values: [true, false]
+
+  - name: C_USE_MSR_INSTR
+    values: [true, false]
+
+  - name: C_USE_PCMP_INSTR
+    values: [true, false]
+
+  - name: C_USE_REORDER_INSTR
+    values : [true, false]
+
+  - name: C_ADDR_SIZE
+    values: [32, 36, 40, 44, 48, 52, 64]
+
+  - name: C_AREA_OPTIMIZED
+    values: [0, 1, 2]
+
+  - name: C_USE_BRANCH_TARGET_CACHE
+    enable: "C_AREA_OPTIMIZED != 1"
+    values_eval: "[True] if C_AREA_OPTIMIZED == 2 else [True, False]"
+
+  - name: C_BRANCH_TARGET_CACHE_SIZE
+    enable: "C_AREA_OPTIMIZED != 1"
+    values_eval: range(0, 8)
+
+  - name: C_FAULT_TOLERANT
+    values: [true, false]
+
+  ### EXCEPTION ###
+  - name: C_FPU_EXCEPTION
+    enable: "C_USE_FPU"
+    values: [true, false]
+
+  - name: C_DIV_ZERO_EXCEPTION
+    enable: "C_USE_DIV"
+    values: [true, false]
+
+  - name: C_M_AXI_I_BUS_EXCEPTION
+    enable: "C_FAULT_TOLERANT"
+    values: [true, false]
+
+  - name: C_M_AXI_D_BUS_EXCEPTION
+    enable: "C_FAULT_TOLERANT"
+    values: [true, false]
+
+  - name: C_ILL_OPCODE_EXCEPTION
+    values: [true, false]
+
+  - name: C_UNALIGNED_EXCEPTIONS
+    values: [true, false]
+
+  - name: C_OPCODE_0x0_ILLEGAL
+    enable: "C_ILL_OPCODE_EXCEPTION"
+    values: [true, false]
+
+  - name: C_USE_STACK_PROTECTION
+    values: [true, false]
+
+  ### CACHE ###
+  ### MMU ###
+  - name: C_USE_MMU
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION"
+    values_eval: range(0, 4)
+
+  - name: C_MMU_DTLB_SIZE
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
+    values: [1, 2, 4, 8]
+
+  - name: C_MMU_ITLB_SIZE
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
+    values: [1, 2, 4, 8]
+
+  - name: C_MMU_TLB_ACCESS
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
+    values_eval: range(0, 4)
+
+  - name: C_MMU_ZONES
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
+    values_eval: range(0, 17)
+
+  - name: C_MMU_PRIVILEGED_INSTR
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
+    values_eval: "range(0, 2 if C_USE_MMU < 3 else 5)"
+
+  ### DEBUG ###
+  ### INTERRUPT / RESET ###
+  - name: C_USE_INTERRUPT
+    values: [0, 1, 2]
+
+  - name: C_RESET_MSR_EIP
+    values: [true, false]
+
+  - name: C_RESET_MSR_EE
+    values: [true, false]
+
+  - name: C_RESET_MSR_DCE
+    values: [true, false]
+
+  - name: C_RESET_MSR_ICE
+    values: [true, false]
+
+  - name: C_RESET_MSR_BIP
+    values: [true, false]
+
+  - name: C_RESET_MSR_IE
+    values: [true, false]
+
+  ### PVR ###
+  - name: C_PVR
+    values: [0, 1, 2]
+
+  - name: C_PVR_USER1
+    enable: "C_PVR"
+    values_eval: range(0x0, 0xff)
+
+
+  ### BUS SETTINGS ###
+  - name: C_I_LMB
+    values: [true, false]
+
+  - name: C_D_LMB
+    values: [true, false]
+
+
+
+
+
+  ports:
+  - name: Clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - microblaze_0/Clk
+
+  - name: Reset
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - microblaze_0/Reset
+
+  # - name: 
+
+
+
+
+
+
+### Data Memory ###
+- id: "lmb_d"
+  enable: C_D_LMB
+  definition: "xilinx.com:ip:lmb_v10:3.0"
+  configuration:
+  - name: C_EXT_RESET_HIGH
+    values: [true, false]
+
+  ports:
+  - name: lmb_d_clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - lmb_d/LMB_Clk
+
+  - name: lmb_d_reset
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - lmb_d/SYS_Rst
+
+  - name: lmb_d_M
+    protocol: "xilinx.com:interface:lmb_rtl:1.0"
+    direction: Slave
+    connections:
+    - lmb_d/LMB_M
+
+
+- id: "lmb_ctrl_d"
+  enable: C_D_LMB
+  definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
+  configuration:
+  - name: C_NUM_LMB
+    values: [1]
+
+  ports:
+  - name: lmb_ctrl_d_clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - lmb_ctrl_d/LMB_Clk
+
+  - name: lmb_ctrl_d_reset
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - lmb_ctrl_d/LMB_Rst
+
+  - name: lmb_ctrl_d_SLMB
+    protocol: "xilinx.com:interface:lmb_rtl:1.0"
+    direction: Slave
+    connections:
+    - lmb_ctrl_d/SLMB
+
+
+### Instruction Memory ###
+- id: "lmb_i"
+  enable: C_I_LMB
+  definition: "xilinx.com:ip:lmb_v10:3.0"
+  configuration:
+  - name: C_EXT_RESET_HIGH
+    values: [true, false]
+
+  ports:
+  - name: lmb_i_clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - lmb_i/LMB_Clk
+
+  - name: lmb_i_reset
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - lmb_i/SYS_Rst
+
+  - name: lmb_i_M
+    protocol: "xilinx.com:interface:lmb_rtl:1.0"
+    direction: Slave
+    connections:
+    - lmb_i/LMB_M
+
+- id: "lmb_ctrl_i"
+  enable: C_I_LMB
+  definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
+  configuration:
+  - name: C_NUM_LMB
+    values: [1]
+
+  ports:
+  - name: lmb_ctrl_i_clk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - lmb_ctrl_i/LMB_Clk
+
+  - name: lmb_ctrl_i_reset
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - lmb_ctrl_i/LMB_Rst
+
+  - name: lmb_ctrl_i_SLMB
+    protocol: "xilinx.com:interface:lmb_rtl:1.0"
+    direction: Slave
+    connections:
+    - lmb_ctrl_i/SLMB
+
+
+### Block Memory Generator ###
+- id: "mem"
+  enable: "C_I_LMB or C_D_LMB"
+  definition: "xilinx.com:ip:blk_mem_gen:8.4"
+  configuration:
+  - name: use_bram_block
+    values: ["BRAM_Controller"]
+
+  - name: Memory_Type
+    values_eval: "['True_Dual_Port_RAM'] if (C_I_LMB and C_D_LMB) else ['Single_Port_RAM']"
+
+  - name: Assume_Synchronous_Clk
+    enable: "C_I_LMB and C_D_LMB"
+    values: [true, false]
+
+
+  ports:
+  - name: BRAM_PORTA
+    protocol: "xilinx.com:interface:bram_rtl:1.0"
+    direction: Slave
+    connections:
+    - mem/BRAM_PORTA
+
+  - name: BRAM_PORTB
+    protocol: "xilinx.com:interface:bram_rtl:1.0"
+    enable: "C_I_LMB and C_D_LMB"
+    direction: Slave
+    connections:
+    - mem/BRAM_PORTB
