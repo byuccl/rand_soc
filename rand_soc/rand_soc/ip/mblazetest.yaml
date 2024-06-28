@@ -138,8 +138,6 @@
 
 
 
-
-
   ports:
   - name: Clk
     protocol: "clk"
@@ -155,8 +153,11 @@
     connections:
     - microblaze_0/Reset
 
-  # - name: 
-
+  - name: INTERRUPT
+    protocol: "xilinx.com:interface:mbinterrupt_rtl:1.0"
+    direction: Slave
+    connections:
+    - microblaze_0/INTERRUPT
 
 
 
@@ -308,3 +309,11 @@
     direction: Slave
     connections:
     - mem/BRAM_PORTB
+  
+# - internal_connections:
+#   - from:
+#     to:
+#     is_interface:
+#     enable:
+#   - from:
+    
