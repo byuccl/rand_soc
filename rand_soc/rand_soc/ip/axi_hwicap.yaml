@@ -20,6 +20,21 @@
     enable: "C_INCLUDE_STARTUP"
     values: [false]
 
+  - name: C_OPERATION
+    values: [true, false]
+
+  - name: C_WRITE_FIFO_DEPTH
+    enable: "C_MODE == False"
+    values: [64, 128, 256, 512, 1024]
+
+  - name: C_READ_FIFO_DEPTH
+    enable: "C_NOREAD == False"
+    values: [128, 256]
+
+  - name: C_BRAM_SRL_FIFO_TYPE
+    enable: "C_NOREAD == False"
+    values: [0, 1]
+
   ports:
   - name: S_AXI_LITE
     protocol: "xilinx.com:interface:aximm_rtl:1.0"
