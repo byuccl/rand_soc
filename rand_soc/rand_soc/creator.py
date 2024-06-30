@@ -20,6 +20,7 @@ from .ip.emc import Emc
 from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
 from .ip.gpio import Gpio
 from .ip.microblaze import Microblaze
+from .ip.mblazetest import MicroblazeTest
 
 
 class DesignCreator:
@@ -100,7 +101,8 @@ class RandomDesign:
 
         ip_available = [
             Gpio,
-            Microblaze,
+            MicroblazeTest, # UNDER CONSTRUCTION
+            # Microblaze,
             Uartlite,
             Accumulator,
             Emc,
@@ -450,7 +452,11 @@ class RandomDesign:
 
                 # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
                 "xilinx.com:interface:icap_rtl:1.0",
-                "xilinx.com:interface:arb_rtl:1.0"
+                "xilinx.com:interface:arb_rtl:1.0",
+
+                # Local memory bus IP for Microblaze
+                "xilinx.com:interface:lmb_rtl:1.0",
+                "xilinx.com:interface:bram_rtl:1.0"
             )
             and not p.connected
         ]
