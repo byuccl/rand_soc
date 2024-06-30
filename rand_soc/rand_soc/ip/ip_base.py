@@ -84,6 +84,8 @@ class IPrandom(IP):
         self.instance_using_yaml_data()
 
     def instance_using_yaml_data(self):
+        ''' Instance an IP using the data read from its yaml file '''
+
         for ip_id, ip_props in self.data.items():
             ip_config = {
                 f"CONFIG.{config_name}": config_props["value"]
@@ -91,6 +93,10 @@ class IPrandom(IP):
                 if not config_props.get("internal")
             }
             self._new_instance(ip_props["definition"], ip_id, ip_config)
+
+            if "internal_connections" in ip_props:
+                # TODO: Add calls to connection functions
+                pass
 
             for port_name, port_props in ip_props["ports"].items():
                 self._create_hier_pin(
@@ -102,7 +108,7 @@ class IPrandom(IP):
                 ).connect_internal(port_props["connections"])
 
     def load_data_from_yaml(self, module_path):
-        # Read the component.xml file
+        ''' Read the component.yaml file '''
 
         yaml_path = pathlib.Path(module_path).with_suffix(".yaml")
 
@@ -206,5 +212,8 @@ class IPrandom(IP):
                     port["width"] = eval(str(item["width"]), None, self.config_vars)
                 if "addr_seg_name" in item:
                     port["addr_seg_name"] = item["addr_seg_name"]
+            
+            if "internal_connections" in ip_yaml:
+                ip["internal_connections"] = ip_yaml["internal_connections"]
 
         logging.info("%s randomized to:\n%s", self.hier_name, pformat(self.data))
