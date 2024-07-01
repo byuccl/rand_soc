@@ -71,7 +71,6 @@
   - name: C_USE_STACK_PROTECTION
     values: [true, false]
 
-  ### CACHE ###
   ### MMU ###
   - name: C_USE_MMU
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION"
@@ -161,8 +160,6 @@
 
 
 
-
-
 ### Data Memory ###
 - id: "lmb_d"
   enable: C_D_LMB
@@ -179,18 +176,9 @@
     connections:
     - lmb_d/LMB_Clk
 
-  - name: lmb_d_reset
-    protocol: "reset"
-    direction: I
-    width: 1
-    connections:
-    - lmb_d/SYS_Rst
 
-  - name: lmb_d_M
-    protocol: "xilinx.com:interface:lmb_rtl:1.0"
-    direction: Slave
-    connections:
-    - lmb_d/LMB_M
+
+
 
 
 - id: "lmb_ctrl_d"
@@ -200,26 +188,26 @@
   - name: C_NUM_LMB
     values: [1]
 
-  ports:
-  - name: lmb_ctrl_d_clk
-    protocol: "clk"
-    direction: I
-    width: 1
-    connections:
-    - lmb_ctrl_d/LMB_Clk
+  # ports:
+  # - name: lmb_ctrl_d_clk
+  #   protocol: "clk"
+  #   direction: I
+  #   width: 1
+  #   connections:
+  #   - lmb_ctrl_d/LMB_Clk
 
-  - name: lmb_ctrl_d_reset
-    protocol: "reset"
-    direction: I
-    width: 1
-    connections:
-    - lmb_ctrl_d/LMB_Rst
+  # - name: lmb_ctrl_d_reset
+  #   protocol: "reset"
+  #   direction: I
+  #   width: 1
+  #   connections:
+  #   - lmb_ctrl_d/LMB_Rst
 
-  - name: lmb_ctrl_d_SLMB
-    protocol: "xilinx.com:interface:lmb_rtl:1.0"
-    direction: Slave
-    connections:
-    - lmb_ctrl_d/SLMB
+  # - name: lmb_ctrl_d_SLMB
+  #   protocol: "xilinx.com:interface:lmb_rtl:1.0"
+  #   direction: Slave
+  #   connections:
+  #   - lmb_ctrl_d/SLMB
 
 
 ### Instruction Memory ###
@@ -230,26 +218,35 @@
   - name: C_EXT_RESET_HIGH
     values: [true, false]
 
-  ports:
-  - name: lmb_i_clk
-    protocol: "clk"
-    direction: I
-    width: 1
-    connections:
-    - lmb_i/LMB_Clk
+  internal_connections:
+  - from: lmb_i/LMB_M
+    to: microblaze_0/ILMB
+    is_interface: true
 
-  - name: lmb_i_reset
-    protocol: "reset"
-    direction: I
-    width: 1
-    connections:
-    - lmb_i/SYS_Rst
+  # - from: lmb_i/LMB_Sl_0
+  #   to: lmb_ctrl_i/SLMB
+  #   is_interface: true
 
-  - name: lmb_i_M
-    protocol: "xilinx.com:interface:lmb_rtl:1.0"
-    direction: Slave
-    connections:
-    - lmb_i/LMB_M
+  # ports:
+  # - name: lmb_i_clk
+  #   protocol: "clk"
+  #   direction: I
+  #   width: 1
+  #   connections:
+  #   - lmb_i/LMB_Clk
+
+  # - name: lmb_i_reset
+  #   protocol: "reset"
+  #   direction: I
+  #   width: 1
+  #   connections:
+  #   - lmb_i/SYS_Rst
+
+  # - name: lmb_i_M
+  #   protocol: "xilinx.com:interface:lmb_rtl:1.0"
+  #   direction: Slave
+  #   connections:
+  #   - lmb_i/LMB_M
 
 - id: "lmb_ctrl_i"
   enable: C_I_LMB
@@ -258,26 +255,6 @@
   - name: C_NUM_LMB
     values: [1]
 
-  ports:
-  - name: lmb_ctrl_i_clk
-    protocol: "clk"
-    direction: I
-    width: 1
-    connections:
-    - lmb_ctrl_i/LMB_Clk
-
-  - name: lmb_ctrl_i_reset
-    protocol: "reset"
-    direction: I
-    width: 1
-    connections:
-    - lmb_ctrl_i/LMB_Rst
-
-  - name: lmb_ctrl_i_SLMB
-    protocol: "xilinx.com:interface:lmb_rtl:1.0"
-    direction: Slave
-    connections:
-    - lmb_ctrl_i/SLMB
 
 
 ### Block Memory Generator ###
@@ -296,24 +273,18 @@
     values: [true, false]
 
 
-  ports:
-  - name: BRAM_PORTA
-    protocol: "xilinx.com:interface:bram_rtl:1.0"
-    direction: Slave
-    connections:
-    - mem/BRAM_PORTA
+  internal_connections:
+  - from: lmb_ctrl_i/BRAM_PORT
+    to: mem/BRAM_PORTA
+    is_interface: true
+    enable: C_I_LMB
 
-  - name: BRAM_PORTB
-    protocol: "xilinx.com:interface:bram_rtl:1.0"
-    enable: "C_I_LMB and C_D_LMB"
-    direction: Slave
-    connections:
-    - mem/BRAM_PORTB
+  - from: lmb_ctrl_d/BRAM_PORT
+    to: mem/BRAM_PORTB
+    is_interface: true
+    enable: C_D_LMB
+
   
-# - internal_connections:
-#   - from:
-#     to:
-#     is_interface:
-#     enable:
-#   - from:
+
+
     
