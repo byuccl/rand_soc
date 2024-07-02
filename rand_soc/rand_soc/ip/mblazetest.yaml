@@ -96,8 +96,7 @@
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values_eval: "range(0, 2 if C_USE_MMU < 3 else 5)"
 
-  ### DEBUG ###
-  ### INTERRUPT / RESET ###
+  ### INTERRUPT/RESET ###
   - name: C_USE_INTERRUPT
     values: [0, 1, 2]
 
@@ -168,14 +167,11 @@
   - name: C_EXT_RESET_HIGH
     values: [true, false]
 
-  ports:
-  - name: lmb_d_clk
-    protocol: "clk"
-    direction: I
-    width: 1
-    connections:
-    - lmb_d/LMB_Clk
 
+  internal_connections:
+  - from: lmb_d/LMB_Clk
+    to: microblaze_0/Clk
+    is_interface: false
 
 
 
@@ -187,6 +183,11 @@
   configuration:
   - name: C_NUM_LMB
     values: [1]
+
+  internal_connections:
+  - from: lmb_ctrl_d/LMB_Clk
+    to: microblaze_0/Clk
+    is_interface: false
 
   # ports:
   # - name: lmb_ctrl_d_clk
@@ -222,6 +223,8 @@
   - from: lmb_i/LMB_M
     to: microblaze_0/ILMB
     is_interface: true
+
+  
 
   # - from: lmb_i/LMB_Sl_0
   #   to: lmb_ctrl_i/SLMB
