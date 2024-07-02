@@ -224,27 +224,19 @@
     to: microblaze_0/ILMB
     is_interface: true
 
-  
+  - from: lmb_i/LMB_Clk
+    to: microblaze_0/Clk
+    is_interface: false
+
+  - from: lmb_i/SYS_Rst
+    to: microblaze_0/Reset
+    is_interface: false
 
   # - from: lmb_i/LMB_Sl_0
   #   to: lmb_ctrl_i/SLMB
   #   is_interface: true
 
   # ports:
-  # - name: lmb_i_clk
-  #   protocol: "clk"
-  #   direction: I
-  #   width: 1
-  #   connections:
-  #   - lmb_i/LMB_Clk
-
-  # - name: lmb_i_reset
-  #   protocol: "reset"
-  #   direction: I
-  #   width: 1
-  #   connections:
-  #   - lmb_i/SYS_Rst
-
   # - name: lmb_i_M
   #   protocol: "xilinx.com:interface:lmb_rtl:1.0"
   #   direction: Slave
@@ -258,6 +250,10 @@
   - name: C_NUM_LMB
     values: [1]
 
+  internal_connections:
+  - from: lmb_ctrl_i/LMB_Clk
+    to: microblaze_0/Clk
+    is_interface: false
 
 
 ### Block Memory Generator ###
