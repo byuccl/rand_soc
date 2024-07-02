@@ -178,6 +178,10 @@
     to: microblaze_0/Reset
     is_interface: false
 
+  - from: lmb_d/LMB_M
+    to: microblaze_0/DLMB
+    is_interface: true
+
 
 - id: "lmb_ctrl_d"
   enable: C_D_LMB
@@ -195,13 +199,9 @@
     to: microblaze_0/Reset
     is_interface: false
 
-  # ports:
-  # - name: lmb_ctrl_d_SLMB
-  #   protocol: "xilinx.com:interface:lmb_rtl:1.0"
-  #   direction: Slave
-  #   connections:
-  #   - lmb_ctrl_d/SLMB
-
+  # - from: lmb_ctrl_d/SLMB
+  #   to: lmb_d/LMB_Sl_0
+  #   is_interface: true
 
 ### Instruction Memory ###
 - id: "lmb_i"
