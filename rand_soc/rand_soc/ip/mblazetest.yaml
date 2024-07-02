@@ -157,6 +157,8 @@
     connections:
     - microblaze_0/INTERRUPT
 
+  # TODO: Add MAXI port
+
 
 
 ### Data Memory ###
@@ -167,14 +169,14 @@
   - name: C_EXT_RESET_HIGH
     values: [true, false]
 
-
   internal_connections:
   - from: lmb_d/LMB_Clk
     to: microblaze_0/Clk
     is_interface: false
 
-
-
+  - from: lmb_d/SYS_Rst
+    to: microblaze_0/Reset
+    is_interface: false
 
 
 - id: "lmb_ctrl_d"
@@ -189,21 +191,11 @@
     to: microblaze_0/Clk
     is_interface: false
 
+  - from: lmb_ctrl_d/LMB_Rst
+    to: microblaze_0/Reset
+    is_interface: false
+
   # ports:
-  # - name: lmb_ctrl_d_clk
-  #   protocol: "clk"
-  #   direction: I
-  #   width: 1
-  #   connections:
-  #   - lmb_ctrl_d/LMB_Clk
-
-  # - name: lmb_ctrl_d_reset
-  #   protocol: "reset"
-  #   direction: I
-  #   width: 1
-  #   connections:
-  #   - lmb_ctrl_d/LMB_Rst
-
   # - name: lmb_ctrl_d_SLMB
   #   protocol: "xilinx.com:interface:lmb_rtl:1.0"
   #   direction: Slave
@@ -253,6 +245,10 @@
   internal_connections:
   - from: lmb_ctrl_i/LMB_Clk
     to: microblaze_0/Clk
+    is_interface: false
+
+  - from: lmb_ctrl_i/LMB_Rst
+    to: microblaze_0/Reset
     is_interface: false
 
 
