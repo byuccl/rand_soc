@@ -467,9 +467,6 @@ class RandomDesign:
                 # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
                 "xilinx.com:interface:icap_rtl:1.0",
                 "xilinx.com:interface:arb_rtl:1.0",
-                # Local memory bus IP for Microblaze
-                "xilinx.com:interface:lmb_rtl:1.0",
-                "xilinx.com:interface:bram_rtl:1.0",
             )
             and not p.connected
         ]

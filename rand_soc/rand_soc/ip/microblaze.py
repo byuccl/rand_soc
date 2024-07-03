@@ -3,7 +3,7 @@
 from .ip_base import IPrandom
 
 
-class MicroblazeTest(IPrandom):
+class Microblaze(IPrandom):
     """MICROBLAZE IP class"""
 
     @property
