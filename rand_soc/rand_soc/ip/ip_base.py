@@ -9,7 +9,6 @@ import random
 import yaml
 
 from ..utils import all_ones, randintwidth
-
 from ..ports import IpPortInterface, IpPortRegular
 
 
@@ -78,12 +77,14 @@ class IPrandom(IP):
     def randomize(self):
         """Randomize the IP"""
         raise NotImplementedError
-    
+
     def instance(self):
         super().instance()
         self.instance_using_yaml_data()
 
     def instance_using_yaml_data(self):
+        ''' Instance an IP using the data read from its yaml file '''
+
         for ip_id, ip_props in self.data.items():
             ip_config = {
                 f"CONFIG.{config_name}": config_props["value"]
@@ -92,17 +93,37 @@ class IPrandom(IP):
             }
             self._new_instance(ip_props["definition"], ip_id, ip_config)
 
-            for port_name, port_props in ip_props["ports"].items():
-                self._create_hier_pin(
-                    port_name,
-                    port_props["protocol"],
-                    port_props["direction"],
-                    port_props.get("width"),
-                    port_props.get("addr_seg_name"),
-                ).connect_internal(port_props["connections"])
+            if "internal_connections" in ip_props:
+                self.instance_yaml_internal_connections(ip_props)
+
+            if "ports" in ip_props:
+                for port_name, port_props in ip_props["ports"].items():
+                    self._create_hier_pin(
+                        port_name,
+                        port_props["protocol"],
+                        port_props["direction"],
+                        port_props.get("width"),
+                        port_props.get("addr_seg_name"),
+                    ).connect_internal(port_props["connections"])
+
+    def instance_yaml_internal_connections(self, ip_props):
+        ''' Helper method to connect internal wires within a group of IP '''
+
+        for connection in ip_props["internal_connections"]:
+            if "enable" in connection:
+                if not eval(connection["enable"], None, self.config_vars):
+                    continue
+
+            f = connection["from"]
+            t = connection["to"]
+
+            if connection["is_interface"]:
+                self._connect_internal_pins_interface(f, t)
+            else:
+                self._connect_internal_pins_regular(f, t)
 
     def load_data_from_yaml(self, module_path):
-        # Read the component.xml file
+        ''' Read the component.yaml file '''
 
         yaml_path = pathlib.Path(module_path).with_suffix(".yaml")
 
@@ -189,22 +210,25 @@ class IPrandom(IP):
 
                 # print(f"self.config: {self.config}")
                 # print(f"self.config_vars: {self.config_vars}")
+            if "ports" in ip_yaml:
+                ports = {}
+                ip["ports"] = ports
+                for item in ip_yaml["ports"]:
+                    if "enable" in item:
+                        if not eval(item["enable"], None, self.config_vars):
+                            continue
 
-            ports = {}
-            ip["ports"] = ports
-            for item in ip_yaml["ports"]:
-                if "enable" in item:
-                    if not eval(item["enable"], None, self.config_vars):
-                        continue
-
-                port = {}
-                ports[item["name"]] = port
-                port["protocol"] = item["protocol"]
-                port["direction"] = item["direction"]
-                port["connections"] = item["connections"]
-                if "width" in item:
-                    port["width"] = eval(str(item["width"]), None, self.config_vars)
-                if "addr_seg_name" in item:
-                    port["addr_seg_name"] = item["addr_seg_name"]
+                    port = {}
+                    ports[item["name"]] = port
+                    port["protocol"] = item["protocol"]
+                    port["direction"] = item["direction"]
+                    port["connections"] = item["connections"]
+                    if "width" in item:
+                        port["width"] = eval(str(item["width"]), None, self.config_vars)
+                    if "addr_seg_name" in item:
+                        port["addr_seg_name"] = item["addr_seg_name"]
+            
+            if "internal_connections" in ip_yaml:
+                ip["internal_connections"] = ip_yaml["internal_connections"]
 
         logging.info("%s randomized to:\n%s", self.hier_name, pformat(self.data))

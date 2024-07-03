@@ -107,7 +107,7 @@ class RandomDesign:
             AxiHwicap,
             AxiTimer,
             AxiUsb2Device,
-            Dft
+            Dft,
         ]
 
         for ip in ip_available:
@@ -125,7 +125,9 @@ class RandomDesign:
 
         ip_str = "".join([ip.bd_str for ip in self.ip])
 
-        self._bd_tcl = ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
+        self._bd_tcl = (
+            ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl
+        )
 
         project_config["block_diagram"] = self._bd_tcl
         self.tcl_str = chevron.render(template, project_config)
@@ -136,7 +138,9 @@ class RandomDesign:
 
         while True:
             if len(unhandled_ports) > 1000:
-                logging.info("Too many unhandled ports - endless loop of port creation?")
+                logging.info(
+                    "Too many unhandled ports - endless loop of port creation?"
+                )
                 sys.exit(1)
 
             # Get disconnected ports, that we haven't previously ignored.
@@ -230,8 +234,12 @@ class RandomDesign:
 
             pi_width = random.randint(min_pis, max_pis)
             if pi_width:
-                logging.info(f"Creating primary input port: {port_type}_I, width: {pi_width}")
-                new_port = self._create_external_port(f"{port_type}_I", port_type, "I", pi_width)
+                logging.info(
+                    f"Creating primary input port: {port_type}_I, width: {pi_width}"
+                )
+                new_port = self._create_external_port(
+                    f"{port_type}_I", port_type, "I", pi_width
+                )
                 self._pi_ports[port_type] = new_port
                 out_ports.insert(0, new_port)
                 num_out_pins = sum(p.width for p in out_ports)
@@ -242,8 +250,12 @@ class RandomDesign:
         # to prevent unused outputs
         if num_out_pins > num_in_pins:
             po_width = num_out_pins - num_in_pins
-            logging.info(f"Creating primary output port: {port_type}_O, width: {po_width}")
-            new_port = self._create_external_port(f"{port_type}_O", port_type, "O", po_width)
+            logging.info(
+                f"Creating primary output port: {port_type}_O, width: {po_width}"
+            )
+            new_port = self._create_external_port(
+                f"{port_type}_O", port_type, "O", po_width
+            )
             self._po_ports[port_type] = new_port
             in_ports.append(new_port)
             num_in_pins = sum(p.width for p in in_ports)
@@ -281,7 +293,9 @@ class RandomDesign:
             in_port = in_port_and_pin_idx[0]
             in_width = in_port.width
             in_width_unconnected = in_width
-            logging.info(f"Connecting drivers of port {in_port.hier_name} [{in_width-1}:0]")
+            logging.info(
+                f"Connecting drivers of port {in_port.hier_name} [{in_width-1}:0]"
+            )
 
             num_connected = 0
 
@@ -321,7 +335,9 @@ class RandomDesign:
                     logging.info(
                         f"  [{in_width_unconnected-1}:0] <-- {out_port.hier_name} [{out_bit_low + in_width_unconnected - 1}:{out_bit_low}]"
                     )
-                    drivers.append((out_port, out_bit_low + in_width_unconnected - 1, out_bit_low))
+                    drivers.append(
+                        (out_port, out_bit_low + in_width_unconnected - 1, out_bit_low)
+                    )
                     num_connected += in_width_unconnected
                     if out_port_avail:
                         out_port_avail[1] += in_width_unconnected
@@ -365,7 +381,9 @@ class RandomDesign:
         if "clock" not in self._pi_ports:
             clk_ip = self._new_ip(ClkGen)
             logging.info("Creating external clock port: clock")
-            self._create_external_port("clk", "clk", "I", width=1).connect(clk_ip.port_clk_in)
+            self._create_external_port("clk", "clk", "I", width=1).connect(
+                clk_ip.port_clk_in
+            )
             self._pi_ports["clock"] = clk_ip.port_clk_out
 
         logging.info(f"Connecting {clock_inputs} to clock")
@@ -385,7 +403,9 @@ class RandomDesign:
         if "reset" not in self._pi_ports:
             self._bd_tcl += "\n########## Resets ##########\n"
             logging.info("Creating external reset port: reset")
-            self._pi_ports["reset"] = self._create_external_port("reset", "reset", "I", 1)
+            self._pi_ports["reset"] = self._create_external_port(
+                "reset", "reset", "I", 1
+            )
 
         logging.info(f"Connecting {reset_inputs} to reset")
         self._pi_ports["reset"].connect(reset_inputs)
@@ -438,19 +458,15 @@ class RandomDesign:
             in (
                 # GPIO general purpose I/O and 3-state pins
                 "xilinx.com:interface:gpio_rtl:1.0",
-
                 # UART master interface
                 "xilinx.com:interface:uart_rtl:1.0",
-
                 # EMC_INTF port
                 "xilinx.com:interface:emc_rtl:1.0",
-
                 # axi_usb2_device ULPI port, for use with USB PHY
                 "xilinx.com:interface:ulpi_rtl:1.0",
-
                 # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
                 "xilinx.com:interface:icap_rtl:1.0",
-                "xilinx.com:interface:arb_rtl:1.0"
+                "xilinx.com:interface:arb_rtl:1.0",
             )
             and not p.connected
         ]
@@ -513,7 +529,9 @@ class RandomDesign:
                 # External masters don't have an address space?
                 self._assign_bd_address(master, slave)
 
-    def _create_external_port(self, name, protocol, direction, width=None, properties=None):
+    def _create_external_port(
+        self, name, protocol, direction, width=None, properties=None
+    ):
         if protocol.startswith("xilinx.com:interface:"):
             assert width is None
             port = ExternalPortInterface(self, name, protocol, direction, properties)
@@ -538,13 +556,15 @@ class RandomDesign:
         if isinstance(master_port, ExternalPort):
             self._addr_space_tcl += f"{master_port.hier_name} "
         else:
-            self._addr_space_tcl += f"/{master_port.ip.hier_name}/{master_port.addr_seg_name} "
-        if slave_port.ip:
             self._addr_space_tcl += (
-                f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
+                f"/{master_port.ip.hier_name}/{master_port.addr_seg_name} "
             )
+        if slave_port.ip:
+            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
         else:
-            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+            self._addr_space_tcl += (
+                f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+            )
 
     def _new_ip(self, ip_class, args=None):
         """Create a new IP instance"""
