@@ -19,7 +19,6 @@ from .ip.uartlite import Uartlite
 from .ip.emc import Emc
 from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
 from .ip.gpio import Gpio
-from .ip.microblaze import Microblaze
 from .ip.mblazetest import MicroblazeTest
 
 
@@ -101,8 +100,7 @@ class RandomDesign:
 
         ip_available = [
             Gpio,
-            MicroblazeTest, # UNDER CONSTRUCTION
-            # Microblaze,
+            MicroblazeTest,
             Uartlite,
             Accumulator,
             Emc,
