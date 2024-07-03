@@ -261,7 +261,7 @@
     values: ["BRAM_Controller"]
 
   - name: Memory_Type
-    values_eval: "['True_Dual_Port_RAM'] if (C_I_LMB and C_D_LMB) else ['Single_Port_RAM']"
+    values_eval: "['True_Dual_Port_RAM'] if C_D_LMB else ['Single_Port_RAM']"
 
   - name: Assume_Synchronous_Clk
     enable: "C_I_LMB and C_D_LMB"
