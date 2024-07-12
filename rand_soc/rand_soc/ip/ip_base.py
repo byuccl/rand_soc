@@ -123,7 +123,7 @@ class IPrandom(IP):
                 self._connect_internal_pins_regular(f, t)
 
     def load_data_from_yaml(self, module_path):
-        ''' Read the component.yaml file '''
+        ''' Read the <component>.yaml file '''
 
         yaml_path = pathlib.Path(module_path).with_suffix(".yaml")
 
@@ -211,24 +211,28 @@ class IPrandom(IP):
                 # print(f"self.config: {self.config}")
                 # print(f"self.config_vars: {self.config_vars}")
             if "ports" in ip_yaml:
-                ports = {}
-                ip["ports"] = ports
-                for item in ip_yaml["ports"]:
-                    if "enable" in item:
-                        if not eval(item["enable"], None, self.config_vars):
-                            continue
-
-                    port = {}
-                    ports[item["name"]] = port
-                    port["protocol"] = item["protocol"]
-                    port["direction"] = item["direction"]
-                    port["connections"] = item["connections"]
-                    if "width" in item:
-                        port["width"] = eval(str(item["width"]), None, self.config_vars)
-                    if "addr_seg_name" in item:
-                        port["addr_seg_name"] = item["addr_seg_name"]
+                self.load_ports_from_yaml(ip, ip_yaml)
             
             if "internal_connections" in ip_yaml:
                 ip["internal_connections"] = ip_yaml["internal_connections"]
 
         logging.info("%s randomized to:\n%s", self.hier_name, pformat(self.data))
+
+    def load_ports_from_yaml(self, ip, ip_yaml):
+        ''' Helper method to load IP port data from yaml into IP entry'''
+
+        ports = {}
+        ip["ports"] = ports
+        for item in ip_yaml["ports"]:
+            if "enable" in item and not eval(item["enable"], None, self.config_vars):
+                continue
+
+            port = {}
+            ports[item["name"]] = port
+            port["protocol"] = item["protocol"]
+            port["direction"] = item["direction"]
+            port["connections"] = item["connections"]
+            if "width" in item:
+                port["width"] = eval(str(item["width"]), None, self.config_vars)
+            if "addr_seg_name" in item:
+                port["addr_seg_name"] = item["addr_seg_name"]
