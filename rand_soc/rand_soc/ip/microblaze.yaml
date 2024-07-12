@@ -96,6 +96,25 @@
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values_eval: "range(0, 2 if C_USE_MMU < 3 else 5)"
 
+  ### DEBUG MODULE ###
+  - name: C_DEBUG_ENABLED
+    values: [0, 1, 2]
+
+  - name: C_NUMBER_OF_PC_BRK
+    enable: C_DEBUG_ENABLED
+    values_eval: range(0, 9)
+
+  - name: C_NUMBER_OF_WR_ADDR_BRK
+    enable: C_DEBUG_ENABLED
+    values_eval: range(0, 5)
+
+  - name: C_NUMBER_OF_RD_ADDR_BRK
+    enable: C_DEBUG_ENABLED
+    values_eval: range(0, 5)
+
+  
+
+
   ### INTERRUPT/RESET ###
   - name: C_USE_INTERRUPT
     values: [0, 1, 2]
@@ -251,8 +270,7 @@
     is_interface: true
 
 
-### Block Memory Generator IP
- ###
+### Block Memory Generator IP ###
 - id: "mem"
   enable: "C_I_LMB or C_D_LMB"
   definition: "xilinx.com:ip:blk_mem_gen:8.4"
@@ -267,7 +285,6 @@
     enable: "C_I_LMB and C_D_LMB"
     values: [true, false]
 
-
   internal_connections:
   - from: lmb_ctrl_i/BRAM_PORT
     to: mem/BRAM_PORTA
@@ -279,4 +296,17 @@
     is_interface: true
     enable: C_D_LMB
 
+### Debug Module IP ###
+- id: "mdm"
+  enable: C_DEBUG_ENABLED
+  definition: "xilinx.com:ip:mdm:3.2"
+  configuration:
   
+  
+  - name: C_JTAG_CHAIN
+    values: [1, 2, 3, 4]
+
+  internal_connections:
+  - from: mdm/MBDEBUG_0
+    to: microblaze_0/DEBUG
+    is_interface: true
