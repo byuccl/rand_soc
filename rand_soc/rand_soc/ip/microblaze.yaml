@@ -101,15 +101,15 @@
     values: [0, 1, 2]
 
   - name: C_NUMBER_OF_PC_BRK
-    enable: C_DEBUG_ENABLED
+    enable: "C_DEBUG_ENABLED"
     values_eval: range(0, 9)
 
   - name: C_NUMBER_OF_WR_ADDR_BRK
-    enable: C_DEBUG_ENABLED
+    enable: "C_DEBUG_ENABLED"
     values_eval: range(0, 5)
 
   - name: C_NUMBER_OF_RD_ADDR_BRK
-    enable: C_DEBUG_ENABLED
+    enable: "C_DEBUG_ENABLED"
     values_eval: range(0, 5)
 
   - name: C_DEBUG_EVENT_COUNTERS
@@ -167,6 +167,8 @@
     enable: "C_PVR"
     values_eval: range(0x0, 0xff)
 
+
+
   ### BUS SETTINGS ###
   - name: C_I_LMB
     values: [true, false]
@@ -200,7 +202,7 @@
     - microblaze_0/INTERRUPT
 
   - name: M_AXI_DP
-    enable: C_D_AXI
+    enable: "C_D_AXI"
     protocol: "xilinx.com:interface:aximm_rtl:1.0"
     direction: Master
     connections:
@@ -209,7 +211,7 @@
 
 ### Data Memory IP ###
 - id: "lmb_d"
-  enable: C_D_LMB
+  enable: "C_D_LMB"
   definition: "xilinx.com:ip:lmb_v10:3.0"
   configuration:
   - name: C_EXT_RESET_HIGH
@@ -230,7 +232,7 @@
 
 
 - id: "lmb_ctrl_d"
-  enable: C_D_LMB
+  enable: "C_D_LMB"
   definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
   configuration:
   - name: C_NUM_LMB
@@ -251,7 +253,7 @@
 
 ### Instruction Memory IP ###
 - id: "lmb_i"
-  enable: C_I_LMB
+  enable: "C_I_LMB"
   definition: "xilinx.com:ip:lmb_v10:3.0"
   configuration:
   - name: C_EXT_RESET_HIGH
@@ -271,7 +273,7 @@
     is_interface: false
 
 - id: "lmb_ctrl_i"
-  enable: C_I_LMB
+  enable: "C_I_LMB"
   definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
   configuration:
   - name: C_NUM_LMB
@@ -310,16 +312,16 @@
   - from: lmb_ctrl_i/BRAM_PORT
     to: mem/BRAM_PORTA
     is_interface: true
-    enable: C_I_LMB
+    enable: "C_I_LMB"
 
   - from: lmb_ctrl_d/BRAM_PORT
     to: mem/BRAM_PORTB
     is_interface: true
-    enable: C_D_LMB
+    enable: "C_D_LMB"
 
 ### Debug Module IP ###
 - id: "mdm"
-  enable: C_DEBUG_ENABLED
+  enable: "C_DEBUG_ENABLED"
   definition: "xilinx.com:ip:mdm:3.2"
   configuration:
   - name: C_DBG_REG_ACCESS
