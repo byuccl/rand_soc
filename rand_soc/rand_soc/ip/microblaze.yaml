@@ -166,8 +166,12 @@
   - name: C_PVR_USER1
     enable: "C_PVR"
     values_eval: range(0x0, 0xff)
+    format: hex
 
-
+  - name: C_PVR_USER2
+    enable: "C_PVR == 2"
+    values_eval: range(0x0, 0xffffffff)
+    format: hex
 
   ### BUS SETTINGS ###
   - name: C_I_LMB
