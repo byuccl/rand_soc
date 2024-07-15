@@ -94,7 +94,7 @@
 
   - name: C_MMU_PRIVILEGED_INSTR
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
-    values_eval: "range(0, 2 if C_USE_MMU < 3 else 5)"
+    values_eval: "range(0, 2 if C_USE_MMU < 3 else 4)"
 
   ### DEBUG MODULE ###
   - name: C_DEBUG_ENABLED
@@ -112,7 +112,29 @@
     enable: C_DEBUG_ENABLED
     values_eval: range(0, 5)
 
-  
+  - name: C_DEBUG_EVENT_COUNTERS
+    enable: "C_DEBUG_ENABLED == 2"
+    values_eval: range(0, 49)
+
+  - name: C_DEBUG_LATENCY_COUNTERS
+    enable: "C_DEBUG_ENABLED == 2"
+    values_eval: range(0, 8)
+
+  - name: C_DEBUG_COUNTER_WIDTH
+    enable: "C_DEBUG_ENABLED == 2"
+    values: [32, 48, 64]
+
+  - name: C_DEBUG_EXTERNAL_TRACE
+    enable: "C_DEBUG_ENABLED == 2"
+    values: [true, false]
+
+  - name: C_DEBUG_TRACE_SIZE
+    enable: "C_DEBUG_ENABLED == 2"
+    values_eval: "[32, 64, 128, 256, 8192] if C_DEBUG_EXTERNAL_TRACE else [0, 8192, 16384, 32768, 65536, 131072]"
+
+  - name: C_DEBUG_PROFILE_SIZE
+    enable: "C_DEBUG_ENABLED == 2"
+    values: [0, 4096, 8192, 16384, 32768, 65536, 131072]
 
 
   ### INTERRUPT/RESET ###
@@ -184,7 +206,6 @@
     connections:
     - microblaze_0/M_AXI_DP
     addr_seg_name: microblaze_0/Data
-
 
 ### Data Memory IP ###
 - id: "lmb_d"
@@ -301,8 +322,9 @@
   enable: C_DEBUG_ENABLED
   definition: "xilinx.com:ip:mdm:3.2"
   configuration:
-  
-  
+  - name: C_DBG_REG_ACCESS
+    values: [false]
+
   - name: C_JTAG_CHAIN
     values: [1, 2, 3, 4]
 
@@ -310,3 +332,4 @@
   - from: mdm/MBDEBUG_0
     to: microblaze_0/DEBUG
     is_interface: true
+    
