@@ -94,7 +94,7 @@
 
   - name: C_MMU_PRIVILEGED_INSTR
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
-    values_eval: "range(0, 2 if C_USE_MMU < 3 else 4)"
+    values_eval: "range(0, 4 if (C_USE_MMU == 3 and C_ADDR_SIZE > 32) else 2)"
 
   ### DEBUG MODULE ###
   - name: C_DEBUG_ENABLED
@@ -242,6 +242,10 @@
   - name: C_NUM_LMB
     values: [1]
 
+  - name: C_MASK
+    values_eval: range(0x0, 0xfffffffffffffff)
+    format: hex
+
   internal_connections:
   - from: lmb_ctrl_d/LMB_Clk
     to: microblaze_0/Clk
@@ -283,6 +287,10 @@
   - name: C_NUM_LMB
     values: [1]
 
+  - name: C_MASK
+    values_eval: range(0x0, 0xfffffffffffffff)
+    format: hex
+
   internal_connections:
   - from: lmb_ctrl_i/LMB_Clk
     to: microblaze_0/Clk
@@ -303,13 +311,25 @@
   definition: "xilinx.com:ip:blk_mem_gen:8.4"
   configuration:
   - name: use_bram_block
-    values: ["BRAM_Controller"]
+    values: ["BRAM_Controller", "Stand_Alone"]
 
   - name: Memory_Type
     values_eval: "['True_Dual_Port_RAM'] if C_D_LMB else ['Single_Port_RAM']"
 
   - name: Assume_Synchronous_Clk
     enable: "C_I_LMB and C_D_LMB"
+    values: [true, false]
+
+  - name: Operating_Mode_A
+    enable: "C_I_LMB and use_bram_block == 'Stand_Alone'"
+    values: ["READ_FIRST", "WRITE_FIRST", "NO_CHANGE"]
+
+  - name: Operating_Mode_B
+    enable: "C_D_LMB and use_bram_block == 'Stand_Alone'"
+    values: ["READ_FIRST", "WRITE_FIRST", "NO_CHANGE"]
+
+  - name: EN_SAFETY_CKT
+    enable: "use_bram_block == 'BRAM_Controller'"
     values: [true, false]
 
   internal_connections:
