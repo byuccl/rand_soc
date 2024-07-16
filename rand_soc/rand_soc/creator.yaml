@@ -1,0 +1,24 @@
+test_ip: [
+  Accumulator,
+  AxiHwicap,
+  AxiTimer,
+  AxiUsb2Device,
+  Dft,
+  Emc,
+  Gpio,
+  Microblaze,
+  Uartlite
+]
+  
+  
+train_ip: [
+  Accumulator,
+  AxiHwicap,
+  AxiTimer,
+  AxiUsb2Device,
+  Dft,
+  Emc,
+  Gpio,
+  Microblaze,
+  Uartlite
+]

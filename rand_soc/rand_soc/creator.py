@@ -2,7 +2,7 @@ import logging
 import pathlib
 import random
 import sys
-
+import yaml
 import chevron
 
 from .ip.slice_and_concat import SliceAndConcat
@@ -79,6 +79,21 @@ class RandomDesign:
         with open(output_file_path, "w", encoding="utf-8") as f:
             f.write(self.tcl_str)
 
+    def get_ip_from_str(self, ip):
+        """Returns an IP class from a corresponding string"""
+        ip_dict = {
+            "Accumulator": Accumulator,
+            "AxiHwicap": AxiHwicap,
+            "AxiTimer": AxiTimer,
+            "AxiUsb2Device": AxiUsb2Device,
+            "Dft": Dft,
+            "Emc": Emc,
+            "Gpio": Gpio,
+            "Microblaze": Microblaze,
+            "Uartlite": Uartlite
+        }
+        return ip_dict[ip]
+
     def create(self):
         """Create the design tcl"""
         project_config = {
@@ -93,22 +108,20 @@ class RandomDesign:
 
         # env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 
+
+
         template_path = ROOT_PATH / "run.tcl.mustache"
         assert template_path.is_file(), f"Template file {template_path} does not exist"
-        with open(template_path) as f:
+        with open(template_path, 'r') as f:
             template = f.read()
 
-        ip_available = [
-            Gpio,
-            Microblaze,
-            Uartlite,
-            Accumulator,
-            Emc,
-            AxiHwicap,
-            AxiTimer,
-            AxiUsb2Device,
-            Dft,
-        ]
+        yaml_path = ROOT_PATH / "creator.yaml"
+        assert yaml_path.is_file(), f"Rand_soc config file {yaml_path} does not exist"
+        with open(yaml_path, 'r') as f:
+            creator_config = yaml.safe_load(f)
+        
+        ip_available = [self.get_ip_from_str(ip) for ip in creator_config["test_ip"]]
+
 
         for ip in ip_available:
             num_ip = random.randint(1, 3)
