@@ -1,4 +1,4 @@
-test_ip: [
+train_ip: [
   Accumulator,
   AxiHwicap,
   AxiTimer,
@@ -11,7 +11,7 @@ test_ip: [
 ]
   
   
-train_ip: [
+test_ip: [
   Accumulator,
   AxiHwicap,
   AxiTimer,

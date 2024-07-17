@@ -93,6 +93,14 @@ class RandomDesign:
             "Uartlite": Uartlite
         }
         return ip_dict[ip]
+    
+    def get_yaml_test_ip(self, yaml_file):
+        """Retrieves and returns list of test IP objects as given in yaml"""
+        return [self.get_ip_from_str(ip) for ip in yaml_file["test_ip"]]
+    
+    def get_yaml_train_ip(self, yaml_file):
+        """Retrieves and returns list of train IP objects as given in yaml"""
+        return [self.get_ip_from_str(ip) for ip in yaml_file["train_ip"]]
 
     def create(self):
         """Create the design tcl"""
@@ -118,9 +126,10 @@ class RandomDesign:
         yaml_path = ROOT_PATH / "creator.yaml"
         assert yaml_path.is_file(), f"Rand_soc config file {yaml_path} does not exist"
         with open(yaml_path, 'r') as f:
-            creator_config = yaml.safe_load(f)
-        
-        ip_available = [self.get_ip_from_str(ip) for ip in creator_config["test_ip"]]
+            creator_yaml = yaml.safe_load(f)
+
+
+        ip_available = self.get_yaml_test_ip(creator_yaml)
 
 
         for ip in ip_available:
