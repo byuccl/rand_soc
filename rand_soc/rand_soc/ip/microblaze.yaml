@@ -94,7 +94,48 @@
 
   - name: C_MMU_PRIVILEGED_INSTR
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
-    values_eval: "range(0, 2 if C_USE_MMU < 3 else 5)"
+    values_eval: "range(0, 4 if (C_USE_MMU == 3 and C_ADDR_SIZE > 32) else 2)"
+
+  ### DEBUG MODULE ###
+  - name: C_DEBUG_ENABLED
+    values: [0, 1, 2]
+
+  - name: C_NUMBER_OF_PC_BRK
+    enable: "C_DEBUG_ENABLED"
+    values_eval: range(0, 9)
+
+  - name: C_NUMBER_OF_WR_ADDR_BRK
+    enable: "C_DEBUG_ENABLED"
+    values_eval: range(0, 5)
+
+  - name: C_NUMBER_OF_RD_ADDR_BRK
+    enable: "C_DEBUG_ENABLED"
+    values_eval: range(0, 5)
+
+  - name: C_DEBUG_EVENT_COUNTERS
+    enable: "C_DEBUG_ENABLED == 2"
+    values_eval: range(0, 49)
+
+  - name: C_DEBUG_LATENCY_COUNTERS
+    enable: "C_DEBUG_ENABLED == 2"
+    values_eval: range(0, 8)
+
+  - name: C_DEBUG_COUNTER_WIDTH
+    enable: "C_DEBUG_ENABLED == 2"
+    values: [32, 48, 64]
+
+  - name: C_DEBUG_EXTERNAL_TRACE
+    enable: "C_DEBUG_ENABLED == 2"
+    values: [true, false]
+
+  - name: C_DEBUG_TRACE_SIZE
+    enable: "C_DEBUG_ENABLED == 2"
+    values_eval: "[32, 64, 128, 256, 8192] if C_DEBUG_EXTERNAL_TRACE else [0, 8192, 16384, 32768, 65536, 131072]"
+
+  - name: C_DEBUG_PROFILE_SIZE
+    enable: "C_DEBUG_ENABLED == 2"
+    values: [0, 4096, 8192, 16384, 32768, 65536, 131072]
+
 
   ### INTERRUPT/RESET ###
   - name: C_USE_INTERRUPT
@@ -125,6 +166,12 @@
   - name: C_PVR_USER1
     enable: "C_PVR"
     values_eval: range(0x0, 0xff)
+    format: hex
+
+  - name: C_PVR_USER2
+    enable: "C_PVR == 2"
+    values_eval: range(0x0, 0xffffffff)
+    format: hex
 
   ### BUS SETTINGS ###
   - name: C_I_LMB
@@ -159,17 +206,16 @@
     - microblaze_0/INTERRUPT
 
   - name: M_AXI_DP
-    enable: C_D_AXI
+    enable: "C_D_AXI"
     protocol: "xilinx.com:interface:aximm_rtl:1.0"
     direction: Master
     connections:
     - microblaze_0/M_AXI_DP
     addr_seg_name: microblaze_0/Data
 
-
 ### Data Memory IP ###
 - id: "lmb_d"
-  enable: C_D_LMB
+  enable: "C_D_LMB"
   definition: "xilinx.com:ip:lmb_v10:3.0"
   configuration:
   - name: C_EXT_RESET_HIGH
@@ -190,11 +236,15 @@
 
 
 - id: "lmb_ctrl_d"
-  enable: C_D_LMB
+  enable: "C_D_LMB"
   definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
   configuration:
   - name: C_NUM_LMB
     values: [1]
+
+  - name: C_MASK
+    values_eval: range(0x0, 0xfffffffffffffff)
+    format: hex
 
   internal_connections:
   - from: lmb_ctrl_d/LMB_Clk
@@ -211,7 +261,7 @@
 
 ### Instruction Memory IP ###
 - id: "lmb_i"
-  enable: C_I_LMB
+  enable: "C_I_LMB"
   definition: "xilinx.com:ip:lmb_v10:3.0"
   configuration:
   - name: C_EXT_RESET_HIGH
@@ -231,11 +281,15 @@
     is_interface: false
 
 - id: "lmb_ctrl_i"
-  enable: C_I_LMB
+  enable: "C_I_LMB"
   definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
   configuration:
   - name: C_NUM_LMB
     values: [1]
+
+  - name: C_MASK
+    values_eval: range(0x0, 0xfffffffffffffff)
+    format: hex
 
   internal_connections:
   - from: lmb_ctrl_i/LMB_Clk
@@ -251,14 +305,13 @@
     is_interface: true
 
 
-### Block Memory Generator IP
- ###
+### Block Memory Generator IP ###
 - id: "mem"
   enable: "C_I_LMB or C_D_LMB"
   definition: "xilinx.com:ip:blk_mem_gen:8.4"
   configuration:
   - name: use_bram_block
-    values: ["BRAM_Controller"]
+    values: ["BRAM_Controller", "Stand_Alone"]
 
   - name: Memory_Type
     values_eval: "['True_Dual_Port_RAM'] if C_D_LMB else ['Single_Port_RAM']"
@@ -267,16 +320,42 @@
     enable: "C_I_LMB and C_D_LMB"
     values: [true, false]
 
+  - name: Operating_Mode_A
+    enable: "C_I_LMB and use_bram_block == 'Stand_Alone'"
+    values: ["READ_FIRST", "WRITE_FIRST", "NO_CHANGE"]
+
+  - name: Operating_Mode_B
+    enable: "C_D_LMB and use_bram_block == 'Stand_Alone'"
+    values: ["READ_FIRST", "WRITE_FIRST", "NO_CHANGE"]
+
+  - name: EN_SAFETY_CKT
+    enable: "use_bram_block == 'BRAM_Controller'"
+    values: [true, false]
 
   internal_connections:
   - from: lmb_ctrl_i/BRAM_PORT
     to: mem/BRAM_PORTA
     is_interface: true
-    enable: C_I_LMB
+    enable: "C_I_LMB"
 
   - from: lmb_ctrl_d/BRAM_PORT
     to: mem/BRAM_PORTB
     is_interface: true
-    enable: C_D_LMB
+    enable: "C_D_LMB"
 
-  
+### Debug Module IP ###
+- id: "mdm"
+  enable: "C_DEBUG_ENABLED"
+  definition: "xilinx.com:ip:mdm:3.2"
+  configuration:
+  - name: C_DBG_REG_ACCESS
+    values: [false]
+
+  - name: C_JTAG_CHAIN
+    values: [1, 2, 3, 4]
+
+  internal_connections:
+  - from: mdm/MBDEBUG_0
+    to: microblaze_0/DEBUG
+    is_interface: true
+    
