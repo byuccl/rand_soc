@@ -1,24 +1,13 @@
-train_ip: [
-  Accumulator,
-  AxiHwicap,
-  AxiTimer,
-  AxiUsb2Device,
-  Dft,
-  Emc,
-  Gpio,
-  Microblaze,
-  Uartlite
-]
-  
-  
-test_ip: [
-  Accumulator,
-  AxiHwicap,
-  AxiTimer,
-  AxiUsb2Device,
-  Dft,
-  Emc,
-  Gpio,
-  Microblaze,
-  Uartlite
-]
+available_ip:
+  - Accumulator
+  - AxiHwicap
+  - AxiTimer
+  - AxiUsb2Device
+  - Dft
+  - Emc
+  - Gpio
+  - Microblaze
+  - Uartlite
+
+
+minimum_ip: 10
