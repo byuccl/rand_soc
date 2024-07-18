@@ -41,12 +41,15 @@ class DesignCreator:
 class RandomDesign:
     """Creates a random design"""
 
-    def __init__(self, output_dir_path, seed=None, part=None):
+    def __init__(self, output_dir_path, config_path=None, seed=None, part=None):
+        if config_path is None:
+            config_path = ROOT_PATH / "creator.yaml"
         if seed is not None:
             random.seed(seed)
         if part is None:
             part = "xc7a200tsbg484-1"
         self.part = part
+        self.config_path = config_path
 
         self.tcl_str = ""
 
@@ -118,7 +121,7 @@ class RandomDesign:
         with open(template_path, 'r') as f:
             template = f.read()
 
-        yaml_path = ROOT_PATH / "creator.yaml"
+        yaml_path = self.config_path
         assert yaml_path.is_file(), f"Rand_soc config file {yaml_path} does not exist"
         with open(yaml_path, 'r') as f:
             creator_yaml = yaml.safe_load(f)
