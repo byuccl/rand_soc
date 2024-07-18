@@ -1,5 +1,5 @@
-- id: "microblaze_0"
-  definition: xilinx.com:ip:microblaze:11.0
+- id: microblaze_0
+  definition: "xilinx.com:ip:microblaze:11.0"
   configuration:
 
   ### GENERAL ###
@@ -31,11 +31,11 @@
     values: [0, 1, 2]
 
   - name: C_USE_BRANCH_TARGET_CACHE
-    enable: C_AREA_OPTIMIZED != 1
+    enable: "C_AREA_OPTIMIZED != 1"
     values_eval: "[True] if C_AREA_OPTIMIZED == 2 else [True, False]"
 
   - name: C_BRANCH_TARGET_CACHE_SIZE
-    enable: C_AREA_OPTIMIZED != 1
+    enable: "C_AREA_OPTIMIZED != 1"
     values_eval: range(0, 8)
 
   - name: C_FAULT_TOLERANT
@@ -73,27 +73,27 @@
 
   ### MMU ###
   - name: C_USE_MMU
-    enable: C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION"
     values_eval: range(0, 4)
 
   - name: C_MMU_DTLB_SIZE
-    enable: C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values: [1, 2, 4, 8]
 
   - name: C_MMU_ITLB_SIZE
-    enable: C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values: [1, 2, 4, 8]
 
   - name: C_MMU_TLB_ACCESS
-    enable: C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values_eval: range(0, 4)
 
   - name: C_MMU_ZONES
-    enable: C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values_eval: range(0, 17)
 
   - name: C_MMU_PRIVILEGED_INSTR
-    enable: C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1
+    enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values_eval: "range(0, 4 if (C_USE_MMU == 3 and C_ADDR_SIZE > 32) else 2)"
 
   ### DEBUG MODULE ###
@@ -200,23 +200,23 @@
     - microblaze_0/Reset
 
   - name: INTERRUPT
-    protocol: xilinx.com:interface:mbinterrupt_rtl:1.0
+    protocol: "xilinx.com:interface:mbinterrupt_rtl:1.0"
     direction: Slave
     connections:
     - microblaze_0/INTERRUPT
 
   - name: M_AXI_DP
     enable: C_D_AXI
-    protocol: xilinx.com:interface:aximm_rtl:1.0
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
     direction: Master
     connections:
     - microblaze_0/M_AXI_DP
     addr_seg_name: microblaze_0/Data
 
 ### Data Memory IP ###
-- id: "lmb_d"
+- id: lmb_d
   enable: C_D_LMB
-  definition: xilinx.com:ip:lmb_v10:3.0
+  definition: "xilinx.com:ip:lmb_v10:3.0"
   configuration:
   - name: C_EXT_RESET_HIGH
     values: [true, false]
@@ -235,9 +235,9 @@
     is_interface: true
 
 
-- id: "lmb_ctrl_d"
+- id: lmb_ctrl_d
   enable: C_D_LMB
-  definition: xilinx.com:ip:lmb_bram_if_cntlr:4.0
+  definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
   configuration:
   - name: C_NUM_LMB
     values: [1]
@@ -260,9 +260,9 @@
     is_interface: true
 
 ### Instruction Memory IP ###
-- id: "lmb_i"
+- id: lmb_i
   enable: C_I_LMB
-  definition: xilinx.com:ip:lmb_v10:3.0
+  definition: "xilinx.com:ip:lmb_v10:3.0"
   configuration:
   - name: C_EXT_RESET_HIGH
     values: [true, false]
@@ -280,9 +280,9 @@
     to: microblaze_0/Reset
     is_interface: false
 
-- id: "lmb_ctrl_i"
+- id: lmb_ctrl_i
   enable: C_I_LMB
-  definition: xilinx.com:ip:lmb_bram_if_cntlr:4.0
+  definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
   configuration:
   - name: C_NUM_LMB
     values: [1]
@@ -306,9 +306,9 @@
 
 
 ### Block Memory Generator IP ###
-- id: "mem"
+- id: mem
   enable: C_I_LMB or C_D_LMB
-  definition: xilinx.com:ip:blk_mem_gen:8.4
+  definition: "xilinx.com:ip:blk_mem_gen:8.4"
   configuration:
   - name: use_bram_block
     values: ["BRAM_Controller", "Stand_Alone"]
@@ -329,7 +329,7 @@
     values: ["READ_FIRST", "WRITE_FIRST", "NO_CHANGE"]
 
   - name: EN_SAFETY_CKT
-    enable: use_bram_block == 'BRAM_Controller'
+    enable: "use_bram_block == 'BRAM_Controller'"
     values: [true, false]
 
   internal_connections:
@@ -344,9 +344,9 @@
     enable: C_D_LMB
 
 ### Debug Module IP ###
-- id: "mdm"
+- id: mdm
   enable: C_DEBUG_ENABLED
-  definition: xilinx.com:ip:mdm:3.2
+  definition: "xilinx.com:ip:mdm:3.2"
   configuration:
   - name: C_DBG_REG_ACCESS
     values: [false]
