@@ -41,6 +41,7 @@
     direction: Slave
     connections:
     - axi_hwicap_0/S_AXI_LITE
+    addr_seg_name: "axi_hwicap_0/S_AXI_LITE/Reg"
 
   - name: icap_clk
     protocol: clk
