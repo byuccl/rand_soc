@@ -128,17 +128,16 @@ class RandomDesign:
 
 
         ip_available = self.get_yaml_available_ip(creator_yaml)
-
+        min_ip = creator_yaml["minimum_each_ip"]
+        max_ip = creator_yaml["maximum_each_ip"]
 
         for ip in ip_available:
-            num_ip = random.randint(1, 3)
+            num_ip = random.randint(min_ip, max_ip)
             for _ in range(num_ip):
                 self._new_ip(ip)
 
         for ip in self.ip:
             ip.randomize()
-
-        for ip in self.ip:
             ip.instance()
 
         self._ports()
