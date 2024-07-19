@@ -311,7 +311,7 @@
   definition: "xilinx.com:ip:blk_mem_gen:8.4"
   configuration:
   - name: use_bram_block
-    values: ["BRAM_Controller", "Stand_Alone"]
+    values: ["BRAM_Controller"]
 
   - name: Memory_Type
     values_eval: "['True_Dual_Port_RAM'] if C_D_LMB else ['Single_Port_RAM']"
@@ -319,14 +319,6 @@
   - name: Assume_Synchronous_Clk
     enable: C_I_LMB and C_D_LMB
     values: [true, false]
-
-  - name: Operating_Mode_A
-    enable: "C_I_LMB and use_bram_block == 'Stand_Alone'"
-    values: ["READ_FIRST", "WRITE_FIRST", "NO_CHANGE"]
-
-  - name: Operating_Mode_B
-    enable: "C_D_LMB and use_bram_block == 'Stand_Alone'"
-    values: ["READ_FIRST", "WRITE_FIRST", "NO_CHANGE"]
 
   - name: EN_SAFETY_CKT
     enable: "use_bram_block == 'BRAM_Controller'"
