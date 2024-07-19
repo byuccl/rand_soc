@@ -14,19 +14,19 @@
     connections:
     - emc_0/EMC_INTF
   - name: clk
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - emc_0/s_axi_aclk
   - name: rdclk
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - emc_0/rdclk
   - name: rst
-    protocol: "reset"
+    protocol: reset
     direction: I
     width: 1
     connections:
@@ -37,34 +37,4 @@
     connections:
     - emc_0/S_AXI_MEM
     addr_seg_name: "emc_0/S_AXI_MEM/Reg"
-
-
-
-
-
-
-
-
-
-
-  # - name: Implementation
-  #   values: ["Fabric", "DSP48"]
-
-  # - name: Output_Width
-  #   values: range(16,259)
-
-  # - name: Accum_Mode
-  #   values: ["Add", "Subtract", "Add_Subtract"]
-
-  # - name: Latency_Configuration
-  #   values: ["Automatic", "Manual"]
-
-  # - name: Latency
-  #   values: range(1,16)
-  #   enable: "Latency_Configuration == 'Manual'"
-
-  # - name: Scale
-  #   values: range(0,9)
-  #   enable: "Latency_Configuration == 'Manual'"
-
 
