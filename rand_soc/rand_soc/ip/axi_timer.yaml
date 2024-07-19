@@ -35,14 +35,14 @@
     addr_seg_name: "axi_timer_0/S_AXI/Reg"
 
   - name: capturetrig0
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     connections:
     - axi_timer_0/capturetrig0
 
   - name: capturetrig1
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     enable: "mode_64bit == False"
@@ -50,49 +50,49 @@
     - axi_timer_0/capturetrig1
 
   - name: freeze
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     connections:
     - axi_timer_0/freeze
 
   - name: s_axi_aclk
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - axi_timer_0/s_axi_aclk
 
   - name: s_axi_aresetn
-    protocol: "reset"
+    protocol: reset
     direction: I
     width: 1
     connections:
     - axi_timer_0/s_axi_aresetn
 
   - name: generateout0
-    protocol: "data"
+    protocol: data
     direction: O
     width: 1
     connections:
     - axi_timer_0/generateout0
 
   - name: generateout1
-    protocol: "data"
+    protocol: data
     direction: O
     width: 1
     connections:
     - axi_timer_0/generateout1
 
   - name: pwm0
-    protocol: "data"
+    protocol: data
     direction: O
     width: 1
     connections:
     - axi_timer_0/pwm0
 
   - name: interrupt
-    protocol: "irq"
+    protocol: irq
     direction: O
     width: 1
     connections:

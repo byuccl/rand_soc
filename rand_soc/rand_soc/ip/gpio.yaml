@@ -34,7 +34,7 @@
 
   - name: C_GPIO2_WIDTH
     values_eval: range(1,33)
-    enable: "C_IS_DUAL"
+    enable: C_IS_DUAL
 
   - name: C_ALL_INPUTS_2
     enable: "C_IS_DUAL and (direction == 'I')"
@@ -63,17 +63,17 @@
   - name: GPIO2
     protocol: "xilinx.com:interface:gpio_rtl:1.0"
     direction: Master
-    enable: "C_IS_DUAL"
+    enable: C_IS_DUAL
     connections:
     - gpio_0/GPIO2
   - name: clk
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - gpio_0/s_axi_aclk
   - name: rst
-    protocol: "reset"
+    protocol: reset
     direction: I
     width: 1
     connections:
@@ -85,10 +85,10 @@
     - gpio_0/S_AXI
     addr_seg_name: "gpio_0/S_AXI/Reg"
   - name: irq
-    protocol: "irq"
+    protocol: irq
     direction: O
     width: 1
     connections:
     - gpio_0/ip2intc_irpt
-    enable: "C_INTERRUPT_PRESENT"
+    enable: C_INTERRUPT_PRESENT
 
