@@ -10,6 +10,9 @@ available_ip:
   - Uartlite
 
 
-minimum_each_ip: 1
+min_each_ip: 0
 
-maximum_each_ip: 3
+max_each_ip: 2
+
+# Only applicable if min_each_ip is zero
+max_zero_ip: 1
