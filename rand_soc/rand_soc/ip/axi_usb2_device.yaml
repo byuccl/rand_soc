@@ -23,7 +23,7 @@
     values_eval: range(0,17)
 
   - name: C_INCLUDE_DEBUG
-    values: [false]
+    values: [true, false]
 
   ports:
   - name: S_AXI
@@ -84,3 +84,67 @@
     connections:
     - axi_usb2_device_0/M_AXI
     addr_seg_name: "axi_usb2_device_0/DMA_DATA"
+
+  - name: vbus_detect
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/vbus_detect
+
+  - name: show_currentspeed
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/show_currentspeed
+
+  - name: running
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/running
+
+  - name: suspended
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/suspended
+
+  - name: disconnected
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/disconnected
+
+  - name: configured
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/configured
+
+  - name: spare1
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/spare1
+
+  - name: spare2
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/spare2
