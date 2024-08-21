@@ -10,8 +10,6 @@ from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
 from .ip.axi import Axi
 from .ip.axi_cdma import AxiCdma
-from .ip.axi_chip2chip import AxiChip2Chip
-from .ip.axi_clock_converter import AxiClockConverter
 from .ip.axi_hwicap import AxiHwicap
 from .ip.axi_timer import AxiTimer
 from .ip.axi_usb2_device import AxiUsb2Device
@@ -91,8 +89,6 @@ class RandomDesign:
         ip_dict = {
             "Accumulator": Accumulator,
             "AxiCdma": AxiCdma,
-            "AxiChip2Chip": AxiChip2Chip,
-            "AxiClockConverter": AxiClockConverter,
             "AxiHwicap": AxiHwicap,
             "AxiTimer": AxiTimer,
             "AxiUsb2Device": AxiUsb2Device,

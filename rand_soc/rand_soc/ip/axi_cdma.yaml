@@ -1,0 +1,77 @@
+- id: "axi_cdma_0"
+  definition: "xilinx.com:ip:axi_cdma:4.1"
+  configuration:
+  - name: C_INCLUDE_SG
+    values: [false]
+
+  - name: C_USE_DATAMOVER_LITE
+    enable: "C_INCLUDE_SG == False"
+    values: [true, false]
+
+  - name: C_INCLUDE_DRE
+    enable: "C_INCLUDE_SG or (C_USE_DATAMOVER_LITE == False)"
+    values: [true, false]
+
+  - name: C_M_AXI_DATA_WIDTH
+    values_eval: "[32, 64] if (C_INCLUDE_SG == False) and C_USE_DATAMOVER_LITE else [32, 64, 128, 256, 512]"
+  
+  - name: C_M_AXI_MAX_BURST_LEN
+    values_eval: "[16, 32, 64] if (C_INCLUDE_SG == False) and C_USE_DATAMOVER_LITE else [2, 4, 8, 16, 32, 64]"
+
+  - name: C_INCLUDE_SF
+    values: [true, false]
+
+  - name: C_ADDR_WIDTH
+    values_eval: range(32,65)
+
+
+  ports:
+  - name: S_AXI_LITE
+    protocol: xilinx.com:interface:aximm_rtl:1.0
+    direction: Slave
+    connections:
+    - axi_cdma_0/S_AXI_LITE
+    addr_seg_name: "axi_cdma_0/S_AXI_LITE/Reg"
+
+  - name: m_axi_aclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - axi_cdma_0/m_axi_aclk
+
+  - name: s_axi_lite_aclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - axi_cdma_0/s_axi_lite_aclk
+
+  - name: s_axi_lite_aresetn
+    protocol: "reset"
+    direction: I
+    width: 1
+    connections:
+    - axi_cdma_0/s_axi_lite_aresetn
+  
+  - name: M_AXI
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Master
+    connections:
+    - axi_cdma_0/M_AXI
+    addr_seg_name: "axi_cdma_0/Data"
+
+  - name: M_AXI_SG
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Master
+    enable: C_INCLUDE_SG
+    connections:
+    - axi_cdma_0/M_AXI_SG
+    addr_seg_name: "axi_cdma_0/Data_SG"
+
+  - name: cdma_introut
+    protocol: "irq"
+    direction: O
+    width: 1
+    connections:
+    - axi_cdma_0/cdma_introut
