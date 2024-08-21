@@ -9,6 +9,9 @@ from .ip.slice_and_concat import SliceAndConcat
 from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
 from .ip.axi import Axi
+from .ip.axi_cdma import AxiCdma
+from .ip.axi_chip2chip import AxiChip2Chip
+from .ip.axi_clock_converter import AxiClockConverter
 from .ip.axi_hwicap import AxiHwicap
 from .ip.axi_timer import AxiTimer
 from .ip.axi_usb2_device import AxiUsb2Device
@@ -20,6 +23,7 @@ from .ip.emc import Emc
 from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
 from .ip.gpio import Gpio
 from .ip.microblaze import Microblaze
+from .ip.xadc_wiz import XadcWiz
 
 
 class DesignCreator:
@@ -86,6 +90,9 @@ class RandomDesign:
         """Returns an IP class from a corresponding string"""
         ip_dict = {
             "Accumulator": Accumulator,
+            "AxiCdma": AxiCdma,
+            "AxiChip2Chip": AxiChip2Chip,
+            "AxiClockConverter": AxiClockConverter,
             "AxiHwicap": AxiHwicap,
             "AxiTimer": AxiTimer,
             "AxiUsb2Device": AxiUsb2Device,
@@ -93,7 +100,8 @@ class RandomDesign:
             "Emc": Emc,
             "Gpio": Gpio,
             "Microblaze": Microblaze,
-            "Uartlite": Uartlite
+            "Uartlite": Uartlite,
+            "XadcWiz": XadcWiz
         }
         return ip_dict[ip]
 
@@ -190,7 +198,7 @@ class RandomDesign:
             # Clock ports
             self._clocks()
 
-            # GPIO, UART ports
+            # GPIO, UART, USB2, ICAP ports
             self._external_interfaces()
 
             # Interrupt ports
@@ -490,6 +498,8 @@ class RandomDesign:
                 # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
                 "xilinx.com:interface:icap_rtl:1.0",
                 "xilinx.com:interface:arb_rtl:1.0",
+                # XADC input port
+                "xilinx.com:interface:diff_analog_io_rtl:1.0"
             )
             and not p.connected
         ]

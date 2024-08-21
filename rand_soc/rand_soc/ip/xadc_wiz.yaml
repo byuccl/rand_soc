@@ -1,0 +1,230 @@
+- id: xadc_wiz_0
+  definition: "xilinx.com:ip:xadc_wiz:3.3"
+  configuration:
+  - name: INTERFACE_SELECTION
+    values: ["Enable_AXI", "ENABLE_DRP", "None"]
+
+  - name: XADC_STARUP_SELECTION
+    values: ["simultaneous_sampling", "single_channel", "channel_sequencer"]
+
+  - name: TIMING_MODE
+    values: ["Event", "Continuous"]
+
+  - name: ENABLE_RESET
+    enable: "INTERFACE_SELECTION != 'Enable_AXI'"
+    values: [true, false]
+
+  - name: ENABLE_TEMP_BUS
+    enable: "INTERFACE_SELECTION == 'Enable_AXI'"
+    values: [true, false]
+  
+  - name: ENABLE_JTAG_ARBITER
+    enable: "INTERFACE_SELECTION != 'Enable_AXI'"
+    values: [true, false]
+
+  - name: ENABLE_CONVST
+    enable: "TIMING_MODE == 'Event'"
+    values: ["true", "false"]
+
+  - name: ENABLE_DCLK
+    enable: "INTERFACE_SELECTION == 'None' and TIMING_MODE == 'Continuous'"
+    values: [true, false]
+
+  - name: OT_ALARM
+    values: [true, false]
+
+  - name: USER_TEMP_ALARM
+    values: [true, false]
+
+  - name: VCCINT_ALARM
+    values: [true, false]
+
+  - name: VCCAUX_ALARM
+    values: [true, false]
+
+  - name: ENABLE_VBRAM_ALARM
+    values: [true, false]
+
+  - name: CHANNEL_AVERAGING
+    values: ["None", 16, 64, 256]
+
+  - name: ADC_OFFSET_CALIBRATION
+    enable: "XADC_STARUP_SELECTION in ['single_channel', 'channel_sequencer']"
+    values: [true, false]
+
+  - name: ADC_OFFSET_AND_GAIN_CALIBRATION
+    enable: "XADC_STARUP_SELECTION in ['single_channel', 'channel_sequencer']"
+    values: [true, false]
+
+  - name: SENSOR_OFFSET_AND_GAIN_CALIBRATION
+    enable: "XADC_STARUP_SELECTION in ['single_channel', 'channel_sequencer']"
+    values: [true, false]
+
+  - name: SENSOR_OFFSET_CALIBRATION
+    enable: "XADC_STARUP_SELECTION in ['single_channel', 'channel_sequencer']"
+    values: [true, false]
+
+  - name: ENABLE_CALIBRATION_AVERAGING
+    values: [true, false]
+
+  - name: POWER_DOWN_ADCB
+    values: [true, false]
+
+  - name: POWER_DOWN_ADCA
+    enable: POWER_DOWN_ADCB
+    values: [true, false]
+
+  ports:
+  - name: s_axi_aclk
+    protocol: clk
+    direction: I
+    enable: "INTERFACE_SELECTION == 'Enable_AXI'"
+    width: 1
+    connections:
+    - xadc_wiz_0/s_axi_aclk
+
+  - name: s_axi_aresetn
+    protocol: reset
+    direction: I
+    enable: "INTERFACE_SELECTION == 'Enable_AXI'"
+    width: 1
+    connections:
+    - xadc_wiz_0/s_axi_aresetn
+
+  - name: dclk_in
+    protocol: clk
+    direction: I
+    enable: "(INTERFACE_SELECTION == 'ENABLE_DRP') or (INTERFACE_SELECTION == 'None' and (TIMING_MODE == 'Event' or ENABLE_DCLK))"
+    width: 1
+    connections:
+    - xadc_wiz_0/dclk_in
+
+  - name: reset_in
+    protocol: reset
+    direction: I
+    enable: "INTERFACE_SELECTION != 'Enable_AXI' and ENABLE_RESET"
+    width: 1
+    connections:
+    - xadc_wiz_0/reset_in
+
+  - name: convst_in
+    protocol: control
+    direction: I
+    enable: "TIMING_MODE == 'Event' and ENABLE_CONVST == 'true'"
+    width: 1
+    connections:
+    - xadc_wiz_0/convst_in
+
+  - name: convstclk_in
+    protocol: clk
+    direction: I
+    enable: "TIMING_MODE == 'Event' and ENABLE_CONVST == 'false'"
+    width: 1
+    connections:
+    - xadc_wiz_0/convstclk_in
+
+  - name: ip2intc_irpt
+    protocol: irq
+    direction: O
+    enable: "INTERFACE_SELECTION == 'Enable_AXI'"
+    width: 1
+    connections:
+    - xadc_wiz_0/ip2intc_irpt
+
+  - name: user_temp_alarm_out
+    protocol: irq
+    direction: O
+    enable: USER_TEMP_ALARM
+    width: 1
+    connections:
+    - xadc_wiz_0/user_temp_alarm_out
+
+  - name: vccint_alarm_out
+    protocol: irq
+    direction: O
+    enable: VCCINT_ALARM
+    width: 1
+    connections:
+    - xadc_wiz_0/vccint_alarm_out
+
+  - name: vccaux_alarm_out
+    protocol: irq
+    direction: O
+    enable: VCCAUX_ALARM
+    width: 1
+    connections:
+    - xadc_wiz_0/vccaux_alarm_out
+
+  - name: vbram_alarm_out
+    protocol: irq
+    direction: O
+    enable: ENABLE_VBRAM_ALARM
+    width: 1
+    connections:
+    - xadc_wiz_0/vbram_alarm_out
+
+  - name: ot_out
+    protocol: irq
+    direction: O
+    enable: OT_ALARM
+    width: 1
+    connections:
+    - xadc_wiz_0/ot_out
+
+  - name: eoc_out
+    protocol: data
+    direction: O
+    width: 1
+    connections:
+    - xadc_wiz_0/eoc_out
+
+  - name: eos_out
+    protocol: data
+    direction: O
+    width: 1
+    connections:
+    - xadc_wiz_0/eos_out
+
+  - name: alarm_out
+    protocol: irq
+    direction: O
+    width: 1
+    connections:
+    - xadc_wiz_0/alarm_out
+
+  - name: busy_out
+    protocol: data
+    direction: O
+    width: 1
+    connections:
+    - xadc_wiz_0/busy_out
+
+  - name: Vp_Vn
+    protocol: "xilinx.com:interface:diff_analog_io_rtl:1.0"
+    direction: Slave
+    connections:
+    - xadc_wiz_0/Vp_Vn
+
+  - name: jtaglocked_out
+    protocol: data
+    direction: O
+    enable: "INTERFACE_SELECTION != 'Enable_AXI' and ENABLE_JTAG_ARBITER"
+    width: 1
+    connections:
+    - xadc_wiz_0/jtaglocked_out
+
+  - name: jtagmodified_out
+    protocol: data
+    direction: O
+    enable: "INTERFACE_SELECTION != 'Enable_AXI' and ENABLE_JTAG_ARBITER"
+    width: 1
+    connections:
+    - xadc_wiz_0/jtagmodified_out
+
+  - name: jtagbusy_out
+    protocol: data
+    direction: O
+    enable: "INTERFACE_SELECTION != 'Enable_AXI' and ENABLE_JTAG_ARBITER"
+    width: 1
+    connections:
+    - xadc_wiz_0/jtagbusy_out
