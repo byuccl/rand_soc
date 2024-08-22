@@ -17,7 +17,7 @@
     values: [true, false]
 
   - name: C_SHARED_STARTUP
-    enable: "C_INCLUDE_STARTUP"
+    enable: C_INCLUDE_STARTUP
     values: [false]
 
   - name: C_OPERATION
@@ -41,37 +41,38 @@
     direction: Slave
     connections:
     - axi_hwicap_0/S_AXI_LITE
+    addr_seg_name: "axi_hwicap_0/S_AXI_LITE/Reg"
 
   - name: icap_clk
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - axi_hwicap_0/icap_clk
 
   - name: eos_in
-    protocol: "data"
+    protocol: data
     direction: I
     width: 1
     connections:
     - axi_hwicap_0/eos_in
 
   - name: s_axi_aclk
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - axi_hwicap_0/s_axi_aclk
 
   - name: s_axi_aresetn
-    protocol: "reset"
+    protocol: reset
     direction: I
     width: 1
     connections:
     - axi_hwicap_0/s_axi_aresetn
 
   - name: ip2intc_irpt
-    protocol: "irq"
+    protocol: irq
     direction: O
     width: 1
     connections:
@@ -80,13 +81,13 @@
   - name: ICAP
     protocol: "xilinx.com:interface:icap_rtl:1.0"
     direction: Master
-    enable: "C_ICAP_EXTERNAL"
+    enable: C_ICAP_EXTERNAL
     connections:
     - axi_hwicap_0/ICAP
 
   - name: ICAP_ARBITER
     protocol: "xilinx.com:interface:arb_rtl:1.0"
     direction: Master
-    enable: "C_ICAP_EXTERNAL"
+    enable: C_ICAP_EXTERNAL
     connections:
     - axi_hwicap_0/ICAP_ARBITER

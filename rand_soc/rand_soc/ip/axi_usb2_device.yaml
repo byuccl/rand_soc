@@ -2,10 +2,10 @@
   definition: "xilinx.com:ip:axi_usb2_device:5.0"
   configuration:
   - name: C_INCLUDE_DMA
-    values: [false]
+    values: [true, false]
 
   - name: C_DMA_UA_TRANS_SUPPORT
-    enable: "C_INCLUDE_DMA"
+    enable: C_INCLUDE_DMA
     values: [true, false]
     
   - name: C_INCLUDE_USBERR_LOGIC
@@ -15,15 +15,15 @@
     values: [true, false]
 
   - name: C_M_AXI_ADDR_WIDTH
-    enable: "C_INCLUDE_DMA"
+    enable: C_INCLUDE_DMA
     values_eval: range(32,65)
 
   - name: C_M_AXI_THREAD_ID_WIDTH
-    enable: "C_INCLUDE_DMA"
+    enable: C_INCLUDE_DMA
     values_eval: range(0,17)
 
   - name: C_INCLUDE_DEBUG
-    values: [false]
+    values: [true, false]
 
   ports:
   - name: S_AXI
@@ -31,7 +31,7 @@
     direction: Slave
     connections:
     - axi_usb2_device_0/S_AXI
-    addr_seg_name: "axi_usb2_device/S_AXI/Reg"
+    addr_seg_name: "axi_usb2_device_0/S_AXI/Reg"
 
   - name: ULPI
     protocol: "xilinx.com:interface:ulpi_rtl:1.0"
@@ -41,46 +41,110 @@
 
 
   - name: s_axi_aclk
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - axi_usb2_device_0/s_axi_aclk
 
   - name: s_axi_aresetn
-    protocol: "reset"
+    protocol: reset
     direction: I
     width: 1
     connections:
     - axi_usb2_device_0/s_axi_aresetn
 
   - name: usb_irpt
-    protocol: "irq"
+    protocol: irq
     direction: O
     width: 1
     connections:
     - axi_usb2_device_0/usb_irpt
 
-  # - name: m_axi_aclk
-  #   protocol: "clk"
-  #   direction: I
-  #   enable: "C_INCLUDE_DMA"
-  #   width: 1
-  #   connections:
-  #   - axi_usb2_device_0/m_axi_aclk
+  - name: m_axi_aclk
+    protocol: clk
+    direction: I
+    enable: C_INCLUDE_DMA
+    width: 1
+    connections:
+    - axi_usb2_device_0/m_axi_aclk
 
-  # - name: m_axi_aresetn
-  #   protocol: "reset"
-  #   direction: I
-  #   enable: "C_INCLUDE_DMA"
-  #   width: 1
-  #   connections: 
-  #   - axi_usb2_device_0/m_axi_aresetn
+  - name: m_axi_aresetn
+    protocol: reset
+    direction: I
+    enable: C_INCLUDE_DMA
+    width: 1
+    connections: 
+    - axi_usb2_device_0/m_axi_aresetn
 
-  # - name: M_AXI
-  #   protocol: "xilinx.com:interface:aximm_rtl:1.0"
-  #   direction: Master
-  #   enable: "C_INCLUDE_DMA"
-  #   connections:
-  #   - axi_usb2_device_0/M_AXI
-  #   addr_seg_name: "axi_usb2_device_0/DMA_DATA"
+  - name: M_AXI
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Master
+    enable: C_INCLUDE_DMA
+    connections:
+    - axi_usb2_device_0/M_AXI
+    addr_seg_name: "axi_usb2_device_0/DMA_DATA"
+
+  - name: vbus_detect
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/vbus_detect
+
+  - name: show_currentspeed
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/show_currentspeed
+
+  - name: running
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/running
+
+  - name: suspended
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/suspended
+
+  - name: disconnected
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/disconnected
+
+  - name: configured
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/configured
+
+  - name: spare1
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/spare1
+
+  - name: spare2
+    protocol: data
+    direction: O
+    enable: C_INCLUDE_DEBUG
+    width: 1
+    connections:
+    - axi_usb2_device_0/spare2

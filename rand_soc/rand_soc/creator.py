@@ -2,13 +2,14 @@ import logging
 import pathlib
 import random
 import sys
-
+import yaml
 import chevron
 
 from .ip.slice_and_concat import SliceAndConcat
 from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
 from .ip.axi import Axi
+from .ip.axi_cdma import AxiCdma
 from .ip.axi_hwicap import AxiHwicap
 from .ip.axi_timer import AxiTimer
 from .ip.axi_usb2_device import AxiUsb2Device
@@ -20,6 +21,7 @@ from .ip.emc import Emc
 from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
 from .ip.gpio import Gpio
 from .ip.microblaze import Microblaze
+from .ip.xadc_wiz import XadcWiz
 
 
 class DesignCreator:
@@ -41,12 +43,15 @@ class DesignCreator:
 class RandomDesign:
     """Creates a random design"""
 
-    def __init__(self, output_dir_path, seed=None, part=None):
+    def __init__(self, output_dir_path, config_path=None, seed=None, part=None):
+        if config_path is None:
+            config_path = ROOT_PATH / "creator.yaml"
         if seed is not None:
             random.seed(seed)
         if part is None:
             part = "xc7a200tsbg484-1"
         self.part = part
+        self.config_path = config_path
 
         self.tcl_str = ""
 
@@ -79,6 +84,27 @@ class RandomDesign:
         with open(output_file_path, "w", encoding="utf-8") as f:
             f.write(self.tcl_str)
 
+    def get_ip_from_str(self, ip):
+        """Returns an IP class from a corresponding string"""
+        ip_dict = {
+            "Accumulator": Accumulator,
+            "AxiCdma": AxiCdma,
+            "AxiHwicap": AxiHwicap,
+            "AxiTimer": AxiTimer,
+            "AxiUsb2Device": AxiUsb2Device,
+            "Dft": Dft,
+            "Emc": Emc,
+            "Gpio": Gpio,
+            "Microblaze": Microblaze,
+            "Uartlite": Uartlite,
+            "XadcWiz": XadcWiz
+        }
+        return ip_dict[ip]
+
+    def get_yaml_available_ip(self, yaml_file):
+        """Retrieves and returns list of IP objects given in yaml"""
+        return [self.get_ip_from_str(ip) for ip in yaml_file["available_ip"]]
+
     def create(self):
         """Create the design tcl"""
         project_config = {
@@ -93,32 +119,33 @@ class RandomDesign:
 
         # env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 
+
         template_path = ROOT_PATH / "run.tcl.mustache"
         assert template_path.is_file(), f"Template file {template_path} does not exist"
-        with open(template_path) as f:
+        with open(template_path, 'r') as f:
             template = f.read()
 
-        ip_available = [
-            Gpio,
-            Microblaze,
-            Uartlite,
-            Accumulator,
-            Emc,
-            AxiHwicap,
-            AxiTimer,
-            AxiUsb2Device,
-            Dft,
-        ]
+        yaml_path = self.config_path
+        assert yaml_path.is_file(), f"Rand_soc config file {yaml_path} does not exist"
+        with open(yaml_path, 'r') as f:
+            creator_yaml = yaml.safe_load(f)
+
+
+        ip_available = self.get_yaml_available_ip(creator_yaml)
+        min_ip = creator_yaml["min_each_ip"]
+        max_ip = creator_yaml["max_each_ip"]
+        max_zero_ip = creator_yaml["max_zero_ip"]
+        num_zero_ip = 0
 
         for ip in ip_available:
-            num_ip = random.randint(1, 3)
+            num_ip = random.randint(1 if num_zero_ip >= max_zero_ip else min_ip, max_ip)
+            if num_ip == 0:
+                num_zero_ip += 1
             for _ in range(num_ip):
                 self._new_ip(ip)
 
         for ip in self.ip:
             ip.randomize()
-
-        for ip in self.ip:
             ip.instance()
 
         self._ports()
@@ -167,7 +194,7 @@ class RandomDesign:
             # Clock ports
             self._clocks()
 
-            # GPIO, UART ports
+            # GPIO, UART, USB2, ICAP ports
             self._external_interfaces()
 
             # Interrupt ports
@@ -467,6 +494,8 @@ class RandomDesign:
                 # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
                 "xilinx.com:interface:icap_rtl:1.0",
                 "xilinx.com:interface:arb_rtl:1.0",
+                # XADC input port
+                "xilinx.com:interface:diff_analog_io_rtl:1.0"
             )
             and not p.connected
         ]

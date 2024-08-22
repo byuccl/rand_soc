@@ -25,100 +25,100 @@
 
   ports:
   - name: CLK
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - dft_0/CLK
 
   - name: CE
-    protocol: "control"
+    protocol: control
     direction: I
-    enable: "Clock_Enable"
+    enable: Clock_Enable
     width: 1
     connections:
     - dft_0/CE
 
   - name: SCLR
-    protocol: "reset"
+    protocol: reset
     direction: I
-    enable: "Synchronous_Clear"
+    enable: Synchronous_Clear
     width: 1
     connections:
     - dft_0/SCLR
 
   - name: XN_RE
-    protocol: "data"
+    protocol: data
     direction: I
-    width: "Data_Width"
+    width: Data_Width
     connections:
     - dft_0/XN_RE
 
   - name: XN_IM
-    protocol: "data"
+    protocol: data
     direction: I
-    width: "Data_Width"
+    width: Data_Width
     connections:
     - dft_0/XN_IM
 
   - name: FD_IN
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     connections:
     - dft_0/FD_IN
 
   - name: FWD_INV
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     connections:
     - dft_0/FWD_INV
 
   - name: SIZE
-    protocol: "data"
+    protocol: data
     direction: I
     width: 6
     connections:
     - dft_0/SIZE
 
   - name: RFFD
-    protocol: "data"
+    protocol: data
     direction: O
     width: 1
     connections:
     - dft_0/RFFD
 
   - name: XK_RE
-    protocol: "data"
+    protocol: data
     direction: O
-    width: "Data_Width"
+    width: Data_Width
     connections:
     - dft_0/XK_RE
 
   - name: XK_IM
-    protocol: "data"
+    protocol: data
     direction: O
-    width: "Data_Width"
+    width: Data_Width
     connections:
     - dft_0/XK_IM
 
   - name: BLK_EXP
-    protocol: "data"
+    protocol: data
     direction: O
     width: 4
     connections:
     - dft_0/BLK_EXP
 
   - name: FD_OUT
-    protocol: "data"
+    protocol: data
     direction: O
     width: 1
     connections:
     - dft_0/FD_OUT
 
   - name: DATA_VALID
-    protocol: "data"
+    protocol: data
     direction: O
     width: 1
     connections:

@@ -1,0 +1,18 @@
+available_ip:
+  - Accumulator
+  - AxiHwicap
+  - AxiTimer
+  - AxiUsb2Device
+  - Dft
+  - Emc
+  - Gpio
+  - Microblaze
+  - Uartlite
+
+
+min_each_ip: 0
+
+max_each_ip: 2
+
+# Only applicable if min_each_ip is zero
+max_zero_ip: 1

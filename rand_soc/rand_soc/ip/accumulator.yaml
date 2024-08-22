@@ -43,16 +43,16 @@
 
   - name: SINIT
     values: [false, true]
-    enable: "(Implementation == 'Fabric') and not SSET and not SCLR and ((Latency_Configuration == 'Automatic' and Output_Width <= 12) or (Latency_Configuration == 'Manual' and Latency == 1))"
+    enable: "(Implementation == 'Fabric') and not (SSET or SCLR) and ((Latency_Configuration == 'Automatic' and Output_Width <= 12) or (Latency_Configuration == 'Manual' and Latency == 1))"
     default: false
 
   - name: SINIT_Value
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
-    enable: "SINIT"
+    enable: SINIT
 
   - name: AINIT_Value
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
-    enable: "(Implementation == 'Fabric') and not SSET and not SCLR and not SINIT"
+    enable: "not SINIT and (Implementation == 'Fabric') and not (SSET or SCLR or SINIT)"
 
   - name: Bypass
     values: [false, true]
@@ -63,28 +63,28 @@
   
   ports:
   - name: clk
-    protocol: "clk"
+    protocol: clk
     direction: I
     width: 1
     connections:
     - accumulator_0/CLK
 
   - name: B
-    protocol: "data"
+    protocol: data
     direction: I
     width: Input_Width
     connections:
     - accumulator_0/B
 
   - name: Q
-    protocol: "data"
+    protocol: data
     direction: O
     width: Output_Width
     connections:
     - accumulator_0/Q
 
   - name: ADD
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     enable: "Accum_Mode == 'Add_Subtract'"
@@ -92,15 +92,15 @@
     - accumulator_0/ADD
 
   - name: CE
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
-    enable: "CE"
+    enable: CE
     connections:
     - accumulator_0/CE
 
   - name: C_IN
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     enable: C_In
@@ -108,7 +108,7 @@
     - accumulator_0/C_IN
 
   - name: SCLR
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     enable: SCLR
@@ -116,7 +116,7 @@
     - accumulator_0/SCLR
 
   - name: SSET
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     enable: SSET
@@ -124,7 +124,7 @@
     - accumulator_0/SSET
 
   - name: SINIT
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     enable: SINIT
@@ -132,7 +132,7 @@
     - accumulator_0/SINIT
 
   - name: Bypass
-    protocol: "control"
+    protocol: control
     direction: I
     width: 1
     enable: Bypass
