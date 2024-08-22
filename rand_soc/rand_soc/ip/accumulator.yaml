@@ -43,7 +43,7 @@
 
   - name: SINIT
     values: [false, true]
-    enable: "(Implementation == 'Fabric') and not SSET and not SCLR and ((Latency_Configuration == 'Automatic' and Output_Width <= 12) or (Latency_Configuration == 'Manual' and Latency == 1))"
+    enable: "(Implementation == 'Fabric') and not (SSET or SCLR) and ((Latency_Configuration == 'Automatic' and Output_Width <= 12) or (Latency_Configuration == 'Manual' and Latency == 1))"
     default: false
 
   - name: SINIT_Value
@@ -52,7 +52,7 @@
 
   - name: AINIT_Value
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
-    enable: "(Implementation == 'Fabric') and not SSET and not SCLR and not SINIT"
+    enable: "not SINIT and (Implementation == 'Fabric') and not (SSET or SCLR or SINIT)"
 
   - name: Bypass
     values: [false, true]
