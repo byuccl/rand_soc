@@ -132,7 +132,7 @@
     - xadc_wiz_0/ip2intc_irpt
 
   - name: user_temp_alarm_out
-    protocol: irq
+    protocol: control
     direction: O
     enable: USER_TEMP_ALARM
     width: 1
@@ -140,7 +140,7 @@
     - xadc_wiz_0/user_temp_alarm_out
 
   - name: vccint_alarm_out
-    protocol: irq
+    protocol: control
     direction: O
     enable: VCCINT_ALARM
     width: 1
@@ -148,7 +148,7 @@
     - xadc_wiz_0/vccint_alarm_out
 
   - name: vccaux_alarm_out
-    protocol: irq
+    protocol: control
     direction: O
     enable: VCCAUX_ALARM
     width: 1
@@ -156,7 +156,7 @@
     - xadc_wiz_0/vccaux_alarm_out
 
   - name: vbram_alarm_out
-    protocol: irq
+    protocol: control
     direction: O
     enable: ENABLE_VBRAM_ALARM
     width: 1
@@ -164,7 +164,7 @@
     - xadc_wiz_0/vbram_alarm_out
 
   - name: ot_out
-    protocol: irq
+    protocol: control
     direction: O
     enable: OT_ALARM
     width: 1
@@ -186,7 +186,7 @@
     - xadc_wiz_0/eos_out
 
   - name: alarm_out
-    protocol: irq
+    protocol: control
     direction: O
     width: 1
     connections:
@@ -228,3 +228,11 @@
     width: 1
     connections:
     - xadc_wiz_0/jtagbusy_out
+
+  - name: temp_out
+    protocol: data
+    direction: O
+    enable: "INTERFACE_SELECTION == 'Enable_AXI' and ENABLE_TEMP_BUS"
+    width: 12
+    connections:
+    - xadc_wiz_0/temp_out
