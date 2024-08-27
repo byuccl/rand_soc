@@ -1,5 +1,6 @@
 available_ip:
   - Accumulator
+  - AxiCdma
   - AxiHwicap
   - AxiTimer
   - AxiUsb2Device
@@ -8,11 +9,8 @@ available_ip:
   - Gpio
   - Microblaze
   - Uartlite
+  - XadcWiz
 
 
-min_each_ip: 0
+num_iterative_ip: 20
 
-max_each_ip: 2
-
-# Only applicable if min_each_ip is zero
-max_zero_ip: 1
