@@ -84,32 +84,15 @@ class RandomDesign:
         with open(output_file_path, "w", encoding="utf-8") as f:
             f.write(self.tcl_str)
 
-    def get_ip_from_str(self, ip):
-        """Returns an IP class from a corresponding string"""
-        ip_dict = {
-            "Accumulator": Accumulator,
-            "AxiCdma": AxiCdma,
-            "AxiHwicap": AxiHwicap,
-            "AxiTimer": AxiTimer,
-            "AxiUsb2Device": AxiUsb2Device,
-            "Dft": Dft,
-            "Emc": Emc,
-            "Gpio": Gpio,
-            "Microblaze": Microblaze,
-            "Uartlite": Uartlite,
-            "XadcWiz": XadcWiz
-        }
-        return ip_dict[ip]
-
     def get_yaml_available_ip(self, yaml_file):
         """Retrieves and returns list of IP objects given in yaml"""
-        return [self.get_ip_from_str(ip) for ip in yaml_file["available_ip"]]
-    
+        return [getattr(sys.modules[__name__], ip) for ip in yaml_file["available_ip"]]
+
     def get_creator_yaml(self):
         """Helper method for retrieving creator configuration data"""
         yaml_path = self.config_path
         assert yaml_path.is_file(), f"Rand_soc config file {yaml_path} does not exist"
-        with open(yaml_path, 'r') as f:
+        with open(yaml_path, "r") as f:
             return yaml.safe_load(f)
 
     def create(self):
@@ -128,16 +111,17 @@ class RandomDesign:
 
         template_path = ROOT_PATH / "run.tcl.mustache"
         assert template_path.is_file(), f"Template file {template_path} does not exist"
-        with open(template_path, 'r') as f:
+        with open(template_path, "r") as f:
             template = f.read()
 
         creator_yaml = self.get_creator_yaml()
-        total_ip = creator_yaml["num_iterative_ip"]
+        min_ip = creator_yaml["min_ip"]
+        max_ip = creator_yaml["max_ip"]
         ip_available = self.get_yaml_available_ip(creator_yaml)
 
-        for _ in range(total_ip):
+        num_ip = random.randint(min_ip, max_ip)
+        for _ in range(num_ip):
             self._new_ip(random.choice(ip_available))
-
 
         for ip in self.ip:
             ip.randomize()
@@ -490,7 +474,7 @@ class RandomDesign:
                 "xilinx.com:interface:icap_rtl:1.0",
                 "xilinx.com:interface:arb_rtl:1.0",
                 # XADC input port
-                "xilinx.com:interface:diff_analog_io_rtl:1.0"
+                "xilinx.com:interface:diff_analog_io_rtl:1.0",
             )
             and not p.connected
         ]
@@ -525,7 +509,15 @@ class RandomDesign:
             return
 
         # Incremental AXI not supported
-        assert not self._axi_complete
+        if self._axi_complete:
+            print("AXI processing called again")
+            print("Masters:")
+            for master in masters:
+                print(master)
+            print("Slaves:")
+            for slave in slaves:
+                print(slave)
+            assert False
         self._axi_complete = True
 
         self._bd_tcl += "\n########## AXI ##########\n"
@@ -543,15 +535,44 @@ class RandomDesign:
         assert len(slaves)
         assert len(masters)
 
-        axi = self._new_ip(Axi, (len(masters), len(slaves)))
+        # Decide if we will do single-level or two-level AXI
+        two_level = len(slaves) > 16
 
-        for i, master in enumerate(masters):
-            master.connect(axi.port_masters[i])
-        for i, slave in enumerate(slaves):
-            slave.connect(axi.port_slaves[i])
-            for master in masters:
-                # External masters don't have an address space?
-                self._assign_bd_address(master, slave)
+        # Make sure we don't have too many slaves
+        if two_level:
+            assert len(slaves) <= 16 * 16, f"Too many AXI slaves: {len(slaves)}"
+        else:
+            assert len(slaves) <= 16, f"Too many AXI slaves: {len(slaves)}"
+
+        if two_level:
+            num_second_level = (len(slaves) + 15) // 16
+            axi_first_level = self._new_ip(Axi, (len(masters), num_second_level))
+            for i, master in enumerate(masters):
+                master.connect(axi_first_level.port_masters[i])
+
+            for i in range(num_second_level):
+                num_this_level = min(16, len(slaves) - i * 16)
+                axi_second_level = self._new_ip(Axi, (1, num_this_level))
+
+                # Connect first level to second level
+                axi_first_level.port_slaves[i].connect(axi_second_level.port_masters[0])
+
+                # Connect second level to slaves
+                for j in range(num_this_level):
+                    slave = slaves[i * 16 + j]
+                    slave.connect(axi_second_level.port_slaves[j])
+                    for master in masters:
+                        self._assign_bd_address(master, slave)
+
+        else:
+            axi = self._new_ip(Axi, (len(masters), len(slaves)))
+            for i, master in enumerate(masters):
+                master.connect(axi.port_masters[i])
+            for i, slave in enumerate(slaves):
+                slave.connect(axi.port_slaves[i])
+                for master in masters:
+                    # External masters don't have an address space?
+                    self._assign_bd_address(master, slave)
 
     def _create_external_port(
         self, name, protocol, direction, width=None, properties=None

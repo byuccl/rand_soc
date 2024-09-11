@@ -12,5 +12,6 @@ available_ip:
   - XadcWiz
 
 
-num_iterative_ip: 20
+min_ip: 5
+max_ip: 20
 
