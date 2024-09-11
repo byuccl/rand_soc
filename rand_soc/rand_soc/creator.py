@@ -104,6 +104,13 @@ class RandomDesign:
     def get_yaml_available_ip(self, yaml_file):
         """Retrieves and returns list of IP objects given in yaml"""
         return [self.get_ip_from_str(ip) for ip in yaml_file["available_ip"]]
+    
+    def get_creator_yaml(self):
+        """Helper method for retrieving creator configuration data"""
+        yaml_path = self.config_path
+        assert yaml_path.is_file(), f"Rand_soc config file {yaml_path} does not exist"
+        with open(yaml_path, 'r') as f:
+            return yaml.safe_load(f)
 
     def create(self):
         """Create the design tcl"""
@@ -119,30 +126,18 @@ class RandomDesign:
 
         # env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
 
-
         template_path = ROOT_PATH / "run.tcl.mustache"
         assert template_path.is_file(), f"Template file {template_path} does not exist"
         with open(template_path, 'r') as f:
             template = f.read()
 
-        yaml_path = self.config_path
-        assert yaml_path.is_file(), f"Rand_soc config file {yaml_path} does not exist"
-        with open(yaml_path, 'r') as f:
-            creator_yaml = yaml.safe_load(f)
-
-
+        creator_yaml = self.get_creator_yaml()
+        total_ip = creator_yaml["num_iterative_ip"]
         ip_available = self.get_yaml_available_ip(creator_yaml)
-        min_ip = creator_yaml["min_each_ip"]
-        max_ip = creator_yaml["max_each_ip"]
-        max_zero_ip = creator_yaml["max_zero_ip"]
-        num_zero_ip = 0
 
-        for ip in ip_available:
-            num_ip = random.randint(1 if num_zero_ip >= max_zero_ip else min_ip, max_ip)
-            if num_ip == 0:
-                num_zero_ip += 1
-            for _ in range(num_ip):
-                self._new_ip(ip)
+        for _ in range(total_ip):
+            self._new_ip(random.choice(ip_available))
+
 
         for ip in self.ip:
             ip.randomize()
