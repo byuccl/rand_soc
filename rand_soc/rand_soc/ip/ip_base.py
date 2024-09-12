@@ -46,11 +46,9 @@ class IP:
 
         self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
 
-    def _create_hier_pin(
-        self, name, protocol, direction, width=None, addr_seg_name=None
-    ):
+    def _create_hier_pin(self, name, protocol, direction, width=None, addr_segs=None):
         if protocol.startswith("xilinx.com:"):
-            port = IpPortInterface(self, name, protocol, direction, addr_seg_name)
+            port = IpPortInterface(self, name, protocol, direction, addr_segs)
         else:
             port = IpPortRegular(self, name, protocol, direction, width)
         return port
@@ -83,7 +81,7 @@ class IPrandom(IP):
         self.instance_using_yaml_data()
 
     def instance_using_yaml_data(self):
-        ''' Instance an IP using the data read from its yaml file '''
+        """Instance an IP using the data read from its yaml file"""
 
         for ip_id, ip_props in self.data.items():
             ip_config = {
@@ -103,11 +101,19 @@ class IPrandom(IP):
                         port_props["protocol"],
                         port_props["direction"],
                         port_props.get("width"),
-                        port_props.get("addr_seg_name"),
+                        [f"{ip_id}/{a}" for a in port_props.get("addr_segs", [])],
                     ).connect_internal(port_props["connections"])
 
+            if "address_segments" in ip_props:
+                for address_segment in ip_props["address_segments"]:
+                    pass
+                    # self._assign_bd_address(
+                    #     address_segment["master_name"],
+                    #     ip_id + "/" + address_segment["slave_name"],
+                    # )
+
     def instance_yaml_internal_connections(self, ip_props):
-        ''' Helper method to connect internal wires within a group of IP '''
+        """Helper method to connect internal wires within a group of IP"""
 
         for connection in ip_props["internal_connections"]:
             if "enable" in connection:
@@ -123,7 +129,7 @@ class IPrandom(IP):
                 self._connect_internal_pins_regular(f, t)
 
     def load_data_from_yaml(self, module_path):
-        ''' Read the <component>.yaml file '''
+        """Read the <component>.yaml file"""
 
         yaml_path = pathlib.Path(module_path).with_suffix(".yaml")
 
@@ -212,14 +218,16 @@ class IPrandom(IP):
                 # print(f"self.config_vars: {self.config_vars}")
             if "ports" in ip_yaml:
                 self.load_ports_from_yaml(ip, ip_yaml)
-            
-            if "internal_connections" in ip_yaml:
-                ip["internal_connections"] = ip_yaml["internal_connections"]
+
+            keys_to_copy = ["internal_connections", "address_segments"]
+            for key in keys_to_copy:
+                if key in ip_yaml:
+                    ip[key] = ip_yaml[key]
 
         logging.info("%s randomized to:\n%s", self.hier_name, pformat(self.data))
 
     def load_ports_from_yaml(self, ip, ip_yaml):
-        ''' Helper method to load IP port data from yaml into IP entry'''
+        """Helper method to load IP port data from yaml into IP entry"""
 
         ports = {}
         ip["ports"] = ports
@@ -234,5 +242,11 @@ class IPrandom(IP):
             port["connections"] = item["connections"]
             if "width" in item:
                 port["width"] = eval(str(item["width"]), None, self.config_vars)
-            if "addr_seg_name" in item:
-                port["addr_seg_name"] = item["addr_seg_name"]
+            if "addr_segs" in item:
+                port["addr_segs"] = []
+                for addr_seg in item["addr_segs"]:
+                    if (
+                        "enable" in addr_seg
+                        and eval(addr_seg["enable"], None, self.config_vars)
+                    ) or "enable" not in addr_seg:
+                        port["addr_segs"].append(addr_seg["name"])

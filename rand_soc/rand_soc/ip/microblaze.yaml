@@ -175,10 +175,10 @@
 
   ### BUS SETTINGS ###
   - name: C_I_LMB
-    values: [true, false]
+    value: true # Always enable instruction memory
 
   - name: C_D_LMB
-    values: [true, false]
+    value: true # Always enable data memory
 
   - name: C_D_AXI
     values: [true]
@@ -211,7 +211,8 @@
     direction: Master
     connections:
     - microblaze_0/M_AXI_DP
-    addr_seg_name: microblaze_0/Data
+    addr_segs: 
+    - name: "Data"
 
 ### Data Memory IP ###
 - id: lmb_d
@@ -259,6 +260,10 @@
     to: lmb_d/LMB_Sl_0
     is_interface: true
 
+  address_segments:
+  - master_name: microblaze_0/Data
+    slave_name: SLMB/Mem
+
 ### Instruction Memory IP ###
 - id: lmb_i
   enable: C_I_LMB
@@ -303,7 +308,10 @@
   - from: lmb_ctrl_i/SLMB
     to: lmb_i/LMB_Sl_0
     is_interface: true
-
+  
+  address_segments:
+  - master_name: microblaze_0/Instruction
+    slave_name: SLMB/Mem
 
 ### Block Memory Generator IP ###
 - id: mem
