@@ -120,8 +120,11 @@ class RandomDesign:
         ip_available = self.get_yaml_available_ip(creator_yaml)
 
         num_ip = random.randint(min_ip, max_ip)
-        for _ in range(num_ip):
-            self._new_ip(random.choice(ip_available))
+        logging.info("########## Selecting IPs ##########")
+        for i in range(num_ip):
+            ip_type = random.choice(ip_available)
+            logging.info(f"IP {i}: {ip_type.__name__}")
+            self._new_ip(ip_type)
 
         for ip in self.ip:
             ip.randomize()
@@ -518,6 +521,8 @@ class RandomDesign:
         if not masters and not slaves:
             return
 
+        logging.info("########## AXI ##########")
+
         # Incremental AXI not supported
         if self._axi_complete:
             print("AXI processing called again")
@@ -540,6 +545,16 @@ class RandomDesign:
                 properties={"CONFIG.PROTOCOL": "AXI4LITE"},
             )
             masters.append(master)
+
+        if not slaves:
+            # If we don't have a slave, create a top-level slave
+            slave = self._create_external_port(
+                "axi_slave",
+                "xilinx.com:interface:aximm_rtl:1.0",
+                "Master",
+                properties={"CONFIG.PROTOCOL": "AXI4LITE"},
+            )
+            slaves.append(slave)
 
         # TODO: Non-complete crossbars
         assert len(slaves)
