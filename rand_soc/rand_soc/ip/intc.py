@@ -1,6 +1,5 @@
 """ Interrupt controller IP """
 
-
 from .ip_base import IP
 
 
@@ -40,7 +39,7 @@ class Intc(IP):
             "AXI",
             "xilinx.com:interface:aximm_rtl:1.0",
             "Slave",
-            addr_seg_name=f"{intc_name}/S_AXI/Reg",
+            addr_segs=[f"{intc_name}/S_AXI/Reg"],
         ).connect_internal(f"{intc_name}/s_axi")
 
         for i in range(num_inputs):

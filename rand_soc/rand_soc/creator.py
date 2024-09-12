@@ -437,6 +437,16 @@ class RandomDesign:
         if not interrupt_outputs and not interrupt_inputs:
             return
 
+        logging.info("########## Interrupts ##########")
+        logging.info(f"Interrupt outputs: {len(interrupt_outputs)}")
+        logging.info(f"Interrupt inputs: {len(interrupt_inputs)}")
+
+        if not interrupt_outputs:
+            for interrupt_input in interrupt_inputs:
+                logging.info(f"Ignoring interrupt input: {interrupt_input}")
+                interrupt_input.connected = True
+            return
+
         # Incremental interrupts not supported
         assert not self._intc_complete
         self._intc_complete = True
@@ -562,7 +572,8 @@ class RandomDesign:
                     slave = slaves[i * 16 + j]
                     slave.connect(axi_second_level.port_slaves[j])
                     for master in masters:
-                        self._assign_bd_address(master, slave)
+                        pass
+                        # self._assign_bd_addresses(master, slave)
 
         else:
             axi = self._new_ip(Axi, (len(masters), len(slaves)))
@@ -572,7 +583,8 @@ class RandomDesign:
                 slave.connect(axi.port_slaves[i])
                 for master in masters:
                     # External masters don't have an address space?
-                    self._assign_bd_address(master, slave)
+                    pass
+                    # self._assign_bd_addresses(master, slave)
 
     def _create_external_port(
         self, name, protocol, direction, width=None, properties=None
@@ -596,20 +608,24 @@ class RandomDesign:
             prop += f"{key} {value} "
         self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {instance_name}]\n'
 
-    def _assign_bd_address(self, master_port, slave_port):
-        self._addr_space_tcl += f"assign_bd_address -target_address_space "
-        if isinstance(master_port, ExternalPort):
-            self._addr_space_tcl += f"{master_port.hier_name} "
-        else:
-            self._addr_space_tcl += (
-                f"/{master_port.ip.hier_name}/{master_port.addr_seg_name} "
-            )
-        if slave_port.ip:
-            self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{slave_port.addr_seg_name}] -force\n"
-        else:
-            self._addr_space_tcl += (
-                f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
-            )
+    def _assign_bd_addresses(self, master_port, slave_port):
+        for address_segment in slave_port.addr_segs:
+            self._addr_space_tcl += f"assign_bd_address -target_address_space "
+
+            if isinstance(master_port, ExternalPort):
+                self._addr_space_tcl += f"{master_port.hier_name} "
+            else:
+                self._addr_space_tcl += (
+                    f"/{master_port.ip.hier_name}/{master_port.addr_segs[0]} "
+                )
+
+            if slave_port.ip:
+                self._addr_space_tcl += f"[get_bd_addr_segs {slave_port.ip.hier_name}/{address_segment}] -force\n"
+            else:
+                assert False  # JBG: Added this? I don't think this is reachable
+                self._addr_space_tcl += (
+                    f"[get_bd_addr_segs {slave_port.addr_seg_name}] -force\n"
+                )
 
     def _new_ip(self, ip_class, args=None):
         """Create a new IP instance"""
