@@ -1,0 +1,64 @@
+- id: "axi_ethernetlite_0"
+  definition: "xilinx.com:ip:axi_ethernetlite:3.0"
+  configuration:
+    - name: C_S_AXI_PROTOCOL
+      values: ["AXI4-Lite", "AXI4"]
+
+    - name: C_DUPLEX
+      values: [0, 1]
+
+    - name: C_TX_PING_PONG
+      values: [0, 1]
+
+    - name: C_RX_PING_PONG
+      values: [0, 1]
+
+    - name: C_INCLUDE_INTERNAL_LOOPBACK
+      values: [0, 1]
+      enable: "C_DUPLEX == 1"
+
+    - name: C_INCLUDE_GLOBAL_BUFFERS
+      values: [0, 1]
+
+    - name: C_INCLUDE_MDIO
+      values: [0, 1]
+
+  ports:
+    - name: MII
+      protocol: "xilinx.com:interface:mii_rtl:1.0"
+      direction: Master
+      connections:
+        - axi_ethernetlite_0/MII
+
+    - name: MDIO
+      protocol: "xilinx.com:interface:mdio_rtl:1.0"
+      direction: Master
+      connections:
+        - axi_ethernetlite_0/MDIO
+
+    - name: clk
+      protocol: clk
+      direction: I
+      width: 1
+      connections:
+        - axi_ethernetlite_0/s_axi_aclk
+
+    - name: reset
+      protocol: reset
+      direction: I
+      width: 1
+      connections:
+        - axi_ethernetlite_0/s_axi_aresetn
+
+    - name: AXI
+      protocol: "xilinx.com:interface:aximm_rtl:1.0"
+      direction: Slave
+      connections:
+        - axi_ethernetlite_0/S_AXI
+
+    - name: irq
+      protocol: irq
+      direction: O
+      width: 1
+      connections:
+        - axi_ethernetlite_0/ip2intc_irpt

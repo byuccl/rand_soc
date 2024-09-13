@@ -23,6 +23,10 @@ from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
 from .ip.gpio import Gpio
 from .ip.microblaze import Microblaze
 from .ip.xadc_wiz import XadcWiz
+from .ip.axi_can import AxiCan
+from .ip.axi_ethernet_lite import AxiEthernetLite
+from .ip.axi_iic import AxiIic
+from .ip.axi_quad_spi import AxiQuadSpi
 
 
 class DesignCreator:
@@ -523,6 +527,17 @@ class RandomDesign:
                 "xilinx.com:interface:arb_rtl:1.0",
                 # XADC input port
                 "xilinx.com:interface:diff_analog_io_rtl:1.0",
+                # CAN
+                "xilinx.com:interface:can_rtl:1.0",
+                # IIC
+                "xilinx.com:interface:iic_rtl:1.0",
+                # EthernetLite
+                "xilinx.com:interface:mii_rtl:1.0",
+                "xilinx.com:interface:mdio_rtl:1.0",
+                # Quad SPI
+                "xilinx.com:interface:spi_rtl:1.0",
+                "xilinx.com:display_startup_io:startup_io_rtl:1.0",
+                "xilinx.com:interface:startup_rtl:1.0",
             )
             and not p.connected
         ]
@@ -639,7 +654,7 @@ class RandomDesign:
     def _create_external_port(
         self, name, protocol, direction, width=None, properties=None
     ):
-        if protocol.startswith("xilinx.com:interface:"):
+        if protocol.startswith("xilinx.com:"):
             assert width is None
             port = ExternalPortInterface(self, name, protocol, direction, properties)
         else:
