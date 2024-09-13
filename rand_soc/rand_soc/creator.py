@@ -5,6 +5,7 @@ import sys
 import yaml
 import chevron
 
+from .ip.reduce import Reduce
 from .ip.slice_and_concat import SliceAndConcat
 from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
@@ -186,15 +187,25 @@ class RandomDesign:
             self._axi()
 
             # Data and control ports
-            self._generic_ports(port_type="data", max_randomly_generated_inputs=128)
-            self._generic_ports(port_type="control", max_randomly_generated_inputs=8)
+            self._generic_ports(
+                port_type="data",
+                max_randomly_generated_inputs=128,
+                max_randomly_generated_outputs=32,
+            )
+            self._generic_ports(
+                port_type="control",
+                max_randomly_generated_inputs=8,
+                max_randomly_generated_outputs=8,
+            )
 
         logging.info("")
         for port in unhandled_ports:
             logging.error("Unhandled port: %s", port)
         assert not unhandled_ports
 
-    def _generic_ports(self, port_type, max_randomly_generated_inputs):
+    def _generic_ports(
+        self, port_type, max_randomly_generated_inputs, max_randomly_generated_outputs
+    ):
         """Connect data ports."""
 
         assert port_type in ("data", "control")
@@ -258,7 +269,12 @@ class RandomDesign:
         # This will only be done if there are more outputs than inputs,
         # to prevent unused outputs
         if num_out_pins > num_in_pins:
-            po_width = num_out_pins - num_in_pins
+            out_pins_needed = num_out_pins - num_in_pins
+
+            if out_pins_needed > max_randomly_generated_outputs:
+                po_width = max_randomly_generated_outputs
+            else:
+                po_width = out_pins_needed
             logging.info(
                 f"Creating primary output port: {port_type}_O, width: {po_width}"
             )
@@ -266,7 +282,14 @@ class RandomDesign:
                 f"{port_type}_O", port_type, "O", po_width
             )
             self._po_ports[port_type] = new_port
-            in_ports.append(new_port)
+
+            if po_width < out_pins_needed:
+                logging.info(f"Adding reducer from {out_pins_needed} to {po_width}")
+                reducer = self._new_ip(Reduce, (port_type, out_pins_needed, po_width))
+                in_ports.append(reducer.in_port)
+                reducer.out_port.connect(new_port)
+            else:
+                in_ports.append(new_port)
             num_in_pins = sum(p.width for p in in_ports)
 
         logging.info(f"Num input pins: {num_in_pins}")

@@ -14,7 +14,9 @@ class SliceAndConcat(IP):
 
     def instance(self):
         super().instance()
-        port_out = self._create_hier_pin("out0", "data", "O", self.drive_port.width)
+        port_out = self._create_hier_pin(
+            "out0", self.drive_port.protocol, "O", self.drive_port.width
+        )
         port_out.connect(self.drive_port)
 
         # Check if concat needs to be used
@@ -32,7 +34,9 @@ class SliceAndConcat(IP):
         for i, driver in enumerate(self.drivers):
             port, bit_high, bit_low = driver
 
-            port_in = self._create_hier_pin(f"in_{i}", "data", "I", port.width)
+            port_in = self._create_hier_pin(
+                f"in_{i}", self.drive_port.protocol, "I", port.width
+            )
             port_in.connect(port)
 
             # Check if slice needs to be used
