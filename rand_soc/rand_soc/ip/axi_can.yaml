@@ -1,0 +1,48 @@
+- id: "axi_can_0"
+  definition: "xilinx.com:ip:can:5.0"
+  configuration:
+    - name: Number_of_Acceptance_Filters
+      values: [0,1,2,3,4]
+          
+    - name: Tx_Fifo_Depth
+      values: [2, 4, 8, 16, 32, 64]
+
+    - name: Rx_Fifo_Depth
+      values: [2, 4, 8, 16, 32, 64]
+
+    - name: Cs_Mtbf_Stages
+      values: [2, 4]
+
+  ports:
+    - name: CAN_INTERFACE
+      protocol: "xilinx.com:interface:can_rtl:1.0"
+      direction: Master
+      connections:
+        - axi_can_0/CAN_INTERFACE
+
+    - name: clk
+      protocol: clk
+      direction: I
+      width: 1
+      connections:
+        - axi_can_0/s_axi_aclk
+
+    - name: reset
+      protocol: reset
+      direction: I
+      width: 1
+      connections:
+        - axi_can_0/s_axi_aresetn
+
+    - name: AXI
+      protocol: "xilinx.com:interface:aximm_rtl:1.0"
+      direction: Slave
+      connections:
+        - axi_can_0/CAN_S_AXI_LITE
+
+    - name: irq
+      protocol: irq
+      direction: O
+      width: 1
+      connections:
+        - axi_can_0/ip2bus_intrevent

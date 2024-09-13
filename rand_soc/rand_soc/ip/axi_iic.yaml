@@ -1,0 +1,57 @@
+- id: "axi_iic_0"
+  definition: "xilinx.com:ip:axi_iic:2.1"
+  configuration:
+    - name: IIC_FREQ_KHZ
+      values_eval: "[random.uniform(1, 1000),]"
+          
+    - name: TEN_BIT_ADR
+      values: ["10_bit", "7_bit"]
+
+    - name: C_SCL_INERTIAL_DELAY
+      values_eval: "range(0, 255)"
+
+    - name: C_SDA_INERTIAL_DELAY
+      values_eval: "range(0, 255)"
+
+    - name: C_SDA_LEVEL
+      values: [0, 1]
+
+    - name: C_GPO_WIDTH
+      values_eval: range(1, 9)
+
+    - name: C_DEFAULT_VALUE
+      values_eval: range(0, 128)
+
+  ports:
+    - name: IIC
+      protocol: "xilinx.com:interface:iic_rtl:1.0"
+      direction: Master
+      connections:
+        - axi_iic_0/IIC
+
+    - name: clk
+      protocol: clk
+      direction: I
+      width: 1
+      connections:
+        - axi_iic_0/s_axi_aclk
+
+    - name: reset
+      protocol: reset
+      direction: I
+      width: 1
+      connections:
+        - axi_iic_0/s_axi_aresetn
+
+    - name: AXI
+      protocol: "xilinx.com:interface:aximm_rtl:1.0"
+      direction: Slave
+      connections:
+        - axi_iic_0/S_AXI
+
+    - name: irq
+      protocol: irq
+      direction: O
+      width: 1
+      connections:
+        - axi_iic_0/iic2intc_irpt
