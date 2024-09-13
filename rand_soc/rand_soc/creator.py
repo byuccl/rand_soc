@@ -87,7 +87,11 @@ class RandomDesign:
 
     def get_yaml_available_ip(self, yaml_file):
         """Retrieves and returns list of IP objects given in yaml"""
-        return [getattr(sys.modules[__name__], ip) for ip in yaml_file["available_ip"]]
+        ip_list = yaml_file["available_ip"]
+        for ip in ip_list:
+            assert "class" in ip, f"IP {ip} does not have a class"
+            ip["class"] = getattr(sys.modules[__name__], ip["class"])
+        return ip_list
 
     def get_creator_yaml(self):
         """Helper method for retrieving creator configuration data"""
@@ -118,12 +122,20 @@ class RandomDesign:
         creator_yaml = self.get_creator_yaml()
         min_ip = creator_yaml["min_ip"]
         max_ip = creator_yaml["max_ip"]
-        ip_available = self.get_yaml_available_ip(creator_yaml)
+        ip_list = self.get_yaml_available_ip(creator_yaml)
 
         num_ip = random.randint(min_ip, max_ip)
         logging.info("########## Selecting IPs ##########")
         for i in range(num_ip):
-            ip_type = random.choice(ip_available)
+            while True:
+                ip = random.choice(ip_list)
+                if "max" in ip:
+                    if ip["max"] == 0:
+                        continue
+                    ip["max"] -= 1
+                break
+
+            ip_type = ip["class"]
             logging.info(f"IP {i}: {ip_type.__name__}")
             self._new_ip(ip_type)
 
