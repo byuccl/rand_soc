@@ -33,7 +33,8 @@
       enable: "C_SPI_MODE == 0 and C_SCK_RATIO == 16"
 
     - name: C_SPI_MEMORY
-      values_eval: "[0, 1, 2, 3, 4] if C_XIP_MODE == 0 else [1, 2, 3, 4]"
+      values_eval: "[0, 1, 2, 3, 4] if C_XIP_MODE == 0 else ([1, 2, 3, 4] if C_SPI_MEM_ADDR_BITS == 24 else [2, 3, 4])"
+      enable: "C_XIP_MODE == 1 or C_SPI_MODE != 0"
 
     - name: Master_mode
       values: [0, 1]
@@ -50,19 +51,19 @@
 
     - name: FIFO_INCLUDED
       values: [0, 1]
-      enabled: "C_XIP_MODE == 0 and C_SPI_MODE == 0"
+      enable: "C_XIP_MODE == 0 and C_SPI_MODE == 0"
       default: 1
 
     - name: C_FIFO_DEPTH
       values: [16, 256]
-      enabled: "FIFO_INCLUDED == 1"
+      enable: "FIFO_INCLUDED == 1"
 
     - name: C_USE_STARTUP
       values: [0, 1]
 
     - name: C_SHARED_STARTUP
       values: [0, 1]
-      enabled: "C_USE_STARTUP == 1"
+      enable: "C_USE_STARTUP == 1"
 
 
   ports:
@@ -77,14 +78,14 @@
       direction: Master
       connections:
         - axi_quad_spi_0/STARTUP_IO
-      enabled: "C_USE_STARTUP == 1 and C_SHARED_STARTUP == 0"
+      enable: "C_USE_STARTUP == 1 and C_SHARED_STARTUP == 0"
 
     - name: "STARTUP_IO_S"
       protocol: "xilinx.com:interface:startup_rtl:1.0"
       direction: Master
       connections:
         - axi_quad_spi_0/STARTUP_IO_S
-      enabled: "C_USE_STARTUP == 1 and C_SHARED_STARTUP == 1"
+      enable: "C_USE_STARTUP == 1 and C_SHARED_STARTUP == 1"
 
     - name: "ext_spi_clk"
       protocol: clk
@@ -99,7 +100,7 @@
       width: 1
       connections:
         - axi_quad_spi_0/s_axi_aclk
-      enabled: "C_XIP_PERF_MODE == 0"
+      enable: "C_XIP_PERF_MODE == 0"
 
     - name: reset
       protocol: reset
@@ -107,7 +108,7 @@
       width: 1
       connections:
         - axi_quad_spi_0/s_axi_aresetn
-      enabled: "C_XIP_PERF_MODE == 0"
+      enable: "C_XIP_PERF_MODE == 0"
 
     - name: clk4
       protocol: clk
@@ -115,7 +116,7 @@
       width: 1
       connections:
         - axi_quad_spi_0/s_axi4_aclk
-      enabled: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
+      enable: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
 
     - name: reset4
       protocol: reset
@@ -123,21 +124,21 @@
       width: 1
       connections:
         - axi_quad_spi_0/s_axi4_aresetn
-      enabled: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
+      enable: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
 
     - name: AXI_LITE
       protocol: "xilinx.com:interface:aximm_rtl:1.0"
       direction: Slave
       connections:
         - axi_quad_spi_0/AXI_LITE
-      enabled: "C_XIP_PERF_MODE == 0"
+      enable: "C_XIP_PERF_MODE == 0"
 
     - name: AXI_FULL
       protocol: "xilinx.com:interface:aximm_rtl:1.0"
       direction: Slave
       connections:
         - axi_quad_spi_0/AXI_FULL
-      enabled: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
+      enable: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
 
     - name: irq
       protocol: irq
