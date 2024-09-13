@@ -21,6 +21,7 @@
 
     - name: C_DEFAULT_VALUE
       values_eval: range(0, 128)
+      format: hex
 
   ports:
     - name: IIC

@@ -2,7 +2,7 @@
   definition: "xilinx.com:ip:axi_ethernetlite:3.0"
   configuration:
     - name: C_S_AXI_PROTOCOL
-      values: ["AXI4-Lite", "AXI4"]
+      values: ["AXI4LITE", "AXI4"]
 
     - name: C_DUPLEX
       values: [0, 1]
