@@ -1,17 +1,18 @@
 available_ip:
-  - Accumulator
-  - AxiCdma
-  - AxiHwicap
-  - AxiTimer
-  - AxiUsb2Device
-  - Dft
-  - Emc
-  - Gpio
-  - Microblaze
-  - Uartlite
-  - XadcWiz
+  - class: Accumulator
+  - class: AxiCdma
+  - class: AxiHwicap
+    max: 1
+  - class: AxiTimer
+  - class: Dft
+  - class: Emc
+  - class: Gpio
+  - class: Microblaze
+  - class: Uartlite
+  - class: XadcWiz
+    max: 1
 
 
-min_ip: 5
-max_ip: 20
+min_ip: 2
+max_ip: 18
 
