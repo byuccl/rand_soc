@@ -132,14 +132,14 @@
       direction: Slave
       connections:
         - axi_quad_spi_0/AXI_LITE
-      enable: "C_XIP_PERF_MODE == 0"
+      enable: "C_TYPE_OF_AXI4_INTERFACE == 0"
 
     - name: AXI_FULL
       protocol: "xilinx.com:interface:aximm_rtl:1.0"
       direction: Slave
       connections:
         - axi_quad_spi_0/AXI_FULL
-      enable: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
+      enable: "C_XIP_MODE == 1 or C_TYPE_OF_AXI4_INTERFACE == 1"
 
     - name: irq
       protocol: irq
