@@ -61,6 +61,8 @@
 
     - name: C_USE_STARTUP
       values: [0, 1]
+      enable: "Master_mode == 1"
+      default: 0
 
     - name: C_SHARED_STARTUP
       values: [0, 1]
