@@ -16,6 +16,7 @@
     - name: C_TYPE_OF_AXI4_INTERFACE
       values: [0, 1]
       enable: "C_XIP_MODE == 0"
+      default: 0
 
     - name: C_SPI_MODE
       values: [0, 1, 2]
@@ -100,7 +101,7 @@
       width: 1
       connections:
         - axi_quad_spi_0/s_axi_aclk
-      enable: "C_XIP_PERF_MODE == 0"
+      enable: "C_TYPE_OF_AXI4_INTERFACE == 0"
 
     - name: reset
       protocol: reset
@@ -108,7 +109,7 @@
       width: 1
       connections:
         - axi_quad_spi_0/s_axi_aresetn
-      enable: "C_XIP_PERF_MODE == 0"
+      enable: "C_TYPE_OF_AXI4_INTERFACE == 0"
 
     - name: clk4
       protocol: clk

@@ -7,11 +7,12 @@
     - name: Tx_Fifo_Depth
       values: [2, 4, 8, 16, 32, 64]
 
-    - name: Rx_Fifo_Depth
-      values: [2, 4, 8, 16, 32, 64]
-
     - name: Cs_Mtbf_Stages
       values: [2, 4]
+
+    - name: Rx_Fifo_Depth
+      values_eval: "[2, 4, 8, 16, 32, 64] if Cs_Mtbf_Stages == 2 else [4, 8, 16, 32, 64]"
+
 
   ports:
     - name: CAN_INTERFACE

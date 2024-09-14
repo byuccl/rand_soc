@@ -35,6 +35,7 @@
       direction: Master
       connections:
         - axi_ethernetlite_0/MDIO
+      enable: "C_INCLUDE_MDIO == 1"
 
     - name: clk
       protocol: clk
