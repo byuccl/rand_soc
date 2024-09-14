@@ -117,7 +117,7 @@
       width: 1
       connections:
         - axi_quad_spi_0/s_axi4_aclk
-      enable: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
+      enable: "C_XIP_MODE == 1 or C_TYPE_OF_AXI4_INTERFACE == 1"
 
     - name: reset4
       protocol: reset
@@ -125,7 +125,7 @@
       width: 1
       connections:
         - axi_quad_spi_0/s_axi4_aresetn
-      enable: "C_XIP_MODE == 1 or C_XIP_PERF_MODE == 1"
+      enable: "C_XIP_MODE == 1 or C_TYPE_OF_AXI4_INTERFACE == 1"
 
     - name: AXI_LITE
       protocol: "xilinx.com:interface:aximm_rtl:1.0"
