@@ -25,8 +25,13 @@
       values: [8, 16, 32]
       enable: "C_SPI_MODE == 0"
 
+    - name: Master_mode
+      values: [0, 1]
+      enable: "C_XIP_MODE == 0 and C_SPI_MODE == 0"
+      default: 1
+
     - name: C_SCK_RATIO
-      values: [2, 4, 8, 16]
+      values_eval: "[2, 4, 8, 16] if Master_mode else [4, 8, 16]"
       enable: "C_SPI_MODE == 0"
 
     - name: Multiples16
@@ -36,11 +41,6 @@
     - name: C_SPI_MEMORY
       values_eval: "[0, 1, 2, 3, 4] if C_XIP_MODE == 0 else ([1, 2, 3, 4] if C_SPI_MEM_ADDR_BITS == 24 else [2, 3, 4])"
       enable: "C_XIP_MODE == 1 or C_SPI_MODE != 0"
-
-    - name: Master_mode
-      values: [0, 1]
-      enable: "C_XIP_MODE == 0 and C_SPI_MODE == 0"
-      default: 1
 
     - name: C_NUM_SS_BITS
       values_eval: "range(1, 33)"
