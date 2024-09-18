@@ -29,6 +29,12 @@
       direction: Master
       connections:
         - axi_ethernetlite_0/MII
+      clk_pins:
+        - name: tx_clk
+          direction: I
+        - name: rx_clk
+          direction: I
+
 
     - name: MDIO
       protocol: "xilinx.com:interface:mdio_rtl:1.0"

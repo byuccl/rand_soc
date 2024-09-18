@@ -20,6 +20,9 @@
       direction: Master
       connections:
         - axi_can_0/CAN_INTERFACE
+      clk_pins:
+        - name: clk
+          direction: I
 
     - name: clk
       protocol: clk
@@ -47,3 +50,6 @@
       width: 1
       connections:
         - axi_can_0/ip2bus_intrevent
+
+  ignored_clk_pins:
+    - 

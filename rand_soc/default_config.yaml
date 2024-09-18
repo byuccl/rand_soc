@@ -11,12 +11,11 @@ available_ip:
   - class: Uartlite
   - class: XadcWiz
     max: 1
-  - class: AxiCan
   - class: AxiEthernetLite
   - class: AxiIic
   - class: AxiQuadSpi
 
 
-min_ip: 2
+min_ip: 3
 max_ip: 18
 

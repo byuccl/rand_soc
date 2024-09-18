@@ -19,6 +19,7 @@ class IP:
         self.design = design
         self.hier_name = name + "_" + self.name
         self._bd_tcl = f"\n\n########## {self.name} ##########\n"
+        self._impl_constraints_tcl = ""
         self.ports = []
 
     def instance(self):
@@ -34,7 +35,9 @@ class IP:
     def _new_instance(self, ip_name, instance_name, properties=None):
         """Create a new instance of an IP"""
         self._bd_tcl += f"create_bd_cell -type ip -vlnv {ip_name} {instance_name}\n"
-        self._bd_tcl += f"move_bd_cells [get_bd_cells {self.hier_name}] [get_bd_cells {instance_name}]\n"
+        self._bd_tcl += (
+            f"move_bd_cells [get_bd_cells {self.hier_name}] [get_bd_cells {instance_name}]\n"
+        )
         if properties:
             self._set_instance_properties(instance_name, properties)
 
@@ -44,7 +47,9 @@ class IP:
         for key in sorted(properties.keys()):
             prop += f"{key} {properties[key]} "
 
-        self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
+        self._bd_tcl += (
+            f'set_property -dict "{prop}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
+        )
 
     def _create_hier_pin(self, name, protocol, direction, width=None, addr_segs=None):
         if protocol.startswith("xilinx.com:"):
@@ -103,6 +108,10 @@ class IPrandom(IP):
                         port_props.get("width"),
                         [f"{ip_id}/{a}" for a in port_props.get("addr_segs", [])],
                     ).connect_internal(port_props["connections"])
+
+                    if "clk_pins" in port_props:
+                        for clk_pin in port_props["clk_pins"]:
+                            self._impl_constraints_tcl += f"set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets {self.hier_name}_{port_name}_{clk_pin['name']}_{clk_pin['direction']}BUF]\n"
 
             if "address_segments" in ip_props:
                 for address_segment in ip_props["address_segments"]:
@@ -187,9 +196,7 @@ class IPrandom(IP):
 
                 elif "values" in item:
                     values = item["values"]
-                    assert isinstance(
-                        values, list
-                    ), f"values of {name} must be a list: {values}"
+                    assert isinstance(values, list), f"values of {name} must be a list: {values}"
                     value = random.choice(values)
 
                 elif "values_eval" in item:
@@ -242,11 +249,12 @@ class IPrandom(IP):
             port["connections"] = item["connections"]
             if "width" in item:
                 port["width"] = eval(str(item["width"]), None, self.config_vars)
+            if "clk_pins" in item:
+                port["clk_pins"] = item["clk_pins"]
             if "addr_segs" in item:
                 port["addr_segs"] = []
                 for addr_seg in item["addr_segs"]:
                     if (
-                        "enable" in addr_seg
-                        and eval(addr_seg["enable"], None, self.config_vars)
+                        "enable" in addr_seg and eval(addr_seg["enable"], None, self.config_vars)
                     ) or "enable" not in addr_seg:
                         port["addr_segs"].append(addr_seg["name"])
