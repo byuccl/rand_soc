@@ -22,7 +22,7 @@ if __name__ == "__main__":
         "config_path", type=pathlib.Path, help="Path of rand_soc creator yaml"
     )
     parser.add_argument("--seed", type=int, help="Random seed")
-    parser.add_argument("--part", type=str)
+    parser.add_argument("--part", type=str, help="Xilinx part name")
     args = parser.parse_args()
 
     main(args.output_dir_path, args.config_path, args.seed, args.part)

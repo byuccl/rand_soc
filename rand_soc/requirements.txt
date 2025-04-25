@@ -2,4 +2,4 @@ chevron
 boolean.py
 lxml
 pyyaml
--e rand_soc/rand_soc
+-e rand_soc

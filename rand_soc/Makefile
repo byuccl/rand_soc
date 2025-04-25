@@ -7,9 +7,11 @@ vivado:
 	cd temp/ && /tools/Xilinx/Vivado/2022.2/bin/vivado -source design.tcl
 
 env: .venv/bin/activate
+cleanenv:
+	rm -rf .venv
 
-.venv/bin/activate: ../requirements.txt
+.venv/bin/activate: requirements.txt
 	python3 -m venv .venv
-	$(IN_ENV) cd ../ &&  pip install -r requirements.txt
+	$(IN_ENV) pip install -r requirements.txt
 
-.PHONY: env run all
+.PHONY: env run all vivado cleanenv
