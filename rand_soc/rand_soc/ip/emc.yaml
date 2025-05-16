@@ -10,7 +10,7 @@
   - name: C_S_AXI_MEM_ID_WIDTH
     values_eval: range(1,17)
 
-  # Base and high addresses for each bank, depending on how many banks there are
+  # Base and high addresses for each bank
   - name: C_S_AXI_MEM0_BASEADDR
     values: [0xA0000000]
     enable: "C_NUM_BANKS_MEM >= 1"
@@ -51,35 +51,60 @@
 
   - name: C_MEM1_TYPE
     values_eval: |
-        ([0,1]        if C_MEM0_TYPE == 0 else
-         [0,1,2,4,5]  if C_MEM0_TYPE == 1 else
-         [1,2,4,5]    if C_MEM0_TYPE in [2,5] else
-         [3,4]        if C_MEM0_TYPE == 3 else
-         [1,2,3,4,5]  if C_MEM0_TYPE == 4 else [0])
+        (
+          ([0,1]        if C_MEM0_TYPE == 0 else
+           [0,1,2,4]    if C_MEM0_TYPE == 1 else
+           [1,2,4]      if C_MEM0_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 else
+           [1,2,3,4]    if C_MEM0_TYPE == 4 else [0])
+          if C_S_AXI_MEM_DATA_WIDTH == 64 else
+          ([0,1]        if C_MEM0_TYPE == 0 else
+           [0,1,2,4,5]  if C_MEM0_TYPE == 1 else
+           [1,2,4,5]    if C_MEM0_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 else
+           [1,2,3,4,5]  if C_MEM0_TYPE == 4 else [0])
+        )
     enable: "C_NUM_BANKS_MEM >= 2"
 
   - name: C_MEM2_TYPE
     values: |
-        ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 else
-         [1,2,4,5]    if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] else
-         [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 else
-         [0,1,2,4,5]  if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 else
-         [1,2,4,5]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE in [2,4,5] else
-         [1,2,3,4,5]  if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 else 
-         [1,2,4,5]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE in [1,2,5] else[0]
-
+        (
+          ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 else
+           [1,2,4]      if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 else
+           [0,1,2,4]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 else
+           [1,2,4]      if C_MEM0_TYPE == 1 and C_MEM1_TYPE in [2,4,5] else
+           [1,2,3,4]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 else 
+           [1,2,4]      if C_MEM0_TYPE == 4 and C_MEM1_TYPE in [1,2,5] else[0])
+          if C_S_AXI_MEM_DATA_WIDTH == 64 else
+          ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 else
+           [1,2,4,5]    if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 else
+           [0,1,2,4,5]  if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 else
+           [1,2,4,5]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE in [2,4,5] else
+           [1,2,3,4,5]  if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 else 
+           [1,2,4,5]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE in [1,2,5] else[0])
         )
     enable: "C_NUM_BANKS_MEM >= 3"
 
   - name: C_MEM3_TYPE
     values: |
-        ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 or C_MEM2_TYPE == 0 else
-         [1,2,4,5]    if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] or C_MEM2_TYPE in [2,5] else
-         [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 or C_MEM2_TYPE == 3 else
-         [0,1,2,4,5]  if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE == 1 else
-         [1,2,4,5]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE in [2,4,5] else
-         [1,2,3,4,5]  if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE == 4 else
-         [1,2,4,5]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE in [1,2,5] else [0]
+        (
+          ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 or C_MEM2_TYPE == 0 else
+           [1,2,4]      if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] or C_MEM2_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 or C_MEM2_TYPE == 3 else
+           [0,1,2,4]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE == 1 else
+           [1,2,4]      if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE in [2,4,5] else
+           [1,2,3,4]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE == 4 else
+           [1,2,4]      if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE in [1,2,5] else [0])
+          if C_S_AXI_MEM_DATA_WIDTH == 64 else
+          ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 or C_MEM2_TYPE == 0 else
+           [1,2,4,5]    if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] or C_MEM2_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 or C_MEM2_TYPE == 3 else
+           [0,1,2,4,5]  if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE == 1 else
+           [1,2,4,5]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE in [2,4,5] else
+           [1,2,3,4,5]  if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE == 4 else
+           [1,2,4,5]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE in [1,2,5] else [0])
         )
     enable: "C_NUM_BANKS_MEM >= 4"
 
@@ -106,14 +131,23 @@
     enable: "C_NUM_BANKS_MEM >= 4"
 
 
-  # Parity - unfinished
+  # Parity 
   - name: C_PARITY_TYPE_MEM_0
-    values_eval: "range(0,3) if C_MEM0_TYPE == 0 else [0]"
+    values_eval: "[0] if C_MEM0_TYPE != 0 or C_MEM1_TYPE != 0 or C_MEM2_TYPE != 0 or C_MEM3_TYPE != 0 else [0,1,2]"
     enable: "C_NUM_BANKS_MEM >= 1"
 
   - name: C_PARITY_TYPE_MEM_1
-    values_eval: "C_PARITY_TYPE_MEM_0 if C_MEM0_TYPE == 0 and C_MEM1_TYPE == 0 else [0]"
+    values_eval: "[0] if C_MEM0_TYPE != 0 or C_MEM1_TYPE != 0 or C_MEM2_TYPE != 0 or C_MEM3_TYPE != 0 else C_PARITY_TYPE_MEM_0"
     enable: "C_NUM_BANKS_MEM >= 2"
+
+  - name: C_PARITY_TYPE_MEM_2
+    values_eval: "[0] if C_MEM0_TYPE != 0 or C_MEM1_TYPE != 0 or C_MEM2_TYPE != 0 or C_MEM3_TYPE != 0 else C_PARITY_TYPE_MEM_0"
+    enable: "C_NUM_BANKS_MEM >= 3"
+
+  - name: C_PARITY_TYPE_MEM_3
+    values_eval: "[0] if C_MEM0_TYPE != 0 or C_MEM1_TYPE != 0 or C_MEM2_TYPE != 0 or C_MEM3_TYPE != 0 else C_PARITY_TYPE_MEM_0"
+    enable: "C_NUM_BANKS_MEM >= 4"
+
 
   # Delay Model
   - name: C_SYNCH_PIPEDELAY_0
@@ -131,6 +165,8 @@
   - name: C_SYNCH_PIPEDELAY_3
     values_eval: [1,2]
     enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE == 0"
+
+
 
   ports:
   - name: EMC_INTF
