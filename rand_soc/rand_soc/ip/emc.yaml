@@ -5,7 +5,328 @@
     values: [32, 64]
 
   - name: C_NUM_BANKS_MEM
-    values_eval: range(1,5)
+    values_eval: range(1,5) 
+
+  - name: C_S_AXI_MEM_ID_WIDTH
+    values_eval: range(1,17)
+
+  # Bank Memory Types
+  # 0 = Sync SRAM, 1 = Async SRAM, 2 = Linear Flash, 3 = Page Mode Flash, 4 = PSRAM, 5 = Micron Flash
+  - name: C_MEM0_TYPE
+    values_eval: ([0, 1, 2, 3, 4] if C_S_AXI_MEM_DATA_WIDTH == 64 else [0, 1, 2, 3, 4, 5]) 
+    enable: "C_NUM_BANKS_MEM >= 1"
+
+  - name: C_MEM1_TYPE
+    values_eval: >
+        (
+          ([0,1]        if C_MEM0_TYPE == 0 else
+           [0,1,2,4]    if C_MEM0_TYPE == 1 else
+           [1,2,4]      if C_MEM0_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 else
+           [1,2,3,4]    if C_MEM0_TYPE == 4 else [0])
+          if C_S_AXI_MEM_DATA_WIDTH == 64 else
+          ([0,1]        if C_MEM0_TYPE == 0 else
+           [0,1,2,4,5]  if C_MEM0_TYPE == 1 else
+           [1,2,4,5]    if C_MEM0_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 else
+           [1,2,3,4,5]  if C_MEM0_TYPE == 4 else [0])
+        )
+    enable: "C_NUM_BANKS_MEM >= 2"
+
+  - name: C_MEM2_TYPE
+    values_eval: >
+        (
+          ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 else
+           [1,2,4]      if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 else
+           [0,1,2,4]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 else
+           [1,2,4]      if C_MEM0_TYPE == 1 and C_MEM1_TYPE in [2,4,5] else
+           [1,2,3,4]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 else 
+           [1,2,4]      if C_MEM0_TYPE == 4 and C_MEM1_TYPE in [1,2,5] else[0])
+          if C_S_AXI_MEM_DATA_WIDTH == 64 else
+          ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 else
+           [1,2,4,5]    if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 else
+           [0,1,2,4,5]  if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 else
+           [1,2,4,5]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE in [2,4,5] else
+           [1,2,3,4,5]  if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 else 
+           [1,2,4,5]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE in [1,2,5] else[0])
+        )
+    enable: "C_NUM_BANKS_MEM >= 3"
+
+  - name: C_MEM3_TYPE
+    values_eval: >
+        (
+          ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 or C_MEM2_TYPE == 0 else
+           [1,2,4]      if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] or C_MEM2_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 or C_MEM2_TYPE == 3 else
+           [0,1,2,4]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE == 1 else
+           [1,2,4]      if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE in [2,4,5] else
+           [1,2,3,4]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE == 4 else
+           [1,2,4]      if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE in [1,2,5] else [0])
+          if C_S_AXI_MEM_DATA_WIDTH == 64 else
+          ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 or C_MEM2_TYPE == 0 else
+           [1,2,4,5]    if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] or C_MEM2_TYPE in [2,5] else
+           [3,4]        if C_MEM0_TYPE == 3 or C_MEM1_TYPE == 3 or C_MEM2_TYPE == 3 else
+           [0,1,2,4,5]  if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE == 1 else
+           [1,2,4,5]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE in [2,4,5] else
+           [1,2,3,4,5]  if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE == 4 else
+           [1,2,4,5]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE in [1,2,5] else [0])
+        )
+    enable: "C_NUM_BANKS_MEM >= 4"
+
+
+  # Data Width for each Bank
+  - name: C_MEM0_WIDTH
+    values_eval: "([16] if C_MEM0_TYPE in [2, 3, 4, 5] else [8, 16, 32, 64] if C_S_AXI_MEM_DATA_WIDTH == 64 else [8, 16, 32])"
+    enable: "C_NUM_BANKS_MEM >= 1"
+
+  - name: C_MEM1_WIDTH
+    values_eval: "([16] if C_MEM1_TYPE in [2, 3, 4, 5] else [8, 16, 32, 64] if C_S_AXI_MEM_DATA_WIDTH == 64 else [8, 16, 32])"
+    enable: "C_NUM_BANKS_MEM >= 2"
+
+  - name: C_MEM2_WIDTH
+    values_eval: "([16] if C_MEM2_TYPE in [2, 3, 4, 5] else [8, 16, 32, 64] if C_S_AXI_MEM_DATA_WIDTH == 64 else [8, 16, 32])"
+    enable: "C_NUM_BANKS_MEM >= 3"
+
+  - name: C_MEM3_WIDTH
+    values_eval: "([16] if C_MEM3_TYPE in [2, 3, 4, 5] else [8, 16, 32, 64] if C_S_AXI_MEM_DATA_WIDTH == 64 else [8, 16, 32])"
+    enable: "C_NUM_BANKS_MEM >= 4"
+
+
+  # Parity 
+  - name: C_PARITY_TYPE_MEM_0
+    values_eval: >
+        (
+          [0] if (C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0) else [0,1,2]
+        )
+    enable: "C_NUM_BANKS_MEM >= 1"
+
+  - name: C_PARITY_TYPE_MEM_1
+    values_eval: >
+        (
+          [0] if (C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0) else [C_PARITY_TYPE_MEM_0]
+        ) 
+    enable: "C_NUM_BANKS_MEM >= 2"
+
+  - name: C_PARITY_TYPE_MEM_2
+    values_eval: >
+        (
+          [0] if (C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0) else [C_PARITY_TYPE_MEM_0]
+        ) 
+    enable: "C_NUM_BANKS_MEM >= 3"
+
+  - name: C_PARITY_TYPE_MEM_3
+    values_eval: >
+        (
+          [0] if (C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0) else [C_PARITY_TYPE_MEM_0]
+        ) 
+    enable: "C_NUM_BANKS_MEM >= 4"
+
+
+  # Delay Model
+  - name: C_SYNCH_PIPEDELAY_0
+    values: [1,2]
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE == 0"
+
+  - name: C_SYNCH_PIPEDELAY_1
+    values: [1,2]
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE == 0"
+
+  - name: C_SYNCH_PIPEDELAY_2
+    values: [1,2]
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE == 0"
+
+  - name: C_SYNCH_PIPEDELAY_3
+    values: [1,2]
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE == 0"
+
+  # Timing Parameters (10 for each bank)
+
+  # Read CE Low to Data Valid Period
+  - name: C_TCEDV_PS_MEM_0
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_TCEDV_PS_MEM_1
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0"
+
+  - name: C_TCEDV_PS_MEM_2
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0"
+
+  - name: C_TCEDV_PS_MEM_3
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0"
+
+  # Read Address Valid to Data Valid Period
+  - name: C_TAVDV_PS_MEM_0
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_TAVDV_PS_MEM_1
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0"
+
+  - name: C_TAVDV_PS_MEM_2
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0"
+
+  - name: C_TAVDV_PS_MEM_3
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0"
+
+  # Read CE High to Data Bus HZ Period
+  - name: C_THZCE_PS_MEM_0
+    values_eval: range (6300, 7700)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_THZCE_PS_MEM_1
+    values_eval: range (6300, 7700)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0"
+
+  - name: C_THZCE_PS_MEM_2
+    values_eval: range (6300, 7700)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0"
+
+  - name: C_THZCE_PS_MEM_3
+    values_eval: range (6300, 7700)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0"
+
+  # Read OE High to Data Bus HZ Period
+  - name: C_THZOE_PS_MEM_0
+    values_eval: range (6300, 7700)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_THZOE_PS_MEM_1
+    values_eval: range (6300, 7700)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0"
+
+  - name: C_THZOE_PS_MEM_2
+    values_eval: range (6300, 7700)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0"
+
+  - name: C_THZOE_PS_MEM_3
+    values_eval: range (6300, 7700)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0"
+
+  # Write Cycle Period
+  - name: C_TWC_PS_MEM_0
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_TWC_PS_MEM_1
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0" 
+
+  - name: C_TWC_PS_MEM_2
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0" 
+
+  - name: C_TWC_PS_MEM_3
+    values_eval: range (13500, 16500)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0" 
+
+  # Write Enable Min. Pulse Width
+  - name: C_TWP_PS_MEM_0
+    values_eval: range (10800, 13200)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_TWP_PS_MEM_1
+    values_eval: range (10800, 13200)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0"
+
+  - name: C_TWP_PS_MEM_2
+    values_eval: range (10800, 13200)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0"
+
+  - name: C_TWP_PS_MEM_3
+    values_eval: range (10800, 13200)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0"
+
+  # Write Phase Period
+  - name: C_TWPH_PS_MEM_0
+    values_eval: range (10800, 13200)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_TWPH_PS_MEM_1
+    values_eval: range (10800, 13200)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0"
+
+  - name: C_TWPH_PS_MEM_2
+    values_eval: range (10800, 13200)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0"
+
+  - name: C_TWPH_PS_MEM_3
+    values_eval: range (10800, 13200)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0"
+
+  # Write WE High to Data Bus LZ Period
+  - name: C_TLZWE_PS_MEM_0
+    values_eval: range (0, 10000)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_TLZWE_PS_MEM_1
+    values_eval: range (0, 10000)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0"
+
+  - name: C_TLZWE_PS_MEM_2
+    values_eval: range (0, 10000)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0"
+
+  - name: C_TLZWE_PS_MEM_3
+    values_eval: range (0, 10000)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0"
+
+  # Write Recovery Period for Flash Memory
+  - name: C_WR_REC_TIME_MEM_0
+    values_eval: range (24300, 29700)
+    enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0"
+
+  - name: C_WR_REC_TIME_MEM_1
+    values_eval: range (24300, 29700)
+    enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0"
+
+  - name: C_WR_REC_TIME_MEM_2
+    values_eval: range (24300, 29700)
+    enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0"
+
+  - name: C_WR_REC_TIME_MEM_3
+    values_eval: range (24300, 29700)
+    enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0"
+
+  # Enable Sync Burst Mode for Micron Flash
+  - name: C_LINEAR_FLASH_SYNC_BURST
+    values: [true, false]
+    enable: >
+      (C_NUM_BANKS_MEM == 1 and C_MEM0_TYPE == 6) or
+      (C_NUM_BANKS_MEM == 2 and C_MEM0_TYPE == 6 and C_MEM1_TYPE == 6) or
+      (C_NUM_BANKS_MEM == 3 and C_MEM0_TYPE == 6 and C_MEM1_TYPE == 6 and C_MEM2_TYPE == 6) or
+      (C_NUM_BANKS_MEM == 4 and C_MEM0_TYPE == 6 and C_MEM1_TYPE == 6 and C_MEM2_TYPE == 6 and C_MEM3_TYPE == 6)
+
+  # Enable Internal Registers  
+  - name: C_S_AXI_EN_REG
+    values: [0,1]
+    enable: >
+      (C_NUM_BANKS_MEM == 1 and C_MEM0_TYPE in [0,1,4,5]) or
+      (C_NUM_BANKS_MEM == 2 and (C_MEM0_TYPE in [0,1,4,5] or C_MEM1_TYPE in [0,1,4,5])) or
+      (C_NUM_BANKS_MEM == 3 and (C_MEM0_TYPE in [0,1,4,5] or C_MEM1_TYPE in [0,1,4,5] or C_MEM2_TYPE in [0,1,4,5])) or
+      (C_NUM_BANKS_MEM == 4 and (C_MEM0_TYPE in [0,1,4,5] or C_MEM1_TYPE in [0,1,4,5] or C_MEM2_TYPE in [0,1,4,5] or C_MEM3_TYPE in [0,1,4,5]))
+    
+
 
   ports:
   - name: EMC_INTF
@@ -13,24 +334,28 @@
     direction: Master
     connections:
     - emc_0/EMC_INTF
+
   - name: clk
     protocol: clk
     direction: I
     width: 1
     connections:
     - emc_0/s_axi_aclk
+
   - name: rdclk
     protocol: clk
     direction: I
     width: 1
     connections:
     - emc_0/rdclk
+
   - name: rst
     protocol: reset
     direction: I
     width: 1
     connections:
     - emc_0/s_axi_aresetn
+
   - name: AXI
     protocol: "xilinx.com:interface:aximm_rtl:1.0"
     direction: Slave
