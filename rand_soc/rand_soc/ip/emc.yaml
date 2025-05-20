@@ -96,19 +96,43 @@
 
   # Parity 
   - name: C_PARITY_TYPE_MEM_0
-    values_eval: "[0] if C_MEM0_TYPE != 0 or C_MEM1_TYPE != 0 or C_MEM2_TYPE != 0 or C_MEM3_TYPE != 0 else [0,1,2]"
+    values_eval: >
+        (
+          [0] if (C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0) else [0,1,2]
+        )
     enable: "C_NUM_BANKS_MEM >= 1"
 
   - name: C_PARITY_TYPE_MEM_1
-    values_eval: "[0] if C_MEM0_TYPE != 0 or C_MEM1_TYPE != 0 or C_MEM2_TYPE != 0 or C_MEM3_TYPE != 0 else [C_PARITY_TYPE_MEM_0]"
+    values_eval: >
+        (
+          [0] if (C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0) else [C_PARITY_TYPE_MEM_0]
+        ) 
     enable: "C_NUM_BANKS_MEM >= 2"
 
   - name: C_PARITY_TYPE_MEM_2
-    values_eval: "[0] if C_MEM0_TYPE != 0 or C_MEM1_TYPE != 0 or C_MEM2_TYPE != 0 or C_MEM3_TYPE != 0 else [C_PARITY_TYPE_MEM_0]"
+    values_eval: >
+        (
+          [0] if (C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0) else [C_PARITY_TYPE_MEM_0]
+        ) 
     enable: "C_NUM_BANKS_MEM >= 3"
 
   - name: C_PARITY_TYPE_MEM_3
-    values_eval: "[0] if C_MEM0_TYPE != 0 or C_MEM1_TYPE != 0 or C_MEM2_TYPE != 0 or C_MEM3_TYPE != 0 else [C_PARITY_TYPE_MEM_0]"
+    values_eval: >
+        (
+          [0] if (C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE != 0) or 
+                 (C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE != 0) else [C_PARITY_TYPE_MEM_0]
+        ) 
     enable: "C_NUM_BANKS_MEM >= 4"
 
 
