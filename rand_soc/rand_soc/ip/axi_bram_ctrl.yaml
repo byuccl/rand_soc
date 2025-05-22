@@ -1,0 +1,102 @@
+- id: "axi_bram_ctrl_0"
+  definition: "xilinx.com:ip:axi_bram_ctrl:4.1"
+  configuration: 
+  - name: PROTOCOL
+    values: [AXI4, AXI4LITE]
+
+  - name: DATA_WIDTH
+    values_eval: "[32, 64, 128, 256, 512, 1024] if PROTOCOL == 'AXI4' else [32]"
+
+    # TODO: check auto/manual toggle (separate variable?)
+  - name: SUPPORTS_NARROW_BURST
+    enable: "PROTOCOL == 'AXI4'"
+    values: [0,1]
+
+  - name: READ_LATENCY
+    values_eval: range(1, 129)
+
+  - name: RD_CMD_OPTIMIZATION
+    values_eval: "[0,1] if READ_LATENCY == 1 else [0]"
+    
+    # SINGLE_PORT_BRAM, 0 = dual port BRAM, 1 = single port BRAM
+  - name: SINGLE_PORT_BRAM
+    values: [0,1]
+    
+  - name: USE_ECC
+    values: [0,1]
+
+    # 0 = Hamming, 1 = HSIAO
+  - name: ECC_TYPE
+    enable: USE_ECC
+    values: [0,1]
+
+  - name: FAULT_INJECT
+    enable: USE_ECC
+    values: [0,1]
+
+  - name: ECC_ONOFF_RESET_VALUE
+    enable: USE_ECC
+    values: [0,1]
+
+  
+  ports:
+  - name: S_AXI_CTRL
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: SLAVE
+    connections:
+    - axi_bram_ctrl_0/S_AXI_CTRL
+    addr_seg_name: "axi_bram_ctrl_0/S_AXI_CTRL/Reg"
+
+  - name: S_AXI
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: SLAVE
+    connections:
+    - axi_bram_ctrl_0/S_AXI
+    addr_seg_name: "axi_bram_ctrl_0/S_AXI/Mem0"
+
+  - name: s_axi_aclk
+    protocol: clk
+    direction: I
+    width: 1
+    connections:
+    - axi_bram_ctrl_0/s_axi_aclk
+
+  - name: s_axi_aresetn
+    protocol: reset
+    direction: I
+    width: 1
+    connections:
+    - axi_bram_ctrl_0/s_axi_resetn
+
+  - name: BRAM_PORTA
+    protocol: "xilinx.com:interface:bram_rtl:1.0"
+    direction: MASTER
+    connections:
+    - axi_bram_ctrl_0/BRAM_PORTA
+
+  - name: BRAM_PORTB
+    protocol: "xilinx.com:interface:bram_rtl:1.0"
+    direction: MASTER
+    connections:
+    - axi_bram_ctrl_0/BRAM_PORTB
+  
+  - name: ecc_interrupt
+    protocol: irq
+    direction: O
+    width: 1
+    connections:
+    - axi_bram_ctrl_0/ecc_interrupt
+
+  - name: ecc_ue
+    protocol: data
+    direction: O
+    width: 1
+    connections:
+    - axi_bram_ctrl_0/ecc_ue
+
+
+- id: "blk_mem_gen_0"
+  enable: #idk what to put here
+  definition: "xilinx.com:ip:blk_mem_gen:8.4"
+  configuration: 
+  - name: 
