@@ -27,6 +27,7 @@ from .ip.axi_can import AxiCan
 from .ip.axi_ethernet_lite import AxiEthernetLite
 from .ip.axi_iic import AxiIic
 from .ip.axi_quad_spi import AxiQuadSpi
+from .ip.axi_bram_ctrl import AxiBRAMCtrl
 
 
 class DesignCreator:
@@ -638,6 +639,10 @@ class RandomDesign:
                     # External masters don't have an address space?
                     pass
                     # self._assign_bd_addresses(master, slave)
+
+    # Add AXI Stream
+    # def _axi_stream(self):
+
 
     def _create_external_port(self, name, protocol, direction, width=None, properties=None):
         if protocol.startswith("xilinx.com:"):
