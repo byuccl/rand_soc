@@ -3,7 +3,7 @@
 from .ip_base import IPrandom
 
 
-class AXIBRAMCtrl(IPrandom):
+class AxiBRAMCtrl(IPrandom):
     """AXI BRAM Controller IP class"""
 
     @property
@@ -12,4 +12,3 @@ class AXIBRAMCtrl(IPrandom):
 
     def randomize(self):
         self.load_data_from_yaml(__file__)
-        
