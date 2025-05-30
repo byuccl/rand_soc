@@ -15,7 +15,6 @@ available_ip:
   - class: AxiIic
   - class: AxiQuadSpi
   - class: AxiBRAMCtrl
-    min: 1
 
 
 min_ip: 3

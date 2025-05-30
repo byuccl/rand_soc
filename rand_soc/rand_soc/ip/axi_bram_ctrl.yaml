@@ -6,9 +6,9 @@
 
   - name: DATA_WIDTH
     enable: "PROTOCOL == 'AXI4'"
-    values_eval: [32, 64, 128, 256, 512, 1024] 
+    values: [32, 64, 128, 256, 512, 1024] 
 
-    # TODO: check auto/manual toggle (separate variable?)
+  # TODO: check auto/manual toggle (separate variable?)
   - name: SUPPORTS_NARROW_BURST
     enable: "PROTOCOL == 'AXI4'"
     values: [0,1]
@@ -20,38 +20,43 @@
     enable: "READ_LATENCY == 1"
     values: [0,1]
     
-    # SINGLE_PORT_BRAM, 0 = dual port BRAM, 1 = single port BRAM
+  # SINGLE_PORT_BRAM, 0 = dual port BRAM, 1 = single port BRAM
   - name: SINGLE_PORT_BRAM
     values: [0,1]
     
   - name: USE_ECC
     values: [0,1]
 
-    # 0 = Hamming, 1 = HSIAO
+  # 0 = Hamming, 1 = HSIAO
   - name: ECC_TYPE
-    enable: USE_ECC
+    enable: "USE_ECC"
     values: [0,1]
 
   - name: FAULT_INJECT
-    enable: USE_ECC
+    enable: "USE_ECC"
     values: [0,1]
 
   - name: ECC_ONOFF_RESET_VALUE
-    enable: USE_ECC
+    enable: "USE_ECC"
     values: [0,1]
+
+  # bram add on
+  - name: BLK_MEM
+    value: true # Always enable bram add on
 
   
   ports:
-  - name: S_AXI_CTRL
+  - name: S_AXI_CTRL 
+    enable: USE_ECC
     protocol: "xilinx.com:interface:aximm_rtl:1.0"
-    direction: SLAVE
+    direction: Slave
     connections:
     - axi_bram_ctrl_0/S_AXI_CTRL
     addr_seg_name: "axi_bram_ctrl_0/S_AXI_CTRL/Reg"
 
-  - name: S_AXI
+  - name: S_AXI 
     protocol: "xilinx.com:interface:aximm_rtl:1.0"
-    direction: SLAVE
+    direction: Slave
     connections:
     - axi_bram_ctrl_0/S_AXI
     addr_seg_name: "axi_bram_ctrl_0/S_AXI/Mem0"
@@ -68,21 +73,11 @@
     direction: I
     width: 1
     connections:
-    - axi_bram_ctrl_0/s_axi_resetn
+    - axi_bram_ctrl_0/s_axi_aresetn
 
-  - name: BRAM_PORTA
-    protocol: "xilinx.com:interface:bram_rtl:1.0"
-    direction: MASTER
-    connections:
-    - axi_bram_ctrl_0/BRAM_PORTA
-
-  - name: BRAM_PORTB
-    protocol: "xilinx.com:interface:bram_rtl:1.0"
-    direction: MASTER
-    connections:
-    - axi_bram_ctrl_0/BRAM_PORTB
   
   - name: ecc_interrupt
+    enable: USE_ECC
     protocol: irq
     direction: O
     width: 1
@@ -90,20 +85,17 @@
     - axi_bram_ctrl_0/ecc_interrupt
 
   - name: ecc_ue
+    enable: USE_ECC
     protocol: data
     direction: O
     width: 1
     connections:
     - axi_bram_ctrl_0/ecc_ue
 
-    # bram add on
-  - name: BLK_MEM
-    value: true # Always enable bram add on
-
 
 ### Block Memory Generator ###
 - id: "blk_mem_gen_0"
-  enable: true # Always add block memory generator
+  enable: BLK_MEM
   definition: "xilinx.com:ip:blk_mem_gen:8.4"
   configuration: 
   - name: use_bram_block
@@ -117,54 +109,50 @@
     values_eval: >
       (
         ["Single_Port_RAM", "Simple_Dual_Port_RAM", "True_Dual_Port_RAM", "Single_Port_ROM", "Dual_Port_ROM"] 
-        if use_bram_block == "Stand_Alone" else 
-        ["Single_Port_RAM", "True_Dual_Port_RAM", "Single_Port_ROM", "Dual_Port_ROM"]
+        if use_bram_block == "Stand_Alone" else ["Single_Port_RAM", "True_Dual_Port_RAM", "Single_Port_ROM", "Dual_Port_ROM"]
       )
 
   - name: Assume_Synchronous_Clk
     enable: "Memory_Type in ['Simple_Dual_Port_RAM', 'True_Dual_Port_RAM', 'Dual_Port_ROM']"
-    values_eval: [true, false]
+    values: [true, false]
 
   - name: ecctype
-    enable: "Memory_Type == 'Simple_Dual_Port_RAM'"
-    values: ["No_ECC", "Soft_ECC", "BuiltIn_ECC"]
+    values_eval: "['No_ECC', 'Soft_ECC', 'BuiltIn_ECC'] if Memory_Type == 'Simple_Dual_Port_RAM' else ['No_ECC']"
 
   - name: Use_Error_Injection_Pins
-    enable: "ecctype in ['Soft_ECC', 'BuiltIn_ECC']"
-    values: [true, false]
+    values_eval: "[True, False] if ecctype in ['Soft_ECC', 'BuiltIn_ECC'] else [False]"
 
   - name: Error_Injection_Type
     enable: Use_Error_Injection_Pins
     values: ["Single_Bit_Error_Injection", "Double_Bit_Error_Injection", "Single_and_Double_Bit_Error_Injection"]
 
   - name: Use_Byte_Write_Enable
-    enable: 'Memory_Type in ["Single_Port_RAM", "True_Dual_Port_RAM"] or (Memory_Type == "Simple_Dual_Port_RAM" and ecctype == "No_ECC")'
-    values: [true, false]
+    values_eval:  >
+      [True, False] if (Memory_Type in ["Single_Port_RAM", "True_Dual_Port_RAM"] or (Memory_Type == "Simple_Dual_Port_RAM" and ecctype == "No_ECC")) else [False]
 
   - name: Byte_Size
     enable: Use_Byte_Write_Enable
     values: [8, 9]
 
   - name: Algorithm
-    enable: >
-      Memory_Type in ["Single_Port_RAM", "True_Dual_Port_RAM", "Single_Port_ROM", "Dual_Port_ROM"] 
-      or (Memory_Type == "Simple_Dual_Port_RAM" and ecctype == "No_ECC")
-    values: ["Minimum_Area", "Low_Power", "Fixed_Primitives"]
+    values_eval: >
+      ["Minimum_Area", "Low_Power", "Fixed_Primitives"] if ((use_bram_block == "Stand_Alone"
+                                                            and Memory_Type in ["Single_Port_RAM", "True_Dual_Port_RAM", "Single_Port_ROM", "Dual_Port_ROM"])
+                                                        or (Memory_Type == "Simple_Dual_Port_RAM" and ecctype == "No_ECC")) else ["Minimum_Area"]
 
   - name: Primitive
     enable: "Algorithm == 'Fixed_Primitives'"
-    values_eval: ["16kx1", "8kx2", "4kx4", "2kx9", "1kx18", "512x36", "256x72"]
+    values: ["16kx1", "8kx2", "4kx4", "2kx9", "1kx18", "512x36", "256x72"]
   
   ### Port A ###
   - name: Write_Width_A
     enable: "use_bram_block == 'Stand_Alone'"
     values_eval: >
-      range(1, 4609) if Enable_32bit_Address == false else
-      [32,40,64,72,128,144,256,512,1024]
+      range(1, 4609) if Enable_32bit_Address == False else [32,40,64,72,128,144,256,512,1024]
 
   - name: Read_Width_A
     enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Single_Port_RAM', 'True_Dual_Port_RAM']"
-    values_eval: Write_Width_A
+    values_eval: "[Write_Width_A]"
 
   - name: Write_Depth_A
     enable: "use_bram_block == 'Stand_Alone'"
@@ -173,12 +161,12 @@
       range(2, 524289) if Write_Width_A in range(129, 257) else
       range(2, 262145) if Write_Width_A in range(257, 513) else
       range(2, 131073) if Write_Width_A in range(513, 1025) else
-      range(2, 65537) if Write_Width_A in range(1025, 2049) else
-      range(2, 32769) if Write_Width_A in range(2049, 4609)
+      range(2, 65537) if Write_Width_A in range(1025, 2049) else 
+      range(2, 32769) if Write_Width_A in range(2049, 4609) else range (2, 2)
 
   - name: Read_Depth_A
     enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Single_Port_RAM', 'True_Dual_Port_RAM']"
-    values_eval: Write_Depth_A
+    values_eval: "[Write_Depth_A]"
 
   - name: Operating_Mode_A
     enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Single_Port_RAM', 'Simple_Dual_Port_RAM', 'True_Dual_Port_RAM']"
@@ -189,8 +177,9 @@
     values: ["Use_ENA_Pin", "Always_Enabled"]
 
   - name: Register_PortA_Output_of_Memory_Primitives
-    enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Single_Port_RAM', 'True_Dual_Port_RAM', 'Single_Port_ROM', 'Dual_Port_ROM']"
-    values: [true, false]
+    values_eval: >
+      [True, False] if (use_bram_block == "Stand_Alone"
+                        and Memory_Type in ["Single_Port_RAM", "True_Dual_Port_RAM", "Single_Port_ROM", "Dual_Port_ROM"]) else [False]
 
   - name: Register_PortA_Output_of_Memory_Core
     enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Single_Port_RAM', 'True_Dual_Port_RAM', 'Single_Port_ROM', 'Dual_Port_ROM']"
@@ -205,8 +194,9 @@
     values: [true, false]
 
   - name: Use_RSTA_Pin
-    enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Single_Port_RAM', 'True_Dual_Port_RAM', 'Single_Port_ROM', 'Dual_Port_ROM']"
-    values: [true, false]
+    values_eval: >
+      [True, False] if (use_bram_block == "Stand_Alone"
+                        and Memory_Type in ["Single_Port_RAM", "True_Dual_Port_RAM", "Single_Port_ROM", "Dual_Port_ROM"]) else [False]
 
   - name: Output_Reset_Value_A 
     enable: Use_RSTA_Pin
@@ -214,21 +204,20 @@
     format: hex
 
   - name: Reset_Memory_Latch_A
-    enable: Use_RSTA_Pin
-    values: [true, false]
+    values_eval: "[True, False] if Use_RSTA_Pin else [False]"
 
   - name: Reset_Priority_A
-    enable: "Use_RSTA_Pin == true and Reset_Memory_Latch_A == false"
+    enable: "Use_RSTA_Pin == True and Reset_Memory_Latch_A == False"
     values: ["CE", "SR"]
 
     ### Port B ###
   - name: Write_Width_B
     enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Simple_Dual_Port_RAM', 'True_Dual_Port_RAM', 'Dual_Port_ROM']"
-    values_eval: Write_Width_A
+    values_eval: "[Write_Width_A]"
 
   - name: Read_Width_B
     enable: "use_bram_block == 'Stand_Alone' and Memory_Type == 'True_Dual_Port_RAM'"
-    values_eval: Write_Width_B
+    values_eval: "[Write_Width_B]"
 
   - name: Operating_Mode_B
     enable: "use_bram_block == 'Stand_Alone' and Memory_Type == 'True_Dual_Port_RAM'"
@@ -239,15 +228,16 @@
     values: ["Use_ENB_Pin", "Always_Enabled"]
 
   - name: Register_PortB_Output_of_Memory_Primitives
-    enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Simple_Dual_Port_RAM', 'True_Dual_Port_RAM', 'Dual_Port_ROM']"
-    values: [true, false]
+    values_eval: >
+      [True, False] if (use_bram_block == 'Stand_Alone' and 
+                        Memory_Type in ['Simple_Dual_Port_RAM', 'True_Dual_Port_RAM', 'Dual_Port_ROM']) else [False]
 
   - name: Register_PortB_Output_of_Memory_Core
     enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Simple_Dual_Port_RAM', 'True_Dual_Port_RAM', 'Dual_Port_ROM']"
     values: [true, false]
 
   - name: Register_PortB_Output_of_Softecc
-    enable: "use_bram_block == 'Stand_Alone' and Memory_Type == 'Simple_Dual_Port_RAM' and ecctype == 'Soft_ECC"
+    enable: "use_bram_block == 'Stand_Alone' and Memory_Type == 'Simple_Dual_Port_RAM' and ecctype == 'Soft_ECC'"
     values: [true, false]
 
   - name: Use_REGCEB_Pin
@@ -255,8 +245,9 @@
     values: [true, false]
 
   - name: Use_RSTB_Pin
-    enable: "use_bram_block == 'Stand_Alone' and Memory_Type in ['Simple_Dual_Port_RAM', 'True_Dual_Port_RAM', 'Dual_Port_ROM']"
-    values: [true, false]
+    values_eval: >
+      [True, False] if (use_bram_block == 'Stand_Alone' and 
+                        Memory_Type in ['Simple_Dual_Port_RAM', 'True_Dual_Port_RAM', 'Dual_Port_ROM']) else [False]
 
   - name: Output_Reset_Value_B
     enable: Use_RSTB_Pin
@@ -264,20 +255,19 @@
     format: hex
 
   - name: Reset_Memory_Latch_B
-    enable: Use_RSTB_Pin
-    values: [true, false]
+    values_eval: "[True, False] if Use_RSTB_Pin else [False]"
 
   - name: Reset_Priority_B
-    enable: "Use_RSTB_Pin == true and Reset_Memory_Latch_B == false"
+    enable: "Use_RSTB_Pin == True and Reset_Memory_Latch_B == False"
     values: ["CE", "SR"]
 
   internal_connections: 
   - from: axi_bram_ctrl_0/BRAM_PORTA
     to: blk_mem_gen_0/BRAM_PORTA
     is_interface: true
-    enable: true
+    enable: BLK_MEM
 
   - from: axi_bram_ctrl_0/BRAM_PORTB
-    to: blk_mem_gem_0/BRAM_PORTB
+    to: blk_mem_gen_0/BRAM_PORTB
     is_interface: true
     enable: "Memory_Type in ['True_Dual_Port_RAM', 'Simple_Dual_Port_RAM', 'Dual_Port_ROM']"
