@@ -4,7 +4,7 @@ run: .venv/bin/activate
 	$(IN_ENV) python main.py ./temp default_config.yaml --seed 0 --part xc7a200tlffv1156-2L
 
 vivado:
-	cd temp/ && /tools/Xilinx/Vivado/2022.2/bin/vivado -source design.tcl
+	cd temp/ && /tools/Xilinx/Vivado/2024.2/bin/vivado -source design.tcl
 
 env: .venv/bin/activate
 cleanenv:

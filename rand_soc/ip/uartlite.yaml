@@ -39,7 +39,7 @@
         - uart_0/s_axi_aclk
 
     - name: reset
-      protocol: reset
+      protocol: reset_peripheral
       direction: I
       width: 1
       connections:

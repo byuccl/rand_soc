@@ -1,4 +1,4 @@
-""" Clk Gen IP """
+"""Clk Gen IP"""
 
 from .ip_base import IP
 
@@ -10,6 +10,7 @@ class ClkGen(IP):
         super().__init__(design, name)
         self.port_clk_in = None
         self.port_clk_out = None
+        self.port_dcm_locked = None
 
         self.instance()
 
@@ -32,3 +33,6 @@ class ClkGen(IP):
         self._create_hier_pin("reset", "reset", "I", 1).connect_internal(
             f"{clk_gen_name}/reset"
         )
+
+        self.port_dcm_locked = self._create_hier_pin("clk_locked", "clk_locked", "O", 1)
+        self.port_dcm_locked.connect_internal(f"{clk_gen_name}/locked")

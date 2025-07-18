@@ -1,4 +1,4 @@
-""" AXI Smartconnect IP """
+"""AXI Smartconnect IP"""
 
 from .ip_base import IP
 
@@ -31,7 +31,7 @@ class Axi(IP):
         )
 
         self._create_hier_pin("clk", "clk", "I", 1).connect_internal(f"{axi_name}/aclk")
-        self._create_hier_pin("reset", "reset", "I", 1).connect_internal(
+        self._create_hier_pin("reset", "reset_interconnect", "I", 1).connect_internal(
             f"{axi_name}/aresetn"
         )
 

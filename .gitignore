@@ -3,3 +3,7 @@
 /project_1
 test
 /designs
+/temp
+/.venv
+__pycache__/
+*.egg-info/
