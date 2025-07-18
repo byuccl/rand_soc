@@ -5,7 +5,7 @@
     * [ ] Multiple clock sources
 * Reset system
     * [x] Single external reset
-    * [ ] Single reset generator
+    * [x] Single reset generator
     * [ ] Multiple reset sources
 * Interrupts
     * [x] Complete pattern
@@ -25,10 +25,13 @@
 ## IP
 * Processing system
     * [x] Basic Microblaze
-    * [ ] Configurations
+    * [x] Configurations
 * [x] GPIO
 * [x] UART
-* [ ] DMA
+* [x] DMA
+* [x] AXI Timer
+* [x] AXI GPIO
+
 
 ## Other
 * [x] Multiple IP instances

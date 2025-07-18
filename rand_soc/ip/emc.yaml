@@ -350,7 +350,7 @@
     - emc_0/rdclk
 
   - name: rst
-    protocol: reset
+    protocol: reset_peripheral
     direction: I
     width: 1
     connections:

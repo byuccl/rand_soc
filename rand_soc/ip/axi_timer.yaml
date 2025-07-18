@@ -64,7 +64,7 @@
     - axi_timer_0/s_axi_aclk
 
   - name: s_axi_aresetn
-    protocol: reset
+    protocol: reset_peripheral
     direction: I
     width: 1
     connections:
