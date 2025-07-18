@@ -446,7 +446,6 @@ class RandomDesign:
                 self._clk_wiz_inst.port_clk_in
             )
 
-        logging.info(f"Connecting {clock_inputs} to clock")
         for clock_input in clock_inputs:
             if clock_input.protocol == "clk_locked":
                 driver = self._clk_wiz_inst.port_dcm_locked
@@ -456,7 +455,7 @@ class RandomDesign:
                 logging.error(
                     f"Unexpected clock input protocol: {clock_input.protocol}"
                 )
-            print(f"Connecting {clock_input.hier_name} to {driver.hier_name}")
+            logging.info(f"Connecting {clock_input.hier_name} to {driver.hier_name}")
             driver.connect(clock_input)
 
     def _resets(self):
