@@ -12,7 +12,7 @@ class SystemReset(IP):
         self.port_reset_in = None
         self.port_dcm_locked = None
         self.port_mb_reset = None
-        self.port_peripheral_areset = None
+        self.port_peripheral_areset_n = None
         self.port_interconnect_aresetn = None
 
         self.instance()
@@ -40,10 +40,18 @@ class SystemReset(IP):
         self.port_mb_reset.connect_internal(f"{reset_name}/mb_reset")
         self.port_mb_reset.connected = True
 
+        self.port_peripheral_areset_n = self._create_hier_pin(
+            "peripheral_areset_n", "reset_peripheral_n", "O", 1
+        )
+        self.port_peripheral_areset_n.connect_internal(
+            f"{reset_name}/peripheral_aresetn"
+        )
+        self.port_peripheral_areset_n.connected = True
+
         self.port_peripheral_areset = self._create_hier_pin(
             "peripheral_areset", "reset_peripheral", "O", 1
         )
-        self.port_peripheral_areset.connect_internal(f"{reset_name}/peripheral_aresetn")
+        self.port_peripheral_areset.connect_internal(f"{reset_name}/peripheral_areset")
         self.port_peripheral_areset.connected = True
 
         self.port_interconnect_aresetn = self._create_hier_pin(
