@@ -476,7 +476,7 @@ class RandomDesign:
             "reset": self._pi_ports["reset"],
             "reset_mb": self._reset_inst.port_mb_reset,
             "reset_interconnect": self._reset_inst.port_interconnect_aresetn,
-            "reset_peripheral": self._reset_inst.port_peripheral_areset,
+            "reset_peripheral": self._reset_inst.port_peripheral_reset,
             "reset_peripheral_n": self._reset_inst.port_peripheral_areset_n,
         }
 
