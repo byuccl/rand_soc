@@ -48,7 +48,7 @@
     - axi_usb2_device_0/s_axi_aclk
 
   - name: s_axi_aresetn
-    protocol: reset_peripheral
+    protocol: reset_peripheral_n
     direction: I
     width: 1
     connections:
@@ -70,7 +70,7 @@
     - axi_usb2_device_0/m_axi_aclk
 
   - name: m_axi_aresetn
-    protocol: reset_peripheral
+    protocol: reset_peripheral_n
     direction: I
     enable: C_INCLUDE_DMA
     width: 1

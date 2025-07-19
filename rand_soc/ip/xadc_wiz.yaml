@@ -84,7 +84,7 @@
     - xadc_wiz_0/s_axi_aclk
 
   - name: s_axi_aresetn
-    protocol: reset_peripheral
+    protocol: reset_peripheral_n
     direction: I
     enable: "INTERFACE_SELECTION == 'Enable_AXI'"
     width: 1

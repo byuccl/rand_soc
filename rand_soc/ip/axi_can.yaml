@@ -32,7 +32,7 @@
         - axi_can_0/s_axi_aclk
 
     - name: reset
-      protocol: reset_peripheral
+      protocol: reset_peripheral_n
       direction: I
       width: 1
       connections:

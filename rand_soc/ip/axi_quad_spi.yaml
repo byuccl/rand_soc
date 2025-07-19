@@ -106,7 +106,7 @@
       enable: "C_TYPE_OF_AXI4_INTERFACE == 0"
 
     - name: reset
-      protocol: reset_peripheral
+      protocol: reset_peripheral_n
       direction: I
       width: 1
       connections:
@@ -122,7 +122,7 @@
       enable: "C_XIP_MODE == 1 or C_TYPE_OF_AXI4_INTERFACE == 1"
 
     - name: reset4
-      protocol: reset_peripheral
+      protocol: reset_peripheral_n
       direction: I
       width: 1
       connections:
