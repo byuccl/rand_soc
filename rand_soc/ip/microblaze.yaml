@@ -193,7 +193,7 @@
     - microblaze_0/Clk
 
   - name: Reset
-    protocol: reset
+    protocol: reset_mb
     direction: I
     width: 1
     connections:

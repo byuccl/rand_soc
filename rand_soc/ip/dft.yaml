@@ -40,7 +40,7 @@
     - dft_0/CE
 
   - name: SCLR
-    protocol: reset
+    protocol: reset_peripheral
     direction: I
     enable: Synchronous_Clear
     width: 1
