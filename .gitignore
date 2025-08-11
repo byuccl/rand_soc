@@ -6,4 +6,4 @@
 *.jou
 *.str
 .venv
-/rand_soc/temp
+/rand_soc/temprand_soc/output
