@@ -144,7 +144,7 @@
   - name: spare2
     protocol: data
     direction: O
-    enable: C_INCLUDE_DEBUG
+    C_INCLUDE_DEBUG
     width: 1
     connections:
     - axi_usb2_device_0/spare2

@@ -28,6 +28,7 @@ from .ip.axi_can import AxiCan
 from .ip.axi_ethernet_lite import AxiEthernetLite
 from .ip.axi_iic import AxiIic
 from .ip.axi_quad_spi import AxiQuadSpi
+from .ip.axi_bram_ctrl import AxiBRAMCtrl
 
 
 class DesignCreator:
@@ -136,6 +137,7 @@ class RandomDesign:
         max_ip = creator_yaml["max_ip"]
         ip_list = self.get_yaml_available_ip(creator_yaml)
 
+
         num_ip = random.randint(min_ip, max_ip)
         logging.info("########## Selecting IPs ##########")
         for i in range(num_ip):
@@ -158,6 +160,7 @@ class RandomDesign:
         self._ports()
 
         ip_str = "".join([ip.bd_str for ip in self.ip])
+
 
         self._bd_tcl = (
             ip_str + self._bd_tcl + self.ip_to_ip_connections_tcl + self._addr_space_tcl

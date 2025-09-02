@@ -63,7 +63,9 @@
            [0,1,2,4]    if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE == 1 else
            [1,2,4]      if C_MEM0_TYPE == 1 and C_MEM1_TYPE == 1 and C_MEM2_TYPE in [2,4,5] else
            [1,2,3,4]    if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE == 4 else
-           [1,2,4]      if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE in [1,2,5] else [0])
+           [1,2,4]      if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 4 and C_MEM2_TYPE in [1,2,5] else 
+           [1,2,4]      if C_MEM0_TYPE == 4 and C_MEM1_TYPE == 1 and
+           else [0])
           if C_S_AXI_MEM_DATA_WIDTH == 64 else
           ([0,1]        if C_MEM0_TYPE == 0 or C_MEM1_TYPE == 0 or C_MEM2_TYPE == 0 else
            [1,2,4,5]    if C_MEM0_TYPE in [2,5] or C_MEM1_TYPE in [2,5] or C_MEM2_TYPE in [2,5] else
