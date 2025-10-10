@@ -227,11 +227,13 @@ class IPrandom(IP):
                 if isinstance(value, bool):
                     value = int(value)
                 if "format" in item:
-                    format = item["format"]
-                    if format == "hex":
+                    val_format = item["format"]
+                    if val_format == "hex":
                         value = hex(value)
+                    elif val_format == "hex_no_prefix":
+                        value = hex(value).replace("0x", "")
                     else:
-                        raise NotImplementedError(f"format {format} not supported")
+                        raise NotImplementedError(f"format {val_format} not supported")
 
                 config_item["value"] = value
                 self.config_vars[name] = value

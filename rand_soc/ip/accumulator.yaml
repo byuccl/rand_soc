@@ -49,10 +49,13 @@
   - name: SINIT_Value
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
     enable: SINIT
+    format: hex_no_prefix
 
   - name: AINIT_Value
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
     enable: "not SINIT and (Implementation == 'Fabric') and not (SSET or SCLR or SINIT)"
+    format: hex_no_prefix
+
 
   - name: Bypass
     values: [false, true]
