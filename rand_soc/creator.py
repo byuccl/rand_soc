@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import pathlib
 import random
@@ -30,22 +31,6 @@ from .ip.axi_iic import AxiIic
 from .ip.axi_quad_spi import AxiQuadSpi
 
 
-class DesignCreator:
-    """Creates multiple designs"""
-
-    def __init__(self):
-        random.seed(0)
-
-    def run(self, output_dir_path, num_designs):
-        for i in range(num_designs):
-            # Create design directory
-            output_path = output_dir_path / f"design_{i}" / "design.tcl"
-
-            design = RandomDesign()
-            design.create()
-            design.write(output_path)
-
-
 class RandomDesign:
     """Creates a random design"""
 
@@ -76,6 +61,7 @@ class RandomDesign:
         self._reset_inst = None
         self._clk_wiz_inst = None
         self._output_dir_path = pathlib.Path(output_dir_path).resolve()
+        self._randomized_signal_drivers = defaultdict(dict)
 
         # Enable logging
         log_file = self._output_dir_path / "log.txt"
@@ -88,6 +74,7 @@ class RandomDesign:
         )
 
     def write(self):
+        """Write the design tcl and impl_constraints tcl to files"""
         output_file_path = self._output_dir_path / "design.tcl"
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file_path, "w", encoding="utf-8") as f:
@@ -96,6 +83,39 @@ class RandomDesign:
         impl_constraints_tcl_path = self._output_dir_path / "impl_constraints.tcl"
         with open(impl_constraints_tcl_path, "w", encoding="utf-8") as f:
             f.write(self.impl_constraints_tcl)
+
+        # Write the IP randomization to a yaml file
+        ip_yaml_path = self._output_dir_path / "design.yaml"
+        random_data = {
+            "ip": [
+                {
+                    "randsoc_class": ip.__class__.__name__,
+                    "instance_name": ip.hier_name,
+                    "vivado_ip": [
+                        {
+                            "vivado_ip_type": module_inst.ip_name,
+                            "instance_name": module_inst.instance_name,
+                            "properties": module_inst.properties,
+                        }
+                        for module_inst in ip.module_instances.values()
+                    ],
+                }
+                for ip in self.ip
+                if not isinstance(ip, (Reduce, SliceAndConcat))
+            ],
+            "primary_inputs": [
+                {"name": pi.name, "protocol": pi.protocol, "width": pi.width}
+                for pi in self._pi_ports.values()
+            ],
+            "primary_outputs": [
+                {"name": po.name, "protocol": po.protocol, "width": po.width}
+                for po in self._po_ports.values()
+            ],
+            "randomized_signal_drivers": dict(self._randomized_signal_drivers),
+        }
+
+        with open(ip_yaml_path, "w", encoding="utf-8") as f:
+            yaml.dump(random_data, f, sort_keys=False)
 
     def get_yaml_available_ip(self, yaml_file):
         """Retrieves and returns list of IP objects given in yaml"""
@@ -417,6 +437,10 @@ class RandomDesign:
             ), f"num_connected: {num_connected}, in_width: {in_width}"
 
             # Connect all drivers to the in port
+            self._randomized_signal_drivers[in_port.protocol][in_port.hier_name] = [
+                f"{driver.hier_name}[{bit_high}:{bit_low}]"
+                for (driver, bit_high, bit_low) in drivers
+            ]
             self._connect_multiple_drivers_to_port(in_port, drivers)
 
     def _connect_multiple_drivers_to_port(self, port, drivers):
