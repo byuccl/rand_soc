@@ -37,8 +37,13 @@ class RandomDesign:
     def __init__(self, output_dir_path, config_path=None, seed=None, part=None):
         if config_path is None:
             config_path = ROOT_PATH / "creator.yaml"
-        if seed is not None:
-            random.seed(seed)
+
+        # Set random seed
+        self.seed = seed
+        if self.seed is not None:
+            random.seed(self.seed)
+            logging.info(f"Using seed: {self.seed}")
+
         if part is None:
             part = "xc7a200tsbg484-1"
         self.part = part
@@ -87,6 +92,7 @@ class RandomDesign:
         # Write the IP randomization to a yaml file
         ip_yaml_path = self._output_dir_path / "design.yaml"
         random_data = {
+            "randsoc_seed": self.seed,
             "ip": [
                 {
                     "randsoc_class": ip.__class__.__name__,
@@ -100,16 +106,16 @@ class RandomDesign:
                         for module_inst in ip.module_instances.values()
                     ],
                 }
-                for ip in self.ip
+                for ip in sorted(self.ip, key=lambda ip: ip.__class__.__name__)
                 if not isinstance(ip, (Reduce, SliceAndConcat))
             ],
             "primary_inputs": [
                 {"name": pi.name, "protocol": pi.protocol, "width": pi.width}
-                for pi in self._pi_ports.values()
+                for pi in sorted(self._pi_ports.values(), key=lambda x: x.name)
             ],
             "primary_outputs": [
                 {"name": po.name, "protocol": po.protocol, "width": po.width}
-                for po in self._po_ports.values()
+                for po in sorted(self._po_ports.values(), key=lambda x: x.name)
             ],
             "randomized_signal_drivers": dict(self._randomized_signal_drivers),
         }

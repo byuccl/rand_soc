@@ -138,19 +138,19 @@
 
   # Delay Model
   - name: C_SYNCH_PIPEDELAY_0
-    values: [1,2]
+    values_eval: "[1,2] if C_PARITY_TYPE_MEM_0 == 0 else [1]"
     enable: "C_NUM_BANKS_MEM >= 1 and C_MEM0_TYPE == 0"
 
   - name: C_SYNCH_PIPEDELAY_1
-    values: [1,2]
+    values_eval: "[1,2] if C_PARITY_TYPE_MEM_1 == 0 else [1]"
     enable: "C_NUM_BANKS_MEM >= 2 and C_MEM1_TYPE == 0"
 
   - name: C_SYNCH_PIPEDELAY_2
-    values: [1,2]
+    values_eval: "[1,2] if C_PARITY_TYPE_MEM_2 == 0 else [1]"
     enable: "C_NUM_BANKS_MEM >= 3 and C_MEM2_TYPE == 0"
 
   - name: C_SYNCH_PIPEDELAY_3
-    values: [1,2]
+    values_eval: "[1,2] if C_PARITY_TYPE_MEM_3 == 0 else [1]"
     enable: "C_NUM_BANKS_MEM >= 4 and C_MEM3_TYPE == 0"
 
   # Timing Parameters (10 for each bank)
