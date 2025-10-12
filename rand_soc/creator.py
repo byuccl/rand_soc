@@ -9,19 +9,24 @@ import chevron
 from .ip.reset import SystemReset
 from .ip.reduce import Reduce
 from .ip.slice_and_concat import SliceAndConcat
-from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
+from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
+
+# Manually added IP
 from .ip.axi import Axi
+from .ip.clk_gen import ClkGen
+from .ip.intc import Intc
+
+# Randomly added IP
+# pylint: disable=unused-import
+from .ip.accumulator import Accumulator
 from .ip.axi_cdma import AxiCdma
 from .ip.axi_hwicap import AxiHwicap
 from .ip.axi_timer import AxiTimer
 from .ip.axi_usb2_device import AxiUsb2Device
-from .ip.clk_gen import ClkGen
 from .ip.dft import Dft
-from .ip.intc import Intc
 from .ip.uartlite import Uartlite
 from .ip.emc import Emc
-from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
 from .ip.gpio import Gpio
 from .ip.microblaze import Microblaze
 from .ip.xadc_wiz import XadcWiz
@@ -29,6 +34,9 @@ from .ip.axi_can import AxiCan
 from .ip.axi_ethernet_lite import AxiEthernetLite
 from .ip.axi_iic import AxiIic
 from .ip.axi_quad_spi import AxiQuadSpi
+from .ip.fft import Fft
+
+# pylint: enable=unused-import
 
 
 class RandomDesign:
@@ -236,8 +244,11 @@ class RandomDesign:
             # Interrupt ports
             self._interrupts()
 
-            # AXI ports
+            # AXI memory-mapped ports
             self._axi()
+
+            # AXI Stream ports
+            self._axi_stream()
 
             # Data and control ports
             self._generic_ports(
@@ -616,6 +627,58 @@ class RandomDesign:
             self._create_external_port(
                 f"{port.ip.hier_name}_{port.name}", port.protocol, port.direction
             ).connect(port)
+
+    def _axi_stream(self):
+        """Create AXI stream ports"""
+
+        masters = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "xilinx.com:interface:axis_rtl:1.0"
+            and not p.connected
+            and p.direction == "Master"
+        ]
+        slaves = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == "xilinx.com:interface:axis_rtl:1.0"
+            and not p.connected
+            and p.direction == "Slave"
+        ]
+
+        if not masters and not slaves:
+            return
+
+        logging.info("########## AXI Stream ##########")
+
+        self._bd_tcl += "\n########## AXI Stream ##########\n"
+
+        while len(masters) < len(slaves):
+            # If we don't have enough masters, create a top-level master
+            master = self._create_external_port(
+                f"axis_master_{len(masters)}",
+                "xilinx.com:interface:axis_rtl:1.0",
+                "Master",
+            )
+            masters.append(master)
+
+        while len(slaves) < len(masters):
+            # If we don't have enough slaves, create a top-level slave
+            slave = self._create_external_port(
+                f"axis_slave_{len(slaves)}",
+                "xilinx.com:interface:axis_rtl:1.0",
+                "Slave",
+            )
+            slaves.append(slave)
+
+        # Shuffle the masters to get random connections
+        random.shuffle(masters)
+
+        for master, slave in zip(masters, slaves):
+            logging.info(f"Connecting {master.hier_name} to {slave.hier_name}")
+            master.connect(slave)
 
     def _axi(self):
         """Create AXI ports"""

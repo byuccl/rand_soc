@@ -1,0 +1,29 @@
+- id: "fft_0"
+  definition: "xilinx.com:ip:xfft:9.1"
+  configuration:
+  - name: channels
+    values_eval: range(1, 13)
+
+  ports:
+  - name: aclk
+    protocol: clk
+    direction: I
+    width: 1
+    connections:
+    - fft_0/aclk
+
+  - name: event_frame_started
+    protocol: control
+    direction: O
+    width: 1
+    connections:
+    - fft_0/event_frame_started
+
+  - name: S_AXI_DATA
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    connections:
+    - fft_0/S_AXI_DATA
+  
+
+  
