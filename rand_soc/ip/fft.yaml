@@ -19,11 +19,11 @@
     connections:
     - fft_0/event_frame_started
 
-  - name: S_AXI_DATA
+  - name: S_AXIS_DATA
     protocol: "xilinx.com:interface:axis_rtl:1.0"
     direction: Slave
     connections:
-    - fft_0/S_AXI_DATA
+    - fft_0/S_AXIS_DATA
   
 
   
