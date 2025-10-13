@@ -85,7 +85,7 @@
 
     - name: "STARTUP_IO_S"
       protocol: "xilinx.com:interface:startup_rtl:1.0"
-      direction: Slave
+      direction: Master
       connections:
         - axi_quad_spi_0/STARTUP_IO_S
       enable: "C_USE_STARTUP == 1 and C_SHARED_STARTUP == 1"
