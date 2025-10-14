@@ -4,6 +4,24 @@
   - name: channels
     values_eval: range(1, 13)
 
+  - name: run_time_configurable_transform_length
+    values: [true, false]
+
+  - name: transform_length_log2
+    values_eval: range(3, 17)
+    internal: true
+
+  - name: transform_length
+    value_eval: "2 ** transform_length_log2"
+
+  - name: implementation_options
+    values_eval: >
+      ["pipelined_streaming_io", "radix_4_burst_io", "radix_2_burst_io", "radix_2_lite_burst_io"] if channels == 1 else
+      ["radix_4_burst_io", "radix_2_burst_io", "radix_2_lite_burst_io"]
+
+  - name: cyclic_prefix_insertion
+    value: false
+
   ports:
   - name: aclk
     protocol: clk
@@ -24,6 +42,30 @@
     direction: Slave
     connections:
     - fft_0/S_AXIS_DATA
+    width: "channels * 32"
+
+  - name: M_AXIS_DATA
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Master
+    connections:
+    - fft_0/M_AXIS_DATA
+    width: "channels * 32"
+
+  # Todo
+  # - Padding of NFFT?
+  # - Padding of CP_LEN?
+  - name: S_AXIS_CONFIG
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    connections:
+    - fft_0/S_AXIS_CONFIG
+    width: >
+      (5 if run_time_configurable_transform_length else 0) + 
+      (transform_length_log2 if cyclic_prefix_insertion else 0) +
+      channels + 
+      ((2 * math.ceil(transform_length_log2 / 2)) if implementation_options in ("pipelined_streaming_io", "radix_4_burst_io")
+        else (2 * transform_length_log2))
+        
   
 
   

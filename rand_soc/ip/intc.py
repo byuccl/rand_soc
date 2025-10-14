@@ -1,5 +1,6 @@
-""" Interrupt controller IP """
+"""Interrupt controller IP"""
 
+from rand_soc.typedefs import Protocols
 from .ip_base import IP
 
 
@@ -31,7 +32,7 @@ class Intc(IP):
         )
         self._connect_internal_pins_regular(f"{concat_name}/dout", f"{intc_name}/intr")
 
-        self.port_clk = self._create_hier_pin("clk", "clk", "I", 1)
+        self.port_clk = self._create_hier_pin("clk", Protocols.CLOCK, "I", 1)
         self.port_clk.connect_internal(f"{intc_name}/s_axi_aclk")
         self.port_reset = self._create_hier_pin("reset", "reset", "I", 1)
         self.port_reset.connect_internal(f"{intc_name}/s_axi_aresetn")

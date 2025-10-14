@@ -1,10 +1,13 @@
 from collections import defaultdict
+import enum
 import logging
 import pathlib
 import random
 import sys
 import yaml
 import chevron
+
+from rand_soc.typedefs import INPUT_DIRECTIONS, OUTPUT_DIRECTIONS, Protocols
 
 from .ip.reset import SystemReset
 from .ip.reduce import Reduce
@@ -46,6 +49,17 @@ class RandomDesign:
         if config_path is None:
             config_path = ROOT_PATH / "creator.yaml"
 
+        # Enable logging
+        self._output_dir_path = pathlib.Path(output_dir_path).resolve()
+        log_file = self._output_dir_path / "log.txt"
+        self._output_dir_path.mkdir(parents=True, exist_ok=True)
+        logging.basicConfig(
+            filename=log_file,
+            filemode="w",
+            format="%(asctime)s %(levelname)s: %(message)s",
+            level=logging.DEBUG,
+        )
+
         # Set random seed
         self.seed = seed
         if self.seed is not None:
@@ -73,18 +87,7 @@ class RandomDesign:
         self._intc_complete = False
         self._reset_inst = None
         self._clk_wiz_inst = None
-        self._output_dir_path = pathlib.Path(output_dir_path).resolve()
         self._randomized_signal_drivers = defaultdict(dict)
-
-        # Enable logging
-        log_file = self._output_dir_path / "log.txt"
-        self._output_dir_path.mkdir(parents=True, exist_ok=True)
-        logging.basicConfig(
-            filename=log_file,
-            filemode="w",
-            format="%(asctime)s %(levelname)s: %(message)s",
-            level=logging.DEBUG,
-        )
 
     def write(self):
         """Write the design tcl and impl_constraints tcl to files"""
@@ -248,16 +251,23 @@ class RandomDesign:
             self._axi()
 
             # AXI Stream ports
-            self._axi_stream()
+            # self._axi_stream()
+            # xilinx.com:ip:axis_broadcaster:1.1
+            # xilinx.com:ip:axis_combiner:1.1
+            self._generic_ports(
+                protocol=Protocols.AXI_STREAM,
+                max_randomly_generated_inputs=0,
+                max_randomly_generated_outputs=0,
+            )
 
             # Data and control ports
             self._generic_ports(
-                port_type="data",
+                protocol=Protocols.DATA,
                 max_randomly_generated_inputs=128,
                 max_randomly_generated_outputs=32,
             )
             self._generic_ports(
-                port_type="control",
+                protocol=Protocols.CONTROL,
                 max_randomly_generated_inputs=8,
                 max_randomly_generated_outputs=8,
             )
@@ -268,30 +278,35 @@ class RandomDesign:
         assert not unhandled_ports
 
     def _generic_ports(
-        self, port_type, max_randomly_generated_inputs, max_randomly_generated_outputs
+        self, protocol, max_randomly_generated_inputs, max_randomly_generated_outputs
     ):
         """Connect data ports."""
+        assert protocol in Protocols
 
-        assert port_type in ("data", "control")
-
-        if port_type in self.port_types_initialized:
+        if protocol in self.port_types_initialized:
             return
-        self.port_types_initialized.add(port_type)
+        self.port_types_initialized.add(protocol)
 
-        logging.info(f"########## Connecting {port_type} ports ##########")
-        self._bd_tcl += f"\n########## {port_type} ports ##########\n"
+        logging.info(f"########## Connecting {protocol} ports ##########")
+        self._bd_tcl += f"\n########## {protocol} ports ##########\n"
         out_ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == port_type and not p.connected and p.direction == "O"
+            if p.protocol == protocol
+            and not p.connected
+            and p.direction in OUTPUT_DIRECTIONS
         ]
         in_ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == port_type and not p.connected and p.direction == "I"
+            if p.protocol == protocol
+            and not p.connected
+            and p.direction in INPUT_DIRECTIONS
         ]
+        for p in in_ports:
+            print(p.name, p.direction, p.width)
         num_in_pins = sum(p.width for p in in_ports)
         num_out_pins = sum(p.width for p in out_ports)
 
@@ -301,7 +316,7 @@ class RandomDesign:
         # in which case the maximum number of inputs will be num_in_pins)
         #
         # If there are no output pins, then at least one primary input will be created
-        if port_type not in self._pi_ports:
+        if protocol not in self._pi_ports:
             min_pis = 0
             max_pis = max_randomly_generated_inputs
 
@@ -318,13 +333,12 @@ class RandomDesign:
 
             pi_width = random.randint(min_pis, max_pis)
             if pi_width:
+                sig_name = f"{protocol.value}_I"
                 logging.info(
-                    f"Creating primary input port: {port_type}_I, width: {pi_width}"
+                    f"Creating primary input port: {sig_name}, width: {pi_width}"
                 )
-                new_port = self._create_external_port(
-                    f"{port_type}_I", port_type, "I", pi_width
-                )
-                self._pi_ports[port_type] = new_port
+                new_port = self._create_external_port(sig_name, protocol, "I", pi_width)
+                self._pi_ports[protocol] = new_port
                 out_ports.insert(0, new_port)
                 num_out_pins = sum(p.width for p in out_ports)
 
@@ -339,17 +353,15 @@ class RandomDesign:
                 po_width = max_randomly_generated_outputs
             else:
                 po_width = out_pins_needed
-            logging.info(
-                f"Creating primary output port: {port_type}_O, width: {po_width}"
-            )
-            new_port = self._create_external_port(
-                f"{port_type}_O", port_type, "O", po_width
-            )
-            self._po_ports[port_type] = new_port
+
+            sig_name = f"{protocol.value}_O"
+            logging.info(f"Creating primary output port: {sig_name}, width: {po_width}")
+            new_port = self._create_external_port(sig_name, protocol, "O", po_width)
+            self._po_ports[protocol] = new_port
 
             if po_width < out_pins_needed:
                 logging.info(f"Adding reducer from {out_pins_needed} to {po_width}")
-                reducer = self._new_ip(Reduce, (port_type, out_pins_needed, po_width))
+                reducer = self._new_ip(Reduce, (protocol, out_pins_needed, po_width))
                 in_ports.append(reducer.in_port)
                 reducer.out_port.connect(new_port)
             else:
@@ -462,17 +474,14 @@ class RandomDesign:
 
     def _connect_multiple_drivers_to_port(self, port, drivers):
         """Connect multiple drivers to a port"""
-        self._new_ip(
-            SliceAndConcat,
-            (port, drivers),
-        )
+        self._new_ip(SliceAndConcat, (port, drivers))
 
     def _clocks(self):
         clock_inputs = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol in ("clk", "clk_locked")
+            if p.protocol in (Protocols.CLOCK, Protocols.CLOCK_LOCKED)
             and not p.connected
             and p.direction == "I"
         ]
@@ -483,14 +492,14 @@ class RandomDesign:
         if self._clk_wiz_inst is None:
             self._clk_wiz_inst = self._new_ip(ClkGen)
             logging.info("Creating external clock port: clock")
-            self._create_external_port("clk", "clk", "I", width=1).connect(
+            self._create_external_port("clk", Protocols.CLOCK, "I", width=1).connect(
                 self._clk_wiz_inst.port_clk_in
             )
 
         for clock_input in clock_inputs:
-            if clock_input.protocol == "clk_locked":
+            if clock_input.protocol == Protocols.CLOCK_LOCKED:
                 driver = self._clk_wiz_inst.port_dcm_locked
-            elif clock_input.protocol == "clk":
+            elif clock_input.protocol == Protocols.CLOCK:
                 driver = self._clk_wiz_inst.port_clk_out
             else:
                 logging.error(
@@ -506,19 +515,19 @@ class RandomDesign:
             self._reset_inst = self._new_ip(SystemReset)
 
         # Create single external reset
-        if "reset" not in self._pi_ports:
+        if Protocols.RESET not in self._pi_ports:
             self._bd_tcl += "\n########## Resets ##########\n"
             logging.info("Creating external reset port: reset")
-            self._pi_ports["reset"] = self._create_external_port(
-                "reset", "reset", "I", 1
+            self._pi_ports[Protocols.RESET] = self._create_external_port(
+                "reset", Protocols.RESET, "I", 1
             )
 
         reset_sources_by_protocol = {
-            "reset": self._pi_ports["reset"],
-            "reset_mb": self._reset_inst.port_mb_reset,
-            "reset_interconnect": self._reset_inst.port_interconnect_aresetn,
-            "reset_peripheral": self._reset_inst.port_peripheral_reset,
-            "reset_peripheral_n": self._reset_inst.port_peripheral_areset_n,
+            Protocols.RESET: self._pi_ports[Protocols.RESET],
+            Protocols.RESET_MICROBLAZE: self._reset_inst.port_mb_reset,
+            Protocols.RESET_INTERCONNECT: self._reset_inst.port_interconnect_aresetn,
+            Protocols.RESET_PERIPHERAL: self._reset_inst.port_peripheral_reset,
+            Protocols.RESET_PERIPHERAL_N: self._reset_inst.port_peripheral_areset_n,
         }
 
         # Collect unconnected reset inputs
@@ -635,7 +644,7 @@ class RandomDesign:
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "xilinx.com:interface:axis_rtl:1.0"
+            if p.protocol == self.PROTOCOL_AXI_STREAM
             and not p.connected
             and p.direction == "Master"
         ]
@@ -643,10 +652,13 @@ class RandomDesign:
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "xilinx.com:interface:axis_rtl:1.0"
+            if p.protocol == self.PROTOCOL_AXI_STREAM
             and not p.connected
             and p.direction == "Slave"
         ]
+
+        print(f"AXI Stream masters: {len(masters)}")
+        print(f"AXI Stream slaves: {len(slaves)}")
 
         if not masters and not slaves:
             return
@@ -657,19 +669,25 @@ class RandomDesign:
 
         while len(masters) < len(slaves):
             # If we don't have enough masters, create a top-level master
+            logging.info(
+                f"Creating top-level AXI Stream master axis_master_{len(masters)}"
+            )
             master = self._create_external_port(
-                f"axis_master_{len(masters)}",
-                "xilinx.com:interface:axis_rtl:1.0",
-                "Master",
+                f"external_axis_master_{len(masters)}",
+                self.PROTOCOL_AXI_STREAM,
+                "Slave",
             )
             masters.append(master)
 
         while len(slaves) < len(masters):
             # If we don't have enough slaves, create a top-level slave
+            logging.info(
+                f"Creating top-level AXI Stream slave axis_slave_{len(slaves)}"
+            )
             slave = self._create_external_port(
-                f"axis_slave_{len(slaves)}",
-                "xilinx.com:interface:axis_rtl:1.0",
-                "Slave",
+                f"external_axis_slave_{len(slaves)}",
+                self.PROTOCOL_AXI_STREAM,
+                "Master",
             )
             slaves.append(slave)
 
@@ -785,7 +803,9 @@ class RandomDesign:
     def _create_external_port(
         self, name, protocol, direction, width=None, properties=None
     ):
-        if protocol.startswith("xilinx.com:"):
+        assert isinstance(protocol, Protocols)
+
+        if protocol.is_xilinx_protocol():
             assert width is None
             port = ExternalPortInterface(self, name, protocol, direction, properties)
         else:

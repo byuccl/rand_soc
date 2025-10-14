@@ -1,5 +1,6 @@
 """Clk Gen IP"""
 
+from rand_soc.typedefs import Protocols
 from .ip_base import IP
 
 
@@ -24,15 +25,17 @@ class ClkGen(IP):
         clk_gen_name = "clk_wiz_0"
         self._new_instance("xilinx.com:ip:clk_wiz:6.0", clk_gen_name)
 
-        self.port_clk_in = self._create_hier_pin("clk_in", "clk", "I", 1)
+        self.port_clk_in = self._create_hier_pin("clk_in", Protocols.CLOCK, "I", 1)
         self.port_clk_in.connect_internal(f"{clk_gen_name}/clk_in1")
 
-        self.port_clk_out = self._create_hier_pin("clk_out", "clk", "O", 1)
+        self.port_clk_out = self._create_hier_pin("clk_out", Protocols.CLOCK, "O", 1)
         self.port_clk_out.connect_internal(f"{clk_gen_name}/clk_out1")
 
-        self._create_hier_pin("reset", "reset", "I", 1).connect_internal(
+        self._create_hier_pin("reset", Protocols.RESET, "I", 1).connect_internal(
             f"{clk_gen_name}/reset"
         )
 
-        self.port_dcm_locked = self._create_hier_pin("clk_locked", "clk_locked", "O", 1)
+        self.port_dcm_locked = self._create_hier_pin(
+            "clk_locked", Protocols.CLOCK_LOCKED, "O", 1
+        )
         self.port_dcm_locked.connect_internal(f"{clk_gen_name}/locked")
