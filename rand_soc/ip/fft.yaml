@@ -16,8 +16,9 @@
 
   - name: implementation_options
     values_eval: >
-      ["pipelined_streaming_io", "radix_4_burst_io", "radix_2_burst_io", "radix_2_lite_burst_io"] if channels == 1 else
-      ["radix_4_burst_io", "radix_2_burst_io", "radix_2_lite_burst_io"]
+      ["radix_2_burst_io", "radix_2_lite_burst_io"] +
+      (["pipelined_streaming_io"] if channels == 1 else []) +
+      (["radix_4_burst_io"] if transform_length_log2 >= 6 else [])
 
   - name: cyclic_prefix_insertion
     value: false

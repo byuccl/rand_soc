@@ -14,7 +14,7 @@ import math
 from rand_soc.typedefs import Direction, Protocol
 
 from ..utils import all_ones, randintwidth
-from ..ports import IpPortInterface, IpPortRegular
+from ..ports import IpPort
 
 
 class IPModuleInstance:
@@ -73,13 +73,7 @@ class IP:
         self, name, protocol, direction, width=None, *, addr_segs=None
     ):
         assert isinstance(protocol, Protocol)
-
-        if protocol.is_xilinx_protocol():
-            port = IpPortInterface(
-                self, name, protocol, direction, width=width, addr_segs=addr_segs
-            )
-        else:
-            port = IpPortRegular(self, name, protocol, direction, width)
+        port = IpPort(self, name, protocol, direction, width=width, addr_segs=addr_segs)
         return port
 
     def _connect_internal_pins_interface(self, instance_pin_a, instance_pin_b):

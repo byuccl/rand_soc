@@ -16,7 +16,7 @@ class Protocol(enum.Enum):
     def is_xilinx_protocol(self):
         return self.value.startswith("xilinx.com:")
 
-    def get_get_type(self):
+    def get_type(self):
         if self in (Protocol.AXI_STREAM,):
             return NetType.INTERFACE
         return NetType.WIRE

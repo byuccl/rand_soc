@@ -6,13 +6,13 @@ import sys
 import yaml
 import chevron
 
-from rand_soc.typedefs import Direction, Protocol
+from rand_soc.typedefs import Direction, NetType, Protocol
 
 from .ip.reset import SystemReset
 from .ip.reduce import Reduce
 from .ip.slice_and_concat import SliceAndConcat
 from .paths import ROOT_PATH
-from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
+from .ports import ExternalPort
 
 # Manually added IP
 from .ip.axi import Axi
@@ -477,7 +477,10 @@ class RandomDesign:
 
     def _connect_multiple_drivers_to_port(self, port, drivers):
         """Connect multiple drivers to a port"""
-        self._new_ip(SliceAndConcat, (port, drivers))
+        if port.protocol.get_type() == NetType.WIRE:
+            self._new_ip(SliceAndConcat, (port, drivers))
+        elif port.protocol == Protocol.AXI_STREAM:
+            self._axi_stream_builder(port, drivers)
 
     def _clocks(self):
         clock_inputs = [
@@ -808,13 +811,7 @@ class RandomDesign:
     ):
         assert isinstance(protocol, Protocol)
 
-        if protocol.is_xilinx_protocol():
-            assert width is None
-            port = ExternalPortInterface(
-                self, name, protocol, direction, width, properties
-            )
-        else:
-            port = ExternalPortRegular(self, name, protocol, direction, width)
+        port = ExternalPort(self, name, protocol, direction, width, properties)
         return port
 
     def _new_instance(self, ip_name, instance_name, properties=None):
