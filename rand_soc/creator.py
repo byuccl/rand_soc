@@ -357,7 +357,9 @@ class RandomDesign:
 
             sig_name = f"{protocol.value}_O"
             logging.info(f"Creating primary output port: {sig_name}, width: {po_width}")
-            new_port = self._create_external_port(sig_name, protocol, "O", po_width)
+            new_port = self._create_external_port(
+                sig_name, protocol, Direction.OUTPUT, po_width
+            )
             self._po_ports[protocol] = new_port
 
             if po_width < out_pins_needed:
@@ -484,7 +486,7 @@ class RandomDesign:
             for p in ip.ports
             if p.protocol in (Protocol.CLOCK, Protocol.CLOCK_LOCKED)
             and not p.connected
-            and p.direction == "I"
+            and p.direction == Direction.INPUT
         ]
 
         # Create single external clock
@@ -493,9 +495,9 @@ class RandomDesign:
         if self._clk_wiz_inst is None:
             self._clk_wiz_inst = self._new_ip(ClkGen)
             logging.info("Creating external clock port: clock")
-            self._create_external_port("clk", Protocol.CLOCK, "I", width=1).connect(
-                self._clk_wiz_inst.port_clk_in
-            )
+            self._create_external_port(
+                "clk", Protocol.CLOCK, Direction.INPUT, width=1
+            ).connect(self._clk_wiz_inst.port_clk_in)
 
         for clock_input in clock_inputs:
             if clock_input.protocol == Protocol.CLOCK_LOCKED:
@@ -808,7 +810,9 @@ class RandomDesign:
 
         if protocol.is_xilinx_protocol():
             assert width is None
-            port = ExternalPortInterface(self, name, protocol, direction, properties)
+            port = ExternalPortInterface(
+                self, name, protocol, direction, width, properties
+            )
         else:
             port = ExternalPortRegular(self, name, protocol, direction, width)
         return port

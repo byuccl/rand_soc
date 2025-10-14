@@ -1,6 +1,6 @@
 """AXI Smartconnect IP"""
 
-from rand_soc.typedefs import Protocol
+from rand_soc.typedefs import Direction, Protocol
 from .ip_base import IP
 
 
@@ -31,23 +31,23 @@ class Axi(IP):
             },
         )
 
-        self._create_hier_pin("clk", Protocol.CLOCK, "I", 1).connect_internal(
-            f"{axi_name}/aclk"
-        )
-        self._create_hier_pin("reset", "reset_interconnect", "I", 1).connect_internal(
-            f"{axi_name}/aresetn"
-        )
+        self._create_hier_pin(
+            "clk", Protocol.CLOCK, Direction.INPUT, 1
+        ).connect_internal(f"{axi_name}/aclk")
+        self._create_hier_pin(
+            "reset", "reset_interconnect", Direction.INPUT, 1
+        ).connect_internal(f"{axi_name}/aresetn")
 
         for i in range(num_masters):
             port = self._create_hier_pin(
-                f"AXI_M{i}", "xilinx.com:interface:aximm_rtl:1.0", "Slave"
+                f"AXI_M{i}", "xilinx.com:interface:aximm_rtl:1.0", Direction.INPUT
             )
             port.connect_internal(f"{axi_name}/S{i:02}_AXI")
             self.port_masters.append(port)
 
         for i in range(num_slaves):
             port = self._create_hier_pin(
-                f"AXI_S{i}", "xilinx.com:interface:aximm_rtl:1.0", "Master"
+                f"AXI_S{i}", "xilinx.com:interface:aximm_rtl:1.0", Direction.OUTPUT
             )
             port.connect_internal(f"{axi_name}/M{i:02}_AXI")
             self.port_slaves.append(port)

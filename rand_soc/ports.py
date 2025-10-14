@@ -120,8 +120,8 @@ class IpPortInterface(IpPort):
 class ExternalPort(Port):
     """Top-level port"""
 
-    def __init__(self, design, name, protocol, direction):
-        super().__init__(name, protocol, direction)
+    def __init__(self, design, name, protocol, direction, width=None):
+        super().__init__(name, protocol, direction, width)
         self.design = design
 
     @property

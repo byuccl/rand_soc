@@ -1,3 +1,4 @@
+from rand_soc.typedefs import Direction
 from .ip_base import IP
 
 
@@ -15,7 +16,7 @@ class SliceAndConcat(IP):
     def instance(self):
         super().instance()
         port_out = self._create_hier_pin(
-            "out0", self.drive_port.protocol, "O", self.drive_port.width
+            "out0", self.drive_port.protocol, Direction.OUTPUT, self.drive_port.width
         )
         port_out.connect(self.drive_port)
 
@@ -35,7 +36,7 @@ class SliceAndConcat(IP):
             port, bit_high, bit_low = driver
 
             port_in = self._create_hier_pin(
-                f"in_{i}", self.drive_port.protocol, "I", port.width
+                f"in_{i}", self.drive_port.protocol, Direction.INPUT, port.width
             )
             port_in.connect(port)
 
