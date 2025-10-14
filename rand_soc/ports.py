@@ -1,6 +1,6 @@
 import abc
 
-from rand_soc.typedefs import Protocols
+from rand_soc.typedefs import Direction, Protocol
 
 
 class Port:
@@ -10,10 +10,12 @@ class Port:
 
     def __init__(self, name, protocol, direction, width=None):
         self.name = name
+
+        assert isinstance(direction, Direction)
         self.direction = direction
         self.width = width
 
-        assert isinstance(protocol, Protocols)
+        assert isinstance(protocol, Protocol)
         self.protocol = protocol
         self.connected = False
 

@@ -11,7 +11,7 @@ import yaml
 import math
 
 
-from rand_soc.typedefs import Protocols
+from rand_soc.typedefs import Direction, Protocol
 
 from ..utils import all_ones, randintwidth
 from ..ports import IpPortInterface, IpPortRegular
@@ -72,7 +72,7 @@ class IP:
     def _create_hier_pin(
         self, name, protocol, direction, width=None, *, addr_segs=None
     ):
-        assert isinstance(protocol, Protocols)
+        assert isinstance(protocol, Protocol)
 
         if protocol.is_xilinx_protocol():
             port = IpPortInterface(
@@ -127,8 +127,8 @@ class IPrandom(IP):
                 for port_name, port_props in ip_props["ports"].items():
                     self._create_hier_pin(
                         port_name,
-                        Protocols(port_props["protocol"]),
-                        port_props["direction"],
+                        Protocol(port_props["protocol"]),
+                        Direction.from_str(port_props["direction"]),
                         width=port_props.get("width"),
                         addr_segs=[
                             f"{ip_id}/{a}" for a in port_props.get("addr_segs", [])
