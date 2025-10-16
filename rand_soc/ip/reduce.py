@@ -1,3 +1,4 @@
+from rand_soc.typedefs import Direction
 from ..utils import divide_into_groups
 from .ip_base import IP
 
@@ -17,8 +18,12 @@ class Reduce(IP):
     def instance(self):
         super().instance()
 
-        self.in_port = self._create_hier_pin("in0", self.protocol, "I", self.in_size)
-        self.out_port = self._create_hier_pin("out0", self.protocol, "O", self.out_size)
+        self.in_port = self._create_hier_pin(
+            "in0", self.protocol, Direction.INPUT, self.in_size
+        )
+        self.out_port = self._create_hier_pin(
+            "out0", self.protocol, Direction.OUTPUT, self.out_size
+        )
 
         in_per_out = divide_into_groups(self.in_size, self.out_size)
 

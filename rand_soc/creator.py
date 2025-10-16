@@ -1,4 +1,3 @@
-from collections import defaultdict
 import logging
 import pathlib
 import random
@@ -6,8 +5,8 @@ import sys
 import yaml
 import chevron
 
-from rand_soc.typedefs import Direction, NetType, Protocol
-
+from .port_assigner import port_assigner_axis, port_assigner_random
+from .typedefs import Direction, NetType, Protocol
 from .ip.reset import SystemReset
 from .ip.reduce import Reduce
 from .ip.slice_and_concat import SliceAndConcat
@@ -86,7 +85,7 @@ class RandomDesign:
         self._intc_complete = False
         self._reset_inst = None
         self._clk_wiz_inst = None
-        self._randomized_signal_drivers = defaultdict(dict)
+        self._randomized_signal_drivers = {}
 
     def write(self):
         """Write the design tcl and impl_constraints tcl to files"""
@@ -250,14 +249,14 @@ class RandomDesign:
             self._axi()
 
             # AXI Stream ports
-            # self._axi_stream()
+            self._axi_stream()
             # xilinx.com:ip:axis_broadcaster:1.1
             # xilinx.com:ip:axis_combiner:1.1
-            self._generic_ports(
-                protocol=Protocol.AXI_STREAM,
-                max_randomly_generated_inputs=0,
-                max_randomly_generated_outputs=0,
-            )
+            # self._generic_ports(
+            #     protocol=Protocol.AXI_STREAM,
+            #     max_randomly_generated_inputs=0,
+            #     max_randomly_generated_outputs=0,
+            # )
 
             # Data and control ports
             self._generic_ports(
@@ -275,6 +274,25 @@ class RandomDesign:
         for port in unhandled_ports:
             logging.error("Unhandled port: %s", port)
         assert not unhandled_ports
+
+    def _axi_stream(self):
+        in_ports = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == Protocol.AXI_STREAM
+            and not p.connected
+            and p.direction == Direction.INPUT
+        ]
+        out_ports = [
+            p
+            for ip in self.ip
+            for p in ip.ports
+            if p.protocol == Protocol.AXI_STREAM
+            and not p.connected
+            and p.direction == Direction.OUTPUT
+        ]
+        assignments = port_assigner_axis(in_ports, out_ports)
 
     def _generic_ports(
         self, protocol, max_randomly_generated_inputs, max_randomly_generated_outputs
@@ -378,109 +396,30 @@ class RandomDesign:
         for p in out_ports:
             logging.info(f"  {p.hier_name} {p.width}")
 
-        self._random_port_connector(in_ports, out_ports)
-
-    def _random_port_connector(self, in_ports, out_ports):
-        if not in_ports and not out_ports:
-            return
-
-        logging.info(
-            f"Will randomly connect {len(out_ports)} output ports to {len(in_ports)} input ports"
+        # Make the connection assignments
+        self._randomized_signal_drivers[protocol] = port_assigner_random(
+            in_ports, out_ports
         )
 
-        # Generate list of in and out ports, where each item is a tuple (port, index)
-        # where index is the lowest bit number not connected
-        in_ports_not_driven = [[port, 0] for port in in_ports]
-        random.shuffle(in_ports_not_driven)
+        # Make the connections
+        self._port_connector(protocol, self._randomized_signal_drivers[protocol])
 
-        out_ports_unused = [[port, 0] for port in out_ports]
-        assert out_ports_unused
-
-        # Connect all in ports
-        next_out_port_idx = 0
-
-        for in_port_and_pin_idx in in_ports_not_driven:
-            drivers = []
-            in_port = in_port_and_pin_idx[0]
-            in_width = in_port.width
-            in_width_unconnected = in_width
-            logging.info(
-                f"Connecting drivers of port {in_port.hier_name} [{in_width-1}:0]"
-            )
-
-            num_connected = 0
-
-            while in_width_unconnected:
-                # Once we've used up all the output signals, this flag will switch to True
-                # and we will randomly reuse output signals
-                using_random_output = next_out_port_idx >= len(out_ports_unused)
-
-                # Pick the output port
-                if using_random_output:
-                    out_port = random.choice(out_ports_unused)[0]
-                    out_port_avail = None
-                    # Randomly pick a pin range to use
-                    out_width = min(out_port.width, in_width_unconnected)
-                    out_bit_low = random.randint(0, out_port.width - out_width)
-                    out_bit_high = out_bit_low + out_width - 1
-                else:
-                    out_port = out_ports_unused[next_out_port_idx][0]
-                    # Identify unused pins from this port
-                    out_port_avail = out_ports_unused[next_out_port_idx]
-                    out_bit_high = out_port_avail[0].width - 1
-                    out_bit_low = out_port_avail[1]
-
-                out_width = out_bit_high - out_bit_low + 1
-
-                if out_width == in_width_unconnected:
-                    logging.info(
-                        f"  [{in_width_unconnected-1}:0] <-- {out_port.hier_name} [{out_bit_high}:{out_bit_low}]"
-                    )
-                    drivers.append((out_port, out_bit_high, out_bit_low))
-                    num_connected += out_width
-                    next_out_port_idx += 1
-                    in_width_unconnected = 0
-                    break
-
-                if out_width > in_width_unconnected:
-                    logging.info(
-                        f"  [{in_width_unconnected-1}:0] <-- {out_port.hier_name} [{out_bit_low + in_width_unconnected - 1}:{out_bit_low}]"
-                    )
-                    drivers.append(
-                        (out_port, out_bit_low + in_width_unconnected - 1, out_bit_low)
-                    )
-                    num_connected += in_width_unconnected
-                    if out_port_avail:
-                        out_port_avail[1] += in_width_unconnected
-                    in_width_unconnected = 0
-                    break
-
-                # out_width < in_width_unconnected
-                logging.info(
-                    f"  [{in_width_unconnected-1}:{in_width_unconnected-out_width}] <-- {out_port.hier_name} [{out_bit_high}:{out_bit_low}]"
-                )
-                drivers.append((out_port, out_bit_high, out_bit_low))
-                num_connected += out_width
-                next_out_port_idx += 1
-                in_width_unconnected -= out_width
-
-            assert (
-                num_connected == in_width
-            ), f"num_connected: {num_connected}, in_width: {in_width}"
-
-            # Connect all drivers to the in port
-            self._randomized_signal_drivers[in_port.protocol][in_port.hier_name] = [
-                f"{driver.hier_name}[{bit_high}:{bit_low}]"
-                for (driver, bit_high, bit_low) in drivers
-            ]
-            self._connect_multiple_drivers_to_port(in_port, drivers)
+    def _port_connector(self, protocol, driver_map):
+        """Make multiple port connections for a given protocol.  The driver_map is a
+        dictionary mapping each in_port to a list of (out_port, high_bit, low_bit) tuples.
+        """
+        if protocol == Protocol.AXI_STREAM:
+            self._axi_stream_builder(driver_map)
+        else:
+            for in_port, drivers in driver_map.items():
+                self._connect_multiple_drivers_to_port(in_port, drivers)
 
     def _connect_multiple_drivers_to_port(self, port, drivers):
-        """Connect multiple drivers to a port"""
-        if port.protocol.get_type() == NetType.WIRE:
-            self._new_ip(SliceAndConcat, (port, drivers))
-        elif port.protocol == Protocol.AXI_STREAM:
-            self._axi_stream_builder(port, drivers)
+        """Connect multiple drivers to a port
+        This function only supports wire ports, not interface ports.
+        """
+        assert port.protocol.get_type() == NetType.WIRE
+        self._new_ip(SliceAndConcat, (port, drivers))
 
     def _clocks(self):
         clock_inputs = [
@@ -643,66 +582,15 @@ class RandomDesign:
                 f"{port.ip.hier_name}_{port.name}", port.protocol, port.direction
             ).connect(port)
 
-    def _axi_stream(self):
-        """Create AXI stream ports"""
+    def _axi_stream_builder(self, driver_map):
+        """Build AXI Stream connections
 
-        masters = [
-            p
-            for ip in self.ip
-            for p in ip.ports
-            if p.protocol == self.PROTOCOL_AXI_STREAM
-            and not p.connected
-            and p.direction == "Master"
-        ]
-        slaves = [
-            p
-            for ip in self.ip
-            for p in ip.ports
-            if p.protocol == self.PROTOCOL_AXI_STREAM
-            and not p.connected
-            and p.direction == "Slave"
-        ]
-
-        print(f"AXI Stream masters: {len(masters)}")
-        print(f"AXI Stream slaves: {len(slaves)}")
-
-        if not masters and not slaves:
-            return
-
-        logging.info("########## AXI Stream ##########")
-
-        self._bd_tcl += "\n########## AXI Stream ##########\n"
-
-        while len(masters) < len(slaves):
-            # If we don't have enough masters, create a top-level master
-            logging.info(
-                f"Creating top-level AXI Stream master axis_master_{len(masters)}"
-            )
-            master = self._create_external_port(
-                f"external_axis_master_{len(masters)}",
-                self.PROTOCOL_AXI_STREAM,
-                "Slave",
-            )
-            masters.append(master)
-
-        while len(slaves) < len(masters):
-            # If we don't have enough slaves, create a top-level slave
-            logging.info(
-                f"Creating top-level AXI Stream slave axis_slave_{len(slaves)}"
-            )
-            slave = self._create_external_port(
-                f"external_axis_slave_{len(slaves)}",
-                self.PROTOCOL_AXI_STREAM,
-                "Master",
-            )
-            slaves.append(slave)
-
-        # Shuffle the masters to get random connections
-        random.shuffle(masters)
-
-        for master, slave in zip(masters, slaves):
-            logging.info(f"Connecting {master.hier_name} to {slave.hier_name}")
-            master.connect(slave)
+        driver_map is a dictionary mapping each in_port (slave connection) to a list of (out_port/masters, high_bit, low_bit) tuples.
+        """
+        for in_port, drivers in driver_map.items():
+            in_port.connected = True
+            for driver, h, l in drivers:
+                driver.connected = True
 
     def _axi(self):
         """Create AXI ports"""
