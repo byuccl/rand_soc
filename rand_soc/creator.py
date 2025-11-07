@@ -82,6 +82,7 @@ class RandomDesign:
         self.port_types_initialized = set()
         self._ip_idx = 0
         self._axi_complete = False
+        self._axis_complete = False
         self._intc_complete = False
         self._reset_inst = None
         self._clk_wiz_inst = None
@@ -276,23 +277,82 @@ class RandomDesign:
         assert not unhandled_ports
 
     def _axi_stream(self):
-        in_ports = [
+        """Connect AXI Stream ports"""
+
+        # If there are no unconnected AXI Stream ports, return
+        axi_stream_ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == Protocol.AXI_STREAM
-            and not p.connected
-            and p.direction == Direction.INPUT
+            if p.protocol == Protocol.AXI_STREAM and not p.connected
         ]
-        out_ports = [
-            p
+        if not axi_stream_ports:
+            return
+
+        logging.info("########## AXI Stream ##########")
+
+        assert not self._axis_complete
+        self._axis_complete = True
+
+        # Make sure we have a source IP, if not, create an external interface
+        # Source IP have no input AXI Stream ports, only output ports
+        primary_source_ips = [
+            ip
             for ip in self.ip
-            for p in ip.ports
-            if p.protocol == Protocol.AXI_STREAM
-            and not p.connected
-            and p.direction == Direction.OUTPUT
+            if ip.has_axis_master_ports() and not ip.has_axis_slave_ports()
         ]
-        assignments = port_assigner_axis(in_ports, out_ports)
+        primary_sources = [
+            port
+            for ip in primary_source_ips
+            for port in ip.ports
+            if port.protocol == Protocol.AXI_STREAM
+            and port.direction == Direction.OUTPUT
+        ]
+        if not primary_sources:
+            primary_sources.append(
+                self._create_external_port(
+                    "axis_source", Protocol.AXI_STREAM, Direction.OUTPUT, width=8
+                )
+            )
+
+        # Make sure we have a sink IP, if not, create an external interface
+        # Sink IP have no output AXI Stream ports, only input ports
+        primary_sink_ips = [
+            ip
+            for ip in self.ip
+            if ip.has_axis_slave_ports() and not ip.has_axis_master_ports()
+        ]
+        primary_sinks = [
+            port
+            for ip in primary_sink_ips
+            for port in ip.ports
+            if port.protocol == Protocol.AXI_STREAM
+            and port.direction == Direction.INPUT
+        ]
+        if not primary_sinks:
+            primary_sinks.append(
+                self._create_external_port(
+                    "axis_sink", Protocol.AXI_STREAM, Direction.INPUT, width=8
+                )
+            )
+
+        # Find all internal AXI Stream IP
+        internal_axis_ips = [
+            ip
+            for ip in self.ip
+            if ip not in primary_source_ips
+            and ip not in primary_sink_ips
+            and ip.has_axis_ports()
+        ]
+
+        assignments = port_assigner_axis(
+            primary_sources, primary_sinks, internal_axis_ips
+        )
+
+        for in_port, drivers in assignments.items():
+            logging.info(f"Connecting {in_port.hier_name}[{in_port.width}]")
+            for driver in drivers:
+                logging.info(f" - {driver.hier_name}[{driver.width}]")
 
     def _generic_ports(
         self, protocol, max_randomly_generated_inputs, max_randomly_generated_outputs

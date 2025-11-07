@@ -90,6 +90,51 @@ class IP:
         """Get the Tcl string to create the IP"""
         return self._bd_tcl
 
+    def has_axis_ports(self):
+        """Check if the IP has any AXI Stream ports"""
+        for port in self.ports:
+            if port.protocol == Protocol.AXI_STREAM:
+                return True
+        return False
+
+    def has_axis_master_ports(self):
+        """Check if the IP has any AXI Stream master ports"""
+        for port in self.ports:
+            if (
+                port.protocol == Protocol.AXI_STREAM
+                and port.direction == Direction.OUTPUT
+            ):
+                return True
+        return False
+
+    def has_axis_slave_ports(self):
+        """Check if the IP has any AXI Stream slave ports"""
+        for port in self.ports:
+            if (
+                port.protocol == Protocol.AXI_STREAM
+                and port.direction == Direction.INPUT
+            ):
+                return True
+        return False
+
+    def get_axis_master_ports(self):
+        """Get all AXI Stream master ports"""
+        return [
+            port
+            for port in self.ports
+            if port.protocol == Protocol.AXI_STREAM
+            and port.direction == Direction.OUTPUT
+        ]
+
+    def get_axis_slave_ports(self):
+        """Get all AXI Stream slave ports"""
+        return [
+            port
+            for port in self.ports
+            if port.protocol == Protocol.AXI_STREAM
+            and port.direction == Direction.INPUT
+        ]
+
 
 class IPrandom(IP):
     """IP class with randomization"""

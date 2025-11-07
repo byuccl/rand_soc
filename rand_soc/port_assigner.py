@@ -1,7 +1,10 @@
 from collections import defaultdict
 import logging
 import random
+from typing import List
 
+from .ports import Port
+from .ip.ip_base import IP
 from .utils import min_subset_sum_by_key
 
 
@@ -105,38 +108,238 @@ def port_assigner_random(in_ports, out_ports):
     return drivers_for_port
 
 
-def port_assigner_axis(in_ports, out_ports):
-    """Make connection assignments from out_ports to in_ports, such that each in_port is fully driven.
-    This does not actually make the connections, it just returns the assignments.
-
-    Returns: a dictionary mapping each in_port to a list of ports from out_ports.
-
+def port_assigner_axis(
+    primary_sources: List[Port],
+    primary_sinks: List[Port],
+    internal_ip: List[IP],
+):
+    """Make connections from sources to sinks for AXI Stream ports. This does not actually make the connections,
+    it just returns the assignments.
+    Returns: a dictionary mapping each sink port to a list of source ports.
     """
+    assert isinstance(primary_sources, list)
+    assert isinstance(primary_sinks, list)
+    assert isinstance(internal_ip, list)
 
-    drivers_for_port = defaultdict(list)
+    connections = defaultdict(list)
 
-    unassigned_in_ports = list(in_ports)
-    unassigned_out_ports = list(out_ports)
+    all_sources = primary_sources.copy()
+    unconnected_sources = primary_sources.copy()
+    unconnected_ip = internal_ip.copy()
+    unconnected_sinks = []
 
-    print("here1")
+    # Loop through the internal IP, and connect them to the AXI stream network
+    # one by one, until no unconnected IP remain.  This is done in sequence to
+    # avoid floating islands of IP that only have circular connections between themselves.
+    while unconnected_ip:
 
-    # Loop through all in_ports, and look for an out_port with the same width,
-    # or a combination of out_ports that can be concatenated to match the width.
-    #
-    # First pass:
-    # - don't allow reuse of output ports.
-    # - ignore in_ports where no exact match width match is possible
-    for in_port in unassigned_in_ports:
-        matched_ports = min_subset_sum_by_key(
-            unassigned_out_ports, in_port.width, key=lambda x: x.width
+        # 1. Find a new IP to connect to the AXI stream network
+        # - Look for an IP that has an AXI stream sink ports matching the
+        #   width of one of the unconnected sources.
+        candidate_source_port = None
+        candidate_sink_port = None
+        ip_to_connect = None
+        for ip in unconnected_ip:
+            for sink_port in ip.get_axis_slave_ports():
+                matches = [
+                    port
+                    for port in unconnected_sources
+                    if port.width == sink_port.width
+                ]
+                if matches:
+                    candidate_source_port = random.choice(matches)
+                    candidate_sink_port = sink_port
+                    ip_to_connect = ip
+                    break
+            if candidate_source_port:
+                break
+
+        # 2. If no candidate found, then just randomly pick a source port,
+        # and a width converter will be added later to connect it.
+        if candidate_source_port is None:
+            candidate_source_port = random.choice(unconnected_sources)
+            ip_to_connect = random.choice(unconnected_ip)
+            candidate_sink_port = random.choice(ip_to_connect.get_axis_slave_ports())
+
+        # 3. Save the connection from the candidate source port to the IP sink port
+        unconnected_ip.remove(ip_to_connect)
+        connections[candidate_sink_port].append(candidate_source_port)
+        unconnected_sources.remove(candidate_source_port)
+
+        # 4. Add the IP's other AXI stream ports to the unconnected sources/sinks
+        unconnected_sources.extend(ip_to_connect.get_axis_master_ports())
+        all_sources.extend(ip_to_connect.get_axis_master_ports())
+        unconnected_sinks.extend(
+            [
+                port
+                for port in ip_to_connect.get_axis_slave_ports()
+                if port != candidate_sink_port
+            ]
         )
-        if matched_ports is None:
-            continue
-        drivers_for_port[in_port] = matched_ports
-        unassigned_in_ports.remove(in_port)
-        for p in matched_ports:
-            unassigned_out_ports.remove(p)
 
-    # Second pass:
-    # - Continue this until all out_ports are driving something
-    # -
+    # At this point all internal IP should be connected in some way to be driven by
+    # the AXI stream network, going back to the primary sources.
+    #
+    # There may still be unconnected sources and sinks.
+    # The primary_sinks will need to be connected to the network as well, and at this
+    # point, we can add the primary_sinks to the unconnected_sinks list, since all
+    # internal IP are now connected.
+    unconnected_sinks.extend(primary_sinks)
+
+    # The next phase will perform connections until equal number of sources and sinks remain.
+    #
+    # This means that if we have more sinks than sources, we will be reusing sources, and
+    # at connection time, an AXI Stream Broadcaster will be added to drive multiple sinks from a single source.
+    #
+    # If we have more sources than sinks, we will be reusing sinks, and
+    # at connection time, an AXI Stream Combiner will be added to combine multiple sources into a single sink.
+
+    # First, handle the case where we have more sources than sinks
+    connection_made = True
+    while (
+        len(unconnected_sources) > len(unconnected_sinks)
+        and unconnected_sinks
+        and connection_made
+    ):
+        connection_made = False
+        sink_deficit = len(unconnected_sources) - len(unconnected_sinks)
+
+        # Look for a sink that can be driven by multiple sources
+        for sink in unconnected_sinks:
+            candidate_sources = min_subset_sum_by_key(
+                all_sources, sink.width, key=lambda x: x.width
+            )
+            if not candidate_sources:
+                continue
+            # Check how many of the candidate sources are unconnected, and don't make the connection
+            # if it will drop the number of unconnected sources below the number of unconnected sinks
+            num_unconnected_candidate_sources = len(
+                [s for s in candidate_sources if s in unconnected_sources]
+            )
+            if num_unconnected_candidate_sources > sink_deficit:
+                continue
+
+            connection_made = True
+            break
+
+        if not connection_made:
+            # If no sink can be driven perfectly by multiple sources, then we will just randomly connect
+            # multiple sources to a sink
+            num_sources = random.randint(2, sink_deficit + 1)
+            candidate_sources = random.sample(unconnected_sources, num_sources)
+            sink = random.choice(unconnected_sinks)
+
+        connections[sink] = candidate_sources
+        unconnected_sinks.remove(sink)
+        for s in candidate_sources:
+            if s in unconnected_sources:
+                unconnected_sources.remove(s)
+
+    # Next, handle the case where we have more sinks than sources
+    while len(unconnected_sinks) > len(unconnected_sources):
+        source_deficit = len(unconnected_sinks) - len(unconnected_sources)
+        connected_sources = list(set(all_sources) - set(unconnected_sources))
+
+        for sink in unconnected_sinks:
+            candidate_sources = min_subset_sum_by_key(
+                connected_sources,
+                sink.width,
+                key=lambda x: x.width,
+            )
+            if candidate_sources:
+                break
+
+        if not candidate_sources:
+            # If no set of sources can perfectly drive a sink, then we will just randomly connect
+            # a source to a sink and add a width converter later
+            candidate_sources = [random.choice(connected_sources)]
+            sink = random.choice(unconnected_sinks)
+
+        connections[sink] = candidate_sources
+        unconnected_sinks.remove(sink)
+
+    # At this point, the number of unconnected sources and sinks should be equal, try and connect them
+    # one-by-one, matching widths where possible, otherwise randomly.
+    assert len(unconnected_sinks) == len(unconnected_sources)
+    while unconnected_sinks:
+        sink = unconnected_sinks.pop()
+        # Look for a source with matching width
+        matches = [port for port in unconnected_sources if port.width == sink.width]
+        if matches:
+            source = random.choice(matches)
+        else:
+            source = random.choice(unconnected_sources)
+        connections[sink].append(source)
+        unconnected_sources.remove(source)
+
+    assert not unconnected_sources
+    assert not unconnected_sinks
+
+    return connections
+
+
+# def port_assigner_axis(in_ports, out_ports):
+#     """Make connection assignments from out_ports to in_ports, such that each in_port is fully driven.
+#     This does not actually make the connections, it just returns the assignments.
+
+#     Returns: a dictionary mapping each in_port to a list of ports from out_ports.
+
+#     """
+
+#     drivers_for_port = defaultdict(list)
+
+#     unassigned_in_ports = list(in_ports)
+#     random.shuffle(unassigned_in_ports)
+
+#     unassigned_out_ports = list(out_ports)
+
+#     # Loop through all in_ports, and look for an out_port with the same width,
+#     # or a combination of out_ports that can be concatenated to match the width.
+#     #
+#     # First pass:
+#     # - don't allow reuse of output ports.
+#     # - ignore in_ports where no exact match width match is possible
+#     for in_port in unassigned_in_ports:
+#         unassigned_out_ports_diff_ip = [
+#             p for p in unassigned_out_ports if p.ip != in_port.ip
+#         ]
+#         matched_ports = min_subset_sum_by_key(
+#             unassigned_out_ports_diff_ip, in_port.width, key=lambda x: x.width
+#         )
+#         if matched_ports is None:
+#             continue
+#         drivers_for_port[in_port] = matched_ports
+#         unassigned_in_ports.remove(in_port)
+#         for p in matched_ports:
+#             unassigned_out_ports.remove(p)
+
+#     # Second pass:
+#     # - allow reuse of output ports
+#     for in_port in unassigned_in_ports:
+#         out_ports_diff_ip = [p for p in out_ports if p.ip != in_port.ip]
+#         matched_ports = min_subset_sum_by_key(
+#             out_ports_diff_ip, in_port.width, key=lambda x: x.width
+#         )
+#         if matched_ports is None:
+#             continue
+#         drivers_for_port[in_port] = matched_ports
+#         unassigned_in_ports.remove(in_port)
+#         for p in matched_ports:
+#             if p in unassigned_out_ports:
+#                 unassigned_out_ports.remove(p)
+
+#     if not unassigned_in_ports:
+#         return drivers_for_port
+
+#     print(len(unassigned_in_ports), "in ports remain unassigned")
+#     print(len(unassigned_out_ports), "out ports remain unassigned")
+
+#     # Third pass:
+#     # - Assign remaining unassigned out ports to remaining unassigned in ports, in round-robin fashion
+#     max_idx = max(len(unassigned_in_ports), len(unassigned_out_ports))
+#     for idx in range(max_idx):
+#         drivers_for_port[unassigned_in_ports[idx % len(unassigned_in_ports)]] += [
+#             unassigned_out_ports[idx % len(unassigned_out_ports)]
+#         ]
+
+#     return drivers_for_port
