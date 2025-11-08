@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 import pathlib
 import random
@@ -5,6 +6,7 @@ import sys
 import yaml
 import chevron
 
+from .ip.axis_broadcaster import AxisBroadcaster
 from .port_assigner import port_assigner_axis, port_assigner_random
 from .typedefs import Direction, NetType, Protocol
 from .ip.reset import SystemReset
@@ -280,13 +282,15 @@ class RandomDesign:
         """Connect AXI Stream ports"""
 
         # If there are no unconnected AXI Stream ports, return
-        axi_stream_ports = [
-            p
-            for ip in self.ip
-            for p in ip.ports
-            if p.protocol == Protocol.AXI_STREAM and not p.connected
-        ]
-        if not axi_stream_ports:
+        # axi_stream_ports = [
+        #     p
+        #     for ip in self.ip
+        #     for p in ip.ports
+        #     if p.protocol == Protocol.AXI_STREAM and not p.connected
+        # ]
+        # if not axi_stream_ports:
+        #     return
+        if self._axis_complete:
             return
 
         logging.info("########## AXI Stream ##########")
@@ -309,11 +313,15 @@ class RandomDesign:
             and port.direction == Direction.OUTPUT
         ]
         if not primary_sources:
-            primary_sources.append(
-                self._create_external_port(
-                    "axis_source", Protocol.AXI_STREAM, Direction.OUTPUT, width=8
+            for _ in range(8):
+                primary_sources.append(
+                    self._create_external_port(
+                        f"external_axis_source_{_}",
+                        Protocol.AXI_STREAM,
+                        Direction.INPUT,
+                        width=8,
+                    )
                 )
-            )
 
         # Make sure we have a sink IP, if not, create an external interface
         # Sink IP have no output AXI Stream ports, only input ports
@@ -332,7 +340,7 @@ class RandomDesign:
         if not primary_sinks:
             primary_sinks.append(
                 self._create_external_port(
-                    "axis_sink", Protocol.AXI_STREAM, Direction.INPUT, width=8
+                    "external_axis_sink", Protocol.AXI_STREAM, Direction.OUTPUT, width=8
                 )
             )
 
@@ -348,11 +356,12 @@ class RandomDesign:
         assignments = port_assigner_axis(
             primary_sources, primary_sinks, internal_axis_ips
         )
-
         for in_port, drivers in assignments.items():
-            logging.info(f"Connecting {in_port.hier_name}[{in_port.width}]")
+            logging.info(f"AXI Stream port {in_port.hier_name_w} driven by:")
             for driver in drivers:
-                logging.info(f" - {driver.hier_name}[{driver.width}]")
+                logging.info(f"  {driver.hier_name_w}")
+
+        self._port_connector(Protocol.AXI_STREAM, assignments)
 
     def _generic_ports(
         self, protocol, max_randomly_generated_inputs, max_randomly_generated_outputs
@@ -469,7 +478,7 @@ class RandomDesign:
         dictionary mapping each in_port to a list of (out_port, high_bit, low_bit) tuples.
         """
         if protocol == Protocol.AXI_STREAM:
-            self._axi_stream_builder(driver_map)
+            self._axi_stream_connector(driver_map)
         else:
             for in_port, drivers in driver_map.items():
                 self._connect_multiple_drivers_to_port(in_port, drivers)
@@ -642,15 +651,50 @@ class RandomDesign:
                 f"{port.ip.hier_name}_{port.name}", port.protocol, port.direction
             ).connect(port)
 
-    def _axi_stream_builder(self, driver_map):
-        """Build AXI Stream connections
+    def _axi_stream_connector(self, driver_map):
+        """Build AXI Stream connections"""
+        fanout_degree = defaultdict(int)
+        fanout_next_idx = defaultdict(int)
 
-        driver_map is a dictionary mapping each in_port (slave connection) to a list of (out_port/masters, high_bit, low_bit) tuples.
-        """
+        driver_map_with_fanout_idx = {}
+        broadcasters = {}
+
+        # First determine fanout for each driver
         for in_port, drivers in driver_map.items():
-            in_port.connected = True
-            for driver, h, l in drivers:
-                driver.connected = True
+            for driver in drivers:
+                fanout_degree[driver] += 1
+
+        # Now assign fanout index to each driver
+        for in_port, drivers in driver_map.items():
+            driver_list = []
+            for driver in drivers:
+                fanout_idx = None
+                if fanout_degree[driver] > 1:
+                    fanout_idx = fanout_next_idx[driver]
+                    fanout_next_idx[driver] += 1
+                driver_list.append((driver, fanout_idx))
+            driver_map_with_fanout_idx[in_port] = driver_list
+
+        # Now create the AXI Stream broadcasters as needed
+        for port, degree in fanout_degree.items():
+            if degree > 1:
+                # raise NotImplementedError("AXI Stream broadcasters not yet tested")
+                broadcasters[port] = self._new_ip(AxisBroadcaster, (port, degree))
+
+        for in_port, drivers in driver_map_with_fanout_idx.items():
+
+            # in_port.connected = True
+            # for driver, fanout_idx in drivers:
+            #     driver.connected = True
+
+            assert len(drivers) == 1
+            driver = drivers[0][0]
+            broadcast_idx = drivers[0][1]
+
+            if broadcast_idx is None:
+                in_port.connect(driver)
+            else:
+                in_port.connect(broadcasters[driver].get_output_port(broadcast_idx))
 
     def _axi(self):
         """Create AXI ports"""

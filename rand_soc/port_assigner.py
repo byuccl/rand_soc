@@ -2,10 +2,11 @@ from collections import defaultdict
 import logging
 import random
 from typing import List
+import networkx as nx
 
-from .ports import Port
+from .ports import IpPort, Port
 from .ip.ip_base import IP
-from .utils import min_subset_sum_by_key
+from .utils import min_subset_sum_by_key, sink_scc_representatives
 
 
 def port_assigner_random(in_ports, out_ports):
@@ -123,14 +124,15 @@ def port_assigner_axis(
 
     connections = defaultdict(list)
 
-    all_sources = primary_sources.copy()
-    unconnected_sources = primary_sources.copy()
-    unconnected_ip = internal_ip.copy()
-    unconnected_sinks = []
+    all_sources = set(primary_sources)
+    unconnected_sources = set(primary_sources)
+    unconnected_ip = set(internal_ip)
+    unconnected_sinks = set(primary_sinks)
 
     # Loop through the internal IP, and connect them to the AXI stream network
     # one by one, until no unconnected IP remain.  This is done in sequence to
     # avoid floating islands of IP that only have circular connections between themselves.
+    logging.info("AXI Stream Phase 1: Connect internal IP to AXI Stream network")
     while unconnected_ip:
 
         # 1. Find a new IP to connect to the AXI stream network
@@ -152,14 +154,20 @@ def port_assigner_axis(
                     ip_to_connect = ip
                     break
             if candidate_source_port:
+                logging.info(
+                    f"+ Matching width found to drive {candidate_sink_port.hier_name_w} by {candidate_source_port.hier_name_w}"
+                )
                 break
 
         # 2. If no candidate found, then just randomly pick a source port,
         # and a width converter will be added later to connect it.
         if candidate_source_port is None:
-            candidate_source_port = random.choice(unconnected_sources)
-            ip_to_connect = random.choice(unconnected_ip)
+            candidate_source_port = random.choice(list(unconnected_sources))
+            ip_to_connect = random.choice(list(unconnected_ip))
             candidate_sink_port = random.choice(ip_to_connect.get_axis_slave_ports())
+            logging.info(
+                f"- No matching width found, randomly driving {candidate_sink_port.hier_name_w} by {candidate_source_port.hier_name_w}"
+            )
 
         # 3. Save the connection from the candidate source port to the IP sink port
         unconnected_ip.remove(ip_to_connect)
@@ -167,9 +175,9 @@ def port_assigner_axis(
         unconnected_sources.remove(candidate_source_port)
 
         # 4. Add the IP's other AXI stream ports to the unconnected sources/sinks
-        unconnected_sources.extend(ip_to_connect.get_axis_master_ports())
-        all_sources.extend(ip_to_connect.get_axis_master_ports())
-        unconnected_sinks.extend(
+        unconnected_sources.update(ip_to_connect.get_axis_master_ports())
+        all_sources.update(ip_to_connect.get_axis_master_ports())
+        unconnected_sinks.update(
             [
                 port
                 for port in ip_to_connect.get_axis_slave_ports()
@@ -177,14 +185,86 @@ def port_assigner_axis(
             ]
         )
 
-    # At this point all internal IP should be connected in some way to be driven by
-    # the AXI stream network, going back to the primary sources.
-    #
+    # At this point all internal IP should be reachable from the AXI stream
+    # primary sources. We now need to make sure nodes can reach one of the primary sinks.
+    logging.info("AXI Stream Phase 2: Ensure all internal IP can reach primary sinks")
+
+    # Build a directed graph of IP to IP AXI stream connections, and use it to find
+    # a minimal set of IP that need to drive sinks to ensure all IP can reach a sink.
+    G = nx.DiGraph()
+    for sink_port, source_ports in connections.items():
+        for source_port in source_ports:
+            if isinstance(source_port, IpPort):
+                G.add_edge(source_port.ip, sink_port.ip)
+    ip_to_drive_sinks = sink_scc_representatives(G)
+    logging.info(
+        f"- {len(ip_to_drive_sinks)} IP need to drive sinks to ensure connectivity"
+    )
+
+    # Loop through all the IP that need to drive sinks, and connect them to primary sinks
+    for source_ip in ip_to_drive_sinks:
+
+        # Find an AXI stream master port from this IP that is unconnected
+        # and matches the width of a primary sink that is unconnected
+        candidate_source_port = None
+        candidate_sink_port = None
+        for source_port in source_ip.get_axis_master_ports():
+            if source_port not in unconnected_sources:
+                continue
+            matches = [
+                port
+                for port in primary_sinks
+                if port not in connections and port.width == source_port.width
+            ]
+            if matches:
+                candidate_source_port = source_port
+                candidate_sink_port = random.choice(matches)
+                break
+
+        if candidate_sink_port is None:
+            possible_sinks = [
+                port for port in primary_sinks if port not in unconnected_sinks
+            ]
+            if possible_sinks:
+                candidate_sink_port = random.choice(possible_sinks)
+        if candidate_source_port is None:
+            # No unconnected sink ports available, pick any sink port
+            candidate_sink_port = random.choice(primary_sinks)
+
+        if candidate_source_port is None:
+            # Pick a random unconnected source port from this IP
+            possible_sources = [
+                port
+                for port in source_ip.get_axis_master_ports()
+                if port in unconnected_sources
+            ]
+            if possible_sources:
+                candidate_source_port = random.choice(possible_sources)
+        if candidate_source_port is None:
+            # No unconnected source ports available, pick any source port
+            candidate_source_port = random.choice(source_ip.get_axis_master_ports())
+
+        assert candidate_source_port is not None
+        assert candidate_sink_port is not None
+
+        if candidate_source_port.width == candidate_sink_port.width:
+            logging.info(
+                f"+ Matching width found to drive {candidate_sink_port.hier_name_w} by {candidate_source_port.hier_name_w}"
+            )
+        else:
+            logging.info(
+                f"- No matching width found, driving {candidate_sink_port.hier_name_w} by {candidate_source_port.hier_name_w}"
+            )
+        connections[candidate_sink_port].append(candidate_source_port)
+        if candidate_source_port in unconnected_sources:
+            unconnected_sources.remove(candidate_source_port)
+        if candidate_sink_port in unconnected_sinks:
+            unconnected_sinks.remove(candidate_sink_port)
+
     # There may still be unconnected sources and sinks.
     # The primary_sinks will need to be connected to the network as well, and at this
     # point, we can add the primary_sinks to the unconnected_sinks list, since all
     # internal IP are now connected.
-    unconnected_sinks.extend(primary_sinks)
 
     # The next phase will perform connections until equal number of sources and sinks remain.
     #
@@ -193,6 +273,9 @@ def port_assigner_axis(
     #
     # If we have more sources than sinks, we will be reusing sinks, and
     # at connection time, an AXI Stream Combiner will be added to combine multiple sources into a single sink.
+    logging.info(
+        f"AXI Stream Phase 3: Balance sources ({len(unconnected_sources)}) and sinks ({len(unconnected_sinks)})"
+    )
 
     # First, handle the case where we have more sources than sinks
     connection_made = True
@@ -219,21 +302,32 @@ def port_assigner_axis(
             if num_unconnected_candidate_sources > sink_deficit:
                 continue
 
+            logging.info(
+                f"+ Perfectly driving {sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
+            )
             connection_made = True
-            break
 
         if not connection_made:
             # If no sink can be driven perfectly by multiple sources, then we will just randomly connect
             # multiple sources to a sink
-            num_sources = random.randint(2, sink_deficit + 1)
-            candidate_sources = random.sample(unconnected_sources, num_sources)
-            sink = random.choice(unconnected_sinks)
+            if len(unconnected_sinks) == 1:
+                num_sources = sink_deficit + 1
+            else:
+                num_sources = random.randint(2, sink_deficit + 1)
+            candidate_sources = random.sample(list(unconnected_sources), num_sources)
+            sink = random.choice(list(unconnected_sinks))
+            logging.info(
+                f"- No perfect multi-source sink found, randomly driving {sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
+            )
+            connection_made = True
 
         connections[sink] = candidate_sources
         unconnected_sinks.remove(sink)
         for s in candidate_sources:
             if s in unconnected_sources:
                 unconnected_sources.remove(s)
+
+    assert len(unconnected_sources) >= len(unconnected_sinks)
 
     # Next, handle the case where we have more sinks than sources
     while len(unconnected_sinks) > len(unconnected_sources):
@@ -247,28 +341,45 @@ def port_assigner_axis(
                 key=lambda x: x.width,
             )
             if candidate_sources:
+                logging.info(
+                    f"+ Perfectly driving {sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
+                )
                 break
 
         if not candidate_sources:
             # If no set of sources can perfectly drive a sink, then we will just randomly connect
             # a source to a sink and add a width converter later
-            candidate_sources = [random.choice(connected_sources)]
-            sink = random.choice(unconnected_sinks)
+            candidate_sources = [random.choice(list(connected_sources))]
+            sink = random.choice(list(unconnected_sinks))
+            logging.info(
+                f"- No perfect multi-source sink found, randomly driving {sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
+            )
 
         connections[sink] = candidate_sources
         unconnected_sinks.remove(sink)
 
     # At this point, the number of unconnected sources and sinks should be equal, try and connect them
     # one-by-one, matching widths where possible, otherwise randomly.
-    assert len(unconnected_sinks) == len(unconnected_sources)
+    logging.info(
+        f"AXI Stream Phase 4: Final connections of remaining {len(unconnected_sources)} sources and {len(unconnected_sinks)} sinks"
+    )
+    assert len(unconnected_sinks) == len(
+        unconnected_sources
+    ), f"Unconnected sources ({len(unconnected_sources)}) and sinks ({len(unconnected_sinks)}) should be equal"
     while unconnected_sinks:
         sink = unconnected_sinks.pop()
         # Look for a source with matching width
         matches = [port for port in unconnected_sources if port.width == sink.width]
         if matches:
             source = random.choice(matches)
+            logging.info(
+                f"+ Matching width found to drive {sink.hier_name_w} by {source.hier_name_w}"
+            )
         else:
             source = random.choice(unconnected_sources)
+            logging.info(
+                f"- No matching width found, randomly driving {sink.hier_name_w} by {source.hier_name_w}"
+            )
         connections[sink].append(source)
         unconnected_sources.remove(source)
 

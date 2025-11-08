@@ -1,6 +1,7 @@
 from math import inf
 import random
 from typing import Any, Callable, Iterable, List, Optional
+import networkx as nx
 
 
 def randbool():
@@ -102,3 +103,52 @@ def min_subset_sum_by_key(
         s = ps
     res.reverse()
     return res
+
+
+def sink_scc_representatives(G):
+    """
+    Return one representative node from each sink SCC in a directed graph G.
+
+    If you add edges from each of these representatives to a new node t,
+    then every node in G will be able to reach t through the directed edges.
+
+    Parameters
+    ----------
+    G : nx.DiGraph
+        The directed graph. Nodes can be any hashable Python objects.
+
+    Returns
+    -------
+    reps : list
+        One node from each sink SCC.
+    """
+
+    # Step 1: Find all strongly connected components (SCCs).
+    # Each SCC is a set of nodes where every node can reach every other.
+    sccs = list(nx.strongly_connected_components(G))
+
+    # Step 2: Build a map from node -> component index.
+    # This lets us know which SCC each node belongs to.
+    comp_id = {}
+    for i, comp in enumerate(sccs):
+        for v in comp:
+            comp_id[v] = i
+
+    # Step 3: Initialize an outdegree counter for each SCC.
+    # We will later count edges that go from one SCC to another.
+    outdeg = [0] * len(sccs)
+
+    # Step 4: Examine all edges in G.
+    # For every edge u → v that crosses between two different SCCs,
+    # increment the outdegree of the source SCC.
+    for u, v in G.edges():
+        cu, cv = comp_id[u], comp_id[v]
+        if cu != cv:
+            outdeg[cu] += 1
+
+    # Step 5: Identify sink SCCs (those with no outgoing edges).
+    # outdeg[i] == 0 means SCC[i] is a sink in the condensation DAG.
+    # Pick one representative node from each sink SCC.
+    reps = [next(iter(comp)) for i, comp in enumerate(sccs) if outdeg[i] == 0]
+
+    return reps

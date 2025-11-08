@@ -47,6 +47,10 @@ class IpPort(Port):
     def hier_name(self):
         return f"{self.ip.hier_name}/{self.name}"
 
+    @property
+    def hier_name_w(self):
+        return f"{self.ip.hier_name}/{self.name}({self.width})"
+
     def __repr__(self) -> str:
         return f"IpPort({self.hier_name}, {self.direction}, {self.protocol}, {self.width}, {self.addr_segs})"
 
@@ -91,7 +95,7 @@ class ExternalPort(Port):
         self.properties = properties
 
         if self.protocol.get_type() == NetType.INTERFACE:
-            design._bd_tcl += f"create_bd_intf_port -mode {self.direction.get_str(NetType.INTERFACE)} -vlnv {self.protocol} {self.name}\n"
+            design._bd_tcl += f"create_bd_intf_port -mode {self.direction.get_str(NetType.INTERFACE)} -vlnv {self.protocol.value} {self.name}\n"
         else:
             design._bd_tcl += f"create_bd_port -dir {self.direction.get_str(NetType.WIRE)} -from {self.width-1} -to 0 {self.name}\n"
             assert properties is None, "Regular ports cannot have properties"
@@ -127,3 +131,7 @@ class ExternalPort(Port):
     @property
     def hier_name(self):
         return f"{self.name}"
+
+    @property
+    def hier_name_w(self):
+        return f"{self.name}({self.width})"
