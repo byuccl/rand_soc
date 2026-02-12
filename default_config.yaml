@@ -7,6 +7,7 @@ available_ip:
   - class: Dft
   - class: Emc
   - class: Gpio
+    min: 5
   - class: Microblaze
   - class: Uartlite
   - class: XadcWiz

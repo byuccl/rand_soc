@@ -162,9 +162,56 @@ class RandomDesign:
         max_ip = creator_yaml["max_ip"]
         ip_list = self.get_yaml_available_ip(creator_yaml)
 
-        num_ip = random.randint(min_ip, max_ip)
+        # Validate configuration
+        if min_ip > max_ip:
+            raise ValueError(f"min_ip ({min_ip}) exceeds max_ip ({max_ip})")
+
+        for ip in ip_list:
+            ip_name = ip["class"].__name__
+            if "min" in ip and ip["min"] < 0:
+                raise ValueError(f"{ip_name}: min ({ip['min']}) cannot be negative")
+            if "max" in ip and ip["max"] < 0:
+                raise ValueError(f"{ip_name}: max ({ip['max']}) cannot be negative")
+            if "min" in ip and "max" in ip and ip["min"] > ip["max"]:
+                raise ValueError(
+                    f"{ip_name}: min ({ip['min']}) exceeds max ({ip['max']})"
+                )
+
+        total_min_required = sum(ip.get("min", 0) for ip in ip_list)
+        if total_min_required > max_ip:
+            raise ValueError(
+                f"Sum of per-IP min requirements ({total_min_required}) "
+                f"exceeds max_ip ({max_ip})"
+            )
+
+        total_max_available = sum(
+            ip["max"] if "max" in ip else float("inf") for ip in ip_list
+        )
+        if total_max_available < min_ip:
+            raise ValueError(
+                f"Sum of per-IP max limits ({total_max_available}) "
+                f"is less than min_ip ({min_ip}); not enough IPs available"
+            )
+
+        # Ensure num_ip is at least the sum of all min requirements
+        effective_min_ip = max(min_ip, total_min_required)
+        num_ip = random.randint(effective_min_ip, max_ip)
         logging.info("########## Selecting IPs ##########")
-        for i in range(num_ip):
+
+        # First, satisfy min requirements for any IP with a "min" constraint
+        ip_count = 0
+        for ip in ip_list:
+            if "min" in ip:
+                for _ in range(ip["min"]):
+                    ip_type = ip["class"]
+                    logging.info(f"IP {ip_count}: {ip_type.__name__} (min requirement)")
+                    self._new_ip(ip_type)
+                    if "max" in ip:
+                        ip["max"] -= 1
+                    ip_count += 1
+
+        # Then, fill remaining slots randomly
+        for i in range(ip_count, num_ip):
             while True:
                 ip = random.choice(ip_list)
                 if "max" in ip:
