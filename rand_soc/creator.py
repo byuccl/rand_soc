@@ -11,7 +11,7 @@ from .ip.reduce import Reduce
 from .ip.slice_and_concat import SliceAndConcat
 from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
-from .ip.axi import Axi
+from .ip.axi import AxiSmartconnect, AxiInterconnect
 from .ip.axi_cdma import AxiCdma
 from .ip.axi_hwicap import AxiHwicap
 from .ip.axi_timer import AxiTimer
@@ -161,6 +161,16 @@ class RandomDesign:
         min_ip = creator_yaml["min_ip"]
         max_ip = creator_yaml["max_ip"]
         ip_list = self.get_yaml_available_ip(creator_yaml)
+
+        # Select AXI type
+        axi_type_names = creator_yaml.get("axi_types", ["AxiSmartconnect"])
+        axi_type_map = {
+            "AxiSmartconnect": AxiSmartconnect,
+            "AxiInterconnect": AxiInterconnect,
+        }
+        axi_types = [axi_type_map[name] for name in axi_type_names]
+        self._axi_class = random.choice(axi_types)
+        logging.info(f"AXI type: {self._axi_class.__name__}")
 
         num_ip = random.randint(min_ip, max_ip)
         logging.info("########## Selecting IPs ##########")
@@ -689,13 +699,13 @@ class RandomDesign:
 
         if two_level:
             num_second_level = (len(slaves) + 15) // 16
-            axi_first_level = self._new_ip(Axi, (len(masters), num_second_level))
+            axi_first_level = self._new_ip(self._axi_class, (len(masters), num_second_level))
             for i, master in enumerate(masters):
                 master.connect(axi_first_level.port_masters[i])
 
             for i in range(num_second_level):
                 num_this_level = min(16, len(slaves) - i * 16)
-                axi_second_level = self._new_ip(Axi, (1, num_this_level))
+                axi_second_level = self._new_ip(self._axi_class, (1, num_this_level))
 
                 # Connect first level to second level
                 axi_first_level.port_slaves[i].connect(axi_second_level.port_masters[0])
@@ -709,7 +719,7 @@ class RandomDesign:
                         # self._assign_bd_addresses(master, slave)
 
         else:
-            axi = self._new_ip(Axi, (len(masters), len(slaves)))
+            axi = self._new_ip(self._axi_class, (len(masters), len(slaves)))
             for i, master in enumerate(masters):
                 master.connect(axi.port_masters[i])
             for i, slave in enumerate(slaves):
