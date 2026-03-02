@@ -86,6 +86,7 @@ max_ip: 18
   * `max`: The maximum number of instances of this IP block that can be used in the design.  This is optional.
 * `min_ip`: The minimum number of IP blocks that will be used in the design.
 * `max_ip`: The maximum number of IP blocks that will be used in the design.
+* `axi_types`: A list of AXI interconnect class names to use.  Possible values are `AxiSmartconnect` and `AxiInterconnect`.  If not provided, defaults to `[AxiSmartconnect]`.  If both are listed, the tool will randomly select one to use for the entire design.
 
 When the design is created, the tool will randomly select a number of IP blocks between `min_ip` and `max_ip`, and then randomly select the IP blocks from the `available_ip` list.  The IP blocks are selected with replacement, so it is possible to have multiple instances of the same IP block in the design. 
 
@@ -130,7 +131,8 @@ To change the default commands that Vivado runs (i.e. disable synthesis), edit t
 ### IP Added as Needed
 | Python Class | Description |
 |---------|-------------|
-|`Axi` | Xilinx *AXI SmartConnect* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/smartconnect.html>) |
+|`AxiSmartconnect` | Xilinx *AXI SmartConnect* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/smartconnect.html>) |
+|`AxiInterconnect` | Xilinx *AXI Interconnect* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi-interconnect.html>) |
 |`ClkGen` | Xilinx *Clocking Wizard* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/clocking_wizard.html>) |
 |`Intc` | Xilinx *AXI Interrupt Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_intc.html>) |
 
