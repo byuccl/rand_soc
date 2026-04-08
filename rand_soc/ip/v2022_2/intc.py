@@ -1,6 +1,6 @@
-""" Interrupt controller IP """
+"""Interrupt controller IP"""
 
-from .ip_base import IP
+from ..ip_base import IP
 
 
 class Intc(IP):

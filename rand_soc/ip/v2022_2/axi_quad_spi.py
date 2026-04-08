@@ -1,6 +1,6 @@
-""" AXI Quad SPI IP """
+"""AXI Quad SPI IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class AxiQuadSpi(IPrandom):

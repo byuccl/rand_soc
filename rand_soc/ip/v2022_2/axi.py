@@ -1,6 +1,6 @@
 """AXI Smartconnect and AXI Interconnect IP"""
 
-from .ip_base import IP
+from ..ip_base import IP
 
 
 class AxiSmartconnect(IP):

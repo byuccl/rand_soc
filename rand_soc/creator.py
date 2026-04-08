@@ -5,36 +5,62 @@ import random
 import sys
 import yaml
 import chevron
+import importlib
 
-from .ip.reset import SystemReset
-from .ip.reduce import Reduce
-from .ip.slice_and_concat import SliceAndConcat
-from .ip.accumulator import Accumulator
 from .paths import ROOT_PATH
-from .ip.axi import AxiSmartconnect, AxiInterconnect
-from .ip.axi_cdma import AxiCdma
-from .ip.axi_hwicap import AxiHwicap
-from .ip.axi_timer import AxiTimer
-from .ip.axi_usb2_device import AxiUsb2Device
-from .ip.clk_gen import ClkGen
-from .ip.dft import Dft
-from .ip.intc import Intc
-from .ip.uartlite import Uartlite
-from .ip.emc import Emc
 from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
-from .ip.gpio import Gpio
-from .ip.microblaze import Microblaze
-from .ip.xadc_wiz import XadcWiz
-from .ip.axi_can import AxiCan
-from .ip.axi_ethernet_lite import AxiEthernetLite
-from .ip.axi_iic import AxiIic
-from .ip.axi_quad_spi import AxiQuadSpi
+
+
+def import_ip(version, versions):
+    ips = [
+        ("reset", ["SystemReset"]),
+        ("reduce", ["Reduce"]),
+        ("slice_and_concat", ["SliceAndConcat"]),
+        ("accumulator", ["Accumulator"]),
+        ("axi", ["AxiSmartconnect", "AxiInterconnect"]),
+        ("axi_cdma", ["AxiCdma"]),
+        ("axi_hwicap", ["AxiHwicap"]),
+        ("axi_timer", ["AxiTimer"]),
+        ("axi_usb2_device", ["AxiUsb2Device"]),
+        ("clk_gen", ["ClkGen"]),
+        ("dft", ["Dft"]),
+        ("intc", ["Intc"]),
+        ("uartlite", ["Uartlite"]),
+        ("emc", ["Emc"]),
+        ("gpio", ["Gpio"]),
+        ("microblaze", ["Microblaze"]),
+        ("xadc_wiz", ["XadcWiz"]),
+        ("axi_can", ["AxiCan"]),
+        ("axi_ethernet_lite", ["AxiEthernetLite"]),
+        ("axi_iic", ["AxiIic"]),
+        ("axi_quad_spi", ["AxiQuadSpi"]),
+    ]
+    versions = versions[versions.index(version) :]
+    for lib, ips in ips:
+        for v in versions:
+            name = f".ip.{v}.{lib}"
+            canonical = f".ip.{lib}"
+            try:
+                module = importlib.import_module(name, __package__)
+                sys.modules[canonical] = module
+                for cls_name in ips:
+                    cls = getattr(module, cls_name, None)
+                    if not cls:
+                        print(f"{cls_name} not found\n")
+                    globals()[cls_name] = cls
+                break
+            except ModuleNotFoundError as e:
+                print(f"import failed: {e}\n")
+                continue
 
 
 class RandomDesign:
     """Creates a random design"""
 
-    def __init__(self, output_dir_path, config_path=None, seed=None, part=None):
+    def __init__(
+        self, output_dir_path, config_path=None, seed=None, part=None, vivado="v2022_2"
+    ):
+        import_ip(vivado, ["v2024_2", "v2022_2", "v2020_2"])
         if config_path is None:
             config_path = ROOT_PATH / "creator.yaml"
 
@@ -128,6 +154,7 @@ class RandomDesign:
         ip_list = yaml_file["available_ip"]
         for ip in ip_list:
             assert "class" in ip, f"IP {ip} does not have a class"
+            print(ip["class"])
             ip["class"] = getattr(sys.modules[__name__], ip["class"])
         return ip_list
 
@@ -699,7 +726,9 @@ class RandomDesign:
 
         if two_level:
             num_second_level = (len(slaves) + 15) // 16
-            axi_first_level = self._new_ip(self._axi_class, (len(masters), num_second_level))
+            axi_first_level = self._new_ip(
+                self._axi_class, (len(masters), num_second_level)
+            )
             for i, master in enumerate(masters):
                 master.connect(axi_first_level.port_masters[i])
 

@@ -1,6 +1,6 @@
-""" Accumulator IP """
+"""Accumulator IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class Accumulator(IPrandom):

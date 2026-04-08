@@ -1,6 +1,6 @@
-""" AXI CAN IP """
+"""AXI CAN IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class AxiCan(IPrandom):

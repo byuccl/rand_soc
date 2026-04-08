@@ -1,6 +1,6 @@
 """Interrupt controller IP"""
 
-from .ip_base import IP
+from ..ip_base import IP
 
 
 class SystemReset(IP):

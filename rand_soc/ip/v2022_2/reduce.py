@@ -1,5 +1,5 @@
-from ..utils import divide_into_groups
-from .ip_base import IP
+from ...utils import divide_into_groups
+from ..ip_base import IP
 
 
 class Reduce(IP):

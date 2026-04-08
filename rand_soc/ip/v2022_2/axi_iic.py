@@ -1,6 +1,6 @@
-""" AXI IIC IP """
+"""AXI IIC IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class AxiIic(IPrandom):
