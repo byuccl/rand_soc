@@ -5,9 +5,9 @@ from random import randint
 from rand_soc.creator import RandomDesign
 
 
-def main(output_dir_path, config_path=None, seed=None, part=None, vivado="v2022_2"):
+def main(output_dir_path, config_path=None, seed=None, part=None):
     design = RandomDesign(
-        output_dir_path, config_path=config_path, seed=seed, part=part, vivado=vivado
+        output_dir_path, config_path=config_path, seed=seed, part=part
     )
     design.create()
     design.write()
@@ -23,12 +23,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--part", type=str, help="Xilinx part name")
-    parser.add_argument(
-        "--vivado",
-        type=str,
-        help="Xilinx vivado version number (ie v2022_2)",
-        default="v2022_2",
-    )
     args = parser.parse_args()
 
-    main(args.output_dir_path, args.config_path, args.seed, args.part, args.vivado)
+    main(args.output_dir_path, args.config_path, args.seed, args.part)

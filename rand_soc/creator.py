@@ -58,9 +58,8 @@ class RandomDesign:
     """Creates a random design"""
 
     def __init__(
-        self, output_dir_path, config_path=None, seed=None, part=None, vivado="v2022_2"
+        self, output_dir_path, config_path=None, seed=None, part=None
     ):
-        import_ip(vivado, ["v2024_2", "v2022_2", "v2020_2"])
         if config_path is None:
             config_path = ROOT_PATH / "creator.yaml"
 
@@ -185,6 +184,12 @@ class RandomDesign:
             template = f.read()
 
         creator_yaml = self.get_creator_yaml()
+
+        import_ip(
+            creator_yaml.get("vivado_version", "v2022_2"),
+            ["v2024_2", "v2022_2", "v2020_2"],
+        )
+
         min_ip = creator_yaml["min_ip"]
         max_ip = creator_yaml["max_ip"]
         ip_list = self.get_yaml_available_ip(creator_yaml)
