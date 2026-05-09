@@ -1,6 +1,6 @@
-""" Discrete Fourier Transform IP """
+"""Discrete Fourier Transform IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class Dft(IPrandom):

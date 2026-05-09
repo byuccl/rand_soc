@@ -1,6 +1,6 @@
-""" AXI CDMA IP """
+"""AXI CDMA IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class AxiCdma(IPrandom):
