@@ -281,16 +281,14 @@ class RandomDesign:
     def _axi_stream(self):
         """Connect AXI Stream ports"""
 
-        # If there are no unconnected AXI Stream ports, return
-        # axi_stream_ports = [
-        #     p
-        #     for ip in self.ip
-        #     for p in ip.ports
-        #     if p.protocol == Protocol.AXI_STREAM and not p.connected
-        # ]
-        # if not axi_stream_ports:
-        #     return
         if self._axis_complete:
+            return
+
+        # If no IP in the design has any AXI Stream ports, there is no stream
+        # network to build. Skip the stage rather than fabricating external
+        # source/sink ports that have nothing to connect to.
+        if not any(ip.has_axis_ports() for ip in self.ip):
+            logging.info("No AXI Stream ports in design, skipping AXI Stream stage")
             return
 
         logging.info("########## AXI Stream ##########")
@@ -567,15 +565,17 @@ class RandomDesign:
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "irq" and not p.connected and p.direction == "O"
+            if p.protocol == Protocol.IRQ
+            and not p.connected
+            and p.direction == Direction.OUTPUT
         ]
         interrupt_inputs = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "xilinx.com:interface:mbinterrupt_rtl:1.0"
+            if p.protocol == Protocol.MB_INTERRUPT
             and not p.connected
-            and p.direction == "Slave"
+            and p.direction == Direction.INPUT
         ]
 
         if not interrupt_outputs and not interrupt_inputs:
@@ -598,7 +598,7 @@ class RandomDesign:
         # If there are no microblaze interrupt inputs, create a top-level output
         if not interrupt_inputs:
             irq_out = self._create_external_port(
-                "irq", "xilinx.com:interface:mbinterrupt_rtl:1.0", "Master"
+                "irq", Protocol.MB_INTERRUPT, Direction.OUTPUT
             )
             interrupt_inputs.append(irq_out)
 
@@ -609,38 +609,25 @@ class RandomDesign:
                 intc.input_ports[i].connect(interrupt_output)
             interrupt_input.connect(intc.port_irq)
 
+    # Interface protocols that have their own dedicated connection handling and
+    # must NOT be blindly exported to the top level.
+    _SPECIALLY_HANDLED_INTERFACES = (
+        Protocol.AXI_STREAM,
+        Protocol.AXI_MM,
+        Protocol.MB_INTERRUPT,
+    )
+
     def _external_interfaces(self):
+        # Any remaining unconnected Xilinx interface port (GPIO, UART, EMC, ULPI,
+        # ICAP/arb, XADC diff IO, CAN, IIC, MII/MDIO, SPI, startup, ...) is simply
+        # brought out to the top level. Interfaces with dedicated handling are
+        # excluded.
         ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol
-            in (
-                # GPIO general purpose I/O and 3-state pins
-                "xilinx.com:interface:gpio_rtl:1.0",
-                # UART master interface
-                "xilinx.com:interface:uart_rtl:1.0",
-                # EMC_INTF port
-                "xilinx.com:interface:emc_rtl:1.0",
-                # axi_usb2_device ULPI port, for use with USB PHY
-                "xilinx.com:interface:ulpi_rtl:1.0",
-                # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
-                "xilinx.com:interface:icap_rtl:1.0",
-                "xilinx.com:interface:arb_rtl:1.0",
-                # XADC input port
-                "xilinx.com:interface:diff_analog_io_rtl:1.0",
-                # CAN
-                "xilinx.com:interface:can_rtl:1.0",
-                # IIC
-                "xilinx.com:interface:iic_rtl:1.0",
-                # EthernetLite
-                "xilinx.com:interface:mii_rtl:1.0",
-                "xilinx.com:interface:mdio_rtl:1.0",
-                # Quad SPI
-                "xilinx.com:interface:spi_rtl:1.0",
-                "xilinx.com:display_startup_io:startup_io_rtl:1.0",
-                "xilinx.com:interface:startup_rtl:1.0",
-            )
+            if p.protocol.get_type() == NetType.INTERFACE
+            and p.protocol not in self._SPECIALLY_HANDLED_INTERFACES
             and not p.connected
         ]
 
@@ -702,17 +689,17 @@ class RandomDesign:
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "xilinx.com:interface:aximm_rtl:1.0"
+            if p.protocol == Protocol.AXI_MM
             and not p.connected
-            and p.direction == "Master"
+            and p.direction == Direction.OUTPUT
         ]
         slaves = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "xilinx.com:interface:aximm_rtl:1.0"
+            if p.protocol == Protocol.AXI_MM
             and not p.connected
-            and p.direction == "Slave"
+            and p.direction == Direction.INPUT
         ]
 
         if not masters and not slaves:
@@ -737,8 +724,8 @@ class RandomDesign:
             # If we don't have a master, create a top-level master
             master = self._create_external_port(
                 "axi_master",
-                "xilinx.com:interface:aximm_rtl:1.0",
-                "Slave",
+                Protocol.AXI_MM,
+                Direction.INPUT,
                 properties={"CONFIG.PROTOCOL": "AXI4LITE"},
             )
             masters.append(master)
@@ -747,8 +734,8 @@ class RandomDesign:
             # If we don't have a slave, create a top-level slave
             slave = self._create_external_port(
                 "axi_slave",
-                "xilinx.com:interface:aximm_rtl:1.0",
-                "Master",
+                Protocol.AXI_MM,
+                Direction.OUTPUT,
                 properties={"CONFIG.PROTOCOL": "AXI4LITE"},
             )
             slaves.append(slave)
@@ -802,6 +789,7 @@ class RandomDesign:
         self, name, protocol, direction, width=None, properties=None
     ):
         assert isinstance(protocol, Protocol)
+        assert isinstance(direction, Direction)
 
         port = ExternalPort(self, name, protocol, direction, width, properties)
         return port

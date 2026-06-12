@@ -35,19 +35,19 @@ class Axi(IP):
             "clk", Protocol.CLOCK, Direction.INPUT, 1
         ).connect_internal(f"{axi_name}/aclk")
         self._create_hier_pin(
-            "reset", "reset_interconnect", Direction.INPUT, 1
+            "reset", Protocol.RESET_INTERCONNECT, Direction.INPUT, 1
         ).connect_internal(f"{axi_name}/aresetn")
 
         for i in range(num_masters):
             port = self._create_hier_pin(
-                f"AXI_M{i}", "xilinx.com:interface:aximm_rtl:1.0", Direction.INPUT
+                f"AXI_M{i}", Protocol.AXI_MM, Direction.INPUT
             )
             port.connect_internal(f"{axi_name}/S{i:02}_AXI")
             self.port_masters.append(port)
 
         for i in range(num_slaves):
             port = self._create_hier_pin(
-                f"AXI_S{i}", "xilinx.com:interface:aximm_rtl:1.0", Direction.OUTPUT
+                f"AXI_S{i}", Protocol.AXI_MM, Direction.OUTPUT
             )
             port.connect_internal(f"{axi_name}/M{i:02}_AXI")
             self.port_slaves.append(port)

@@ -34,21 +34,23 @@ class Intc(IP):
 
         self.port_clk = self._create_hier_pin("clk", Protocol.CLOCK, Direction.INPUT, 1)
         self.port_clk.connect_internal(f"{intc_name}/s_axi_aclk")
-        self.port_reset = self._create_hier_pin("reset", "reset", Direction.INPUT, 1)
+        self.port_reset = self._create_hier_pin(
+            "reset", Protocol.RESET, Direction.INPUT, 1
+        )
         self.port_reset.connect_internal(f"{intc_name}/s_axi_aresetn")
         self.port_axi = self._create_hier_pin(
             "AXI",
-            "xilinx.com:interface:aximm_rtl:1.0",
+            Protocol.AXI_MM,
             Direction.INPUT,
             addr_segs=[f"{intc_name}/S_AXI/Reg"],
         ).connect_internal(f"{intc_name}/s_axi")
 
         for i in range(num_inputs):
-            port = self._create_hier_pin(f"irq_{i}", "irq", Direction.INPUT, 1)
+            port = self._create_hier_pin(f"irq_{i}", Protocol.IRQ, Direction.INPUT, 1)
             port.connect_internal(f"{concat_name}/In{i}")
             self.input_ports.append(port)
 
         self.port_irq = self._create_hier_pin(
-            "irq", "xilinx.com:interface:mbinterrupt_rtl:1.0", Direction.OUTPUT
+            "irq", Protocol.MB_INTERRUPT, Direction.OUTPUT
         )
         self.port_irq.connect_internal(f"{intc_name}/interrupt")

@@ -73,6 +73,7 @@ class IP:
         self, name, protocol, direction, width=None, *, addr_segs=None
     ):
         assert isinstance(protocol, Protocol)
+        assert isinstance(direction, Direction)
         port = IpPort(self, name, protocol, direction, width=width, addr_segs=addr_segs)
         return port
 

@@ -106,6 +106,11 @@ make vivado
 
 To change the default commands that Vivado runs (i.e. disable synthesis), edit the *run.tcl.mustache* file and remove the lines that you do not want to run.  
 
+## Documentation
+
+- [AXI4-Stream Connection](docs/axi_stream.md) — how RandSoC wires up AXI-Stream
+  IP, including the source/sink assignment algorithm.
+
 ## Supported IP
 
 ### Randomized IP
