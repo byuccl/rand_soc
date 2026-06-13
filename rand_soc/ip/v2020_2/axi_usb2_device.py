@@ -1,6 +1,6 @@
-""" AXI USB2 DEVICE IP """
+"""AXI USB2 DEVICE IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class AxiUsb2Device(IPrandom):

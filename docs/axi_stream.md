@@ -15,9 +15,11 @@ The relevant pieces of the implementation are:
 - **[`utils.py`](../rand_soc/utils.py)** — two supporting helpers:
   `min_subset_sum_by_key()` (subset-sum DP) and `sink_scc_representatives()`
   (strongly-connected-component analysis).
-- **[`ip/axis_broadcaster.py`](../rand_soc/ip/axis_broadcaster.py)** — wraps the
-  Xilinx `axis_broadcaster` IP to fan one source out to multiple sinks.
-- **[`ip/fft.py`](../rand_soc/ip/fft.py)** / [`ip/fft.yaml`](../rand_soc/ip/fft.yaml) —
+- **[`ip/v2020_2/axis_broadcaster.py`](../rand_soc/ip/v2020_2/axis_broadcaster.py)** /
+  **[`ip/v2020_2/axis_combiner.py`](../rand_soc/ip/v2020_2/axis_combiner.py)** — wrap the
+  Xilinx `axis_broadcaster`/`axis_combiner` IP to fan one source out to multiple
+  sinks (1→N) and merge multiple sources into one sink (N→1).
+- **[`ip/v2020_2/fft.py`](../rand_soc/ip/v2020_2/fft.py)** / [`ip/v2020_2/fft.yaml`](../rand_soc/ip/v2020_2/fft.yaml) —
   a multi-port stream IP used to exercise the flow.
 - **[`typedefs.py`](../rand_soc/typedefs.py)** — adds the `AXI_STREAM` protocol and
   the `INTERFACE` net type (vs. plain `WIRE`), since stream ports are bundled

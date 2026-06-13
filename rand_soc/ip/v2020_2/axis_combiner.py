@@ -1,5 +1,5 @@
-from ..typedefs import Direction, Protocol
-from .ip_base import IP
+from rand_soc.typedefs import Direction, Protocol
+from ..ip_base import IP
 
 
 class AxisCombiner(IP):

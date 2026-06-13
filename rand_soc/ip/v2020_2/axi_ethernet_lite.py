@@ -1,6 +1,6 @@
-""" AXI EthernetLite IP """
+"""AXI EthernetLite IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class AxiEthernetLite(IPrandom):

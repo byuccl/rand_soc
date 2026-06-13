@@ -1,6 +1,6 @@
-""" XADC WIZARD IP """
+"""XADC WIZARD IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class XadcWiz(IPrandom):

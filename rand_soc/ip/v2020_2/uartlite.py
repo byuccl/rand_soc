@@ -1,14 +1,14 @@
 """UARTLite IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
-class Fft(IPrandom):
-    """FFT IP class"""
+class Uartlite(IPrandom):
+    """UARTLite IP class"""
 
     @property
     def name(self):
-        return "fft"
+        return "uartlite"
 
     def randomize(self):
         self.load_data_from_yaml(__file__)

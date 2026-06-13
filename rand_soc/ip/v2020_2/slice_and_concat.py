@@ -1,5 +1,5 @@
 from rand_soc.typedefs import Direction
-from .ip_base import IP
+from ..ip_base import IP
 
 
 class SliceAndConcat(IP):

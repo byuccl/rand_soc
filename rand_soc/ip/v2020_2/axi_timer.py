@@ -1,6 +1,6 @@
-""" AXI TIMER IP """
+"""AXI TIMER IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class AxiTimer(IPrandom):

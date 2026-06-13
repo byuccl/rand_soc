@@ -1,6 +1,6 @@
-""" GPIO IP """
+"""GPIO IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class Gpio(IPrandom):

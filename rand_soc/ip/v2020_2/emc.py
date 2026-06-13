@@ -1,8 +1,9 @@
-""" EMC IP """
+"""EMC IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
-class  Emc(IPrandom):
+
+class Emc(IPrandom):
     """EMC IP class"""
 
     def __init__(self, design, name):

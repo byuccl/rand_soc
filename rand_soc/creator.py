@@ -5,42 +5,59 @@ import random
 import sys
 import yaml
 import chevron
+import importlib
 
-from .ip.axis_broadcaster import AxisBroadcaster
-from .ip.axis_combiner import AxisCombiner
-from .port_assigner import port_assigner_axis, port_assigner_random
-from .typedefs import Direction, NetType, Protocol
-from .ip.reset import SystemReset
-from .ip.reduce import Reduce
-from .ip.slice_and_concat import SliceAndConcat
 from .paths import ROOT_PATH
 from .ports import ExternalPort
+from .port_assigner import port_assigner_axis, port_assigner_random
+from .typedefs import Direction, NetType, Protocol
 
-# Manually added IP
-from .ip.axi import Axi
-from .ip.clk_gen import ClkGen
-from .ip.intc import Intc
 
-# Randomly added IP
-# pylint: disable=unused-import
-from .ip.accumulator import Accumulator
-from .ip.axi_cdma import AxiCdma
-from .ip.axi_hwicap import AxiHwicap
-from .ip.axi_timer import AxiTimer
-from .ip.axi_usb2_device import AxiUsb2Device
-from .ip.dft import Dft
-from .ip.uartlite import Uartlite
-from .ip.emc import Emc
-from .ip.gpio import Gpio
-from .ip.microblaze import Microblaze
-from .ip.xadc_wiz import XadcWiz
-from .ip.axi_can import AxiCan
-from .ip.axi_ethernet_lite import AxiEthernetLite
-from .ip.axi_iic import AxiIic
-from .ip.axi_quad_spi import AxiQuadSpi
-from .ip.fft import Fft
-
-# pylint: enable=unused-import
+def import_ip(version, versions):
+    ips = [
+        ("reset", ["SystemReset"]),
+        ("reduce", ["Reduce"]),
+        ("slice_and_concat", ["SliceAndConcat"]),
+        ("accumulator", ["Accumulator"]),
+        ("axi", ["AxiSmartconnect", "AxiInterconnect"]),
+        ("axi_cdma", ["AxiCdma"]),
+        ("axi_hwicap", ["AxiHwicap"]),
+        ("axi_timer", ["AxiTimer"]),
+        ("axi_usb2_device", ["AxiUsb2Device"]),
+        ("clk_gen", ["ClkGen"]),
+        ("dft", ["Dft"]),
+        ("intc", ["Intc"]),
+        ("uartlite", ["Uartlite"]),
+        ("emc", ["Emc"]),
+        ("gpio", ["Gpio"]),
+        ("microblaze", ["Microblaze"]),
+        ("xadc_wiz", ["XadcWiz"]),
+        ("axi_can", ["AxiCan"]),
+        ("axi_ethernet_lite", ["AxiEthernetLite"]),
+        ("axi_iic", ["AxiIic"]),
+        ("axi_quad_spi", ["AxiQuadSpi"]),
+        # AXI Stream IP (axi-stream branch)
+        ("fft", ["Fft"]),
+        ("axis_broadcaster", ["AxisBroadcaster"]),
+        ("axis_combiner", ["AxisCombiner"]),
+    ]
+    versions = versions[versions.index(version) :]
+    for lib, ips in ips:
+        for v in versions:
+            name = f".ip.{v}.{lib}"
+            canonical = f".ip.{lib}"
+            try:
+                module = importlib.import_module(name, __package__)
+                sys.modules[canonical] = module
+                for cls_name in ips:
+                    cls = getattr(module, cls_name, None)
+                    if not cls:
+                        print(f"{cls_name} not found\n")
+                    globals()[cls_name] = cls
+                break
+            except ModuleNotFoundError as e:
+                print(f"import failed: {e}\n")
+                continue
 
 
 class RandomDesign:
@@ -147,6 +164,7 @@ class RandomDesign:
         ip_list = yaml_file["available_ip"]
         for ip in ip_list:
             assert "class" in ip, f"IP {ip} does not have a class"
+            print(ip["class"])
             ip["class"] = getattr(sys.modules[__name__], ip["class"])
         return ip_list
 
@@ -178,9 +196,25 @@ class RandomDesign:
             template = f.read()
 
         creator_yaml = self.get_creator_yaml()
+
+        import_ip(
+            creator_yaml.get("vivado_version", "v2022_2"),
+            ["v2024_2", "v2022_2", "v2020_2"],
+        )
+
         min_ip = creator_yaml["min_ip"]
         max_ip = creator_yaml["max_ip"]
         ip_list = self.get_yaml_available_ip(creator_yaml)
+
+        # Select AXI type
+        axi_type_names = creator_yaml.get("axi_types", ["AxiSmartconnect"])
+        axi_type_map = {
+            "AxiSmartconnect": AxiSmartconnect,
+            "AxiInterconnect": AxiInterconnect,
+        }
+        axi_types = [axi_type_map[name] for name in axi_type_names]
+        self._axi_class = random.choice(axi_types)
+        logging.info(f"AXI type: {self._axi_class.__name__}")
 
         num_ip = random.randint(min_ip, max_ip)
         logging.info("########## Selecting IPs ##########")
@@ -764,13 +798,15 @@ class RandomDesign:
 
         if two_level:
             num_second_level = (len(slaves) + 15) // 16
-            axi_first_level = self._new_ip(Axi, (len(masters), num_second_level))
+            axi_first_level = self._new_ip(
+                self._axi_class, (len(masters), num_second_level)
+            )
             for i, master in enumerate(masters):
                 master.connect(axi_first_level.port_masters[i])
 
             for i in range(num_second_level):
                 num_this_level = min(16, len(slaves) - i * 16)
-                axi_second_level = self._new_ip(Axi, (1, num_this_level))
+                axi_second_level = self._new_ip(self._axi_class, (1, num_this_level))
 
                 # Connect first level to second level
                 axi_first_level.port_slaves[i].connect(axi_second_level.port_masters[0])
@@ -784,7 +820,7 @@ class RandomDesign:
                         # self._assign_bd_addresses(master, slave)
 
         else:
-            axi = self._new_ip(Axi, (len(masters), len(slaves)))
+            axi = self._new_ip(self._axi_class, (len(masters), len(slaves)))
             for i, master in enumerate(masters):
                 master.connect(axi.port_masters[i])
             for i, slave in enumerate(slaves):

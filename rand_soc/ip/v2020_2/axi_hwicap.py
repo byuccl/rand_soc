@@ -1,6 +1,6 @@
-""" AXI HWICAP IP """
+"""AXI HWICAP IP"""
 
-from .ip_base import IPrandom
+from ..ip_base import IPrandom
 
 
 class AxiHwicap(IPrandom):
