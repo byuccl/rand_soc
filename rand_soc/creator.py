@@ -7,6 +7,7 @@ import yaml
 import chevron
 
 from .ip.axis_broadcaster import AxisBroadcaster
+from .ip.axis_combiner import AxisCombiner
 from .port_assigner import port_assigner_axis, port_assigner_random
 from .typedefs import Direction, NetType, Protocol
 from .ip.reset import SystemReset
@@ -311,15 +312,16 @@ class RandomDesign:
             and port.direction == Direction.OUTPUT
         ]
         if not primary_sources:
-            for _ in range(8):
-                primary_sources.append(
-                    self._create_external_port(
-                        f"external_axis_source_{_}",
-                        Protocol.AXI_STREAM,
-                        Direction.INPUT,
-                        width=8,
-                    )
+            # A single external source is enough to seed the network; the
+            # assigner will broadcast it if it needs to drive multiple sinks.
+            primary_sources.append(
+                self._create_external_port(
+                    "external_axis_source",
+                    Protocol.AXI_STREAM,
+                    Direction.INPUT,
+                    width=8,
                 )
+            )
 
         # Make sure we have a sink IP, if not, create an external interface
         # Sink IP have no output AXI Stream ports, only input ports
@@ -639,49 +641,49 @@ class RandomDesign:
             ).connect(port)
 
     def _axi_stream_connector(self, driver_map):
-        """Build AXI Stream connections"""
+        """Build AXI Stream connections.
+
+        ``driver_map`` maps each sink port to a list of source (driver) ports.
+
+        - A driver that feeds more than one sink gets an AXI Stream Broadcaster
+          (1 source -> N sinks); each sink connects to a distinct output.
+        - A sink fed by more than one driver gets an AXI Stream Combiner
+          (N sources -> 1 sink); each driver connects to a distinct input.
+        """
         fanout_degree = defaultdict(int)
         fanout_next_idx = defaultdict(int)
-
-        driver_map_with_fanout_idx = {}
         broadcasters = {}
 
-        # First determine fanout for each driver
+        # Count how many sinks each driver feeds (fanout)
         for in_port, drivers in driver_map.items():
             for driver in drivers:
                 fanout_degree[driver] += 1
 
-        # Now assign fanout index to each driver
-        for in_port, drivers in driver_map.items():
-            driver_list = []
-            for driver in drivers:
-                fanout_idx = None
-                if fanout_degree[driver] > 1:
-                    fanout_idx = fanout_next_idx[driver]
-                    fanout_next_idx[driver] += 1
-                driver_list.append((driver, fanout_idx))
-            driver_map_with_fanout_idx[in_port] = driver_list
-
-        # Now create the AXI Stream broadcasters as needed
-        for port, degree in fanout_degree.items():
+        # Create a broadcaster for each driver that feeds more than one sink
+        for driver, degree in fanout_degree.items():
             if degree > 1:
-                # raise NotImplementedError("AXI Stream broadcasters not yet tested")
-                broadcasters[port] = self._new_ip(AxisBroadcaster, (port, degree))
+                broadcasters[driver] = self._new_ip(AxisBroadcaster, (driver, degree))
 
-        for in_port, drivers in driver_map_with_fanout_idx.items():
+        def source_port_for(driver):
+            """Resolve the port that should actually drive a sink input for this
+            driver, inserting a broadcaster output when the driver fans out."""
+            if fanout_degree[driver] > 1:
+                idx = fanout_next_idx[driver]
+                fanout_next_idx[driver] += 1
+                return broadcasters[driver].get_output_port(idx)
+            return driver
 
-            # in_port.connected = True
-            # for driver, fanout_idx in drivers:
-            #     driver.connected = True
-
-            assert len(drivers) == 1
-            driver = drivers[0][0]
-            broadcast_idx = drivers[0][1]
-
-            if broadcast_idx is None:
-                in_port.connect(driver)
+        for in_port, drivers in driver_map.items():
+            if len(drivers) == 1:
+                # Single driver: connect the sink directly to its (resolved) source
+                in_port.connect(source_port_for(drivers[0]))
             else:
-                in_port.connect(broadcasters[driver].get_output_port(broadcast_idx))
+                # Multiple drivers: merge them into the sink with a combiner
+                combiner = self._new_ip(
+                    AxisCombiner, (in_port, [d.width for d in drivers])
+                )
+                for i, driver in enumerate(drivers):
+                    combiner.get_input_port(i).connect(source_port_for(driver))
 
     def _axi(self):
         """Create AXI ports"""

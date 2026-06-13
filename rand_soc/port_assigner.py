@@ -6,7 +6,11 @@ import networkx as nx
 
 from .ports import IpPort, Port
 from .ip.ip_base import IP
-from .utils import min_subset_sum_by_key, sink_scc_representatives
+from .utils import (
+    max_subset_sum_by_key,
+    min_subset_sum_by_key,
+    sink_scc_representatives,
+)
 
 
 def port_assigner_random(in_ports, out_ports):
@@ -277,57 +281,53 @@ def port_assigner_axis(
         f"AXI Stream Phase 3: Balance sources ({len(unconnected_sources)}) and sinks ({len(unconnected_sinks)})"
     )
 
-    # First, handle the case where we have more sources than sinks
-    connection_made = True
-    while (
-        len(unconnected_sources) > len(unconnected_sinks)
-        and unconnected_sinks
-        and connection_made
-    ):
-        connection_made = False
-        sink_deficit = len(unconnected_sources) - len(unconnected_sinks)
+    # First, handle the case where we have more sources than sinks. We shrink the
+    # surplus by driving a single sink with *multiple* sources (an AXI Stream
+    # Combiner at connection time). Each such combine reduces the surplus by
+    # (group_size - 1), so to make progress we want to pack as MANY surplus
+    # sources into a sink as possible -- the largest width-matched group, not the
+    # smallest. The group is drawn from unconnected sources only; reusing an
+    # already-connected source would not reduce the surplus.
+    while len(unconnected_sources) > len(unconnected_sinks) and unconnected_sinks:
+        surplus = len(unconnected_sources) - len(unconnected_sinks)
 
-        # Look for a sink that can be driven by multiple sources
+        # Prefer the sink we can drive with the largest width-matched group,
+        # without consuming so many sources that we overshoot below balance.
+        best_sink = None
+        best_group = None
         for sink in unconnected_sinks:
-            candidate_sources = min_subset_sum_by_key(
-                all_sources, sink.width, key=lambda x: x.width
+            group = max_subset_sum_by_key(
+                unconnected_sources, sink.width, key=lambda p: p.width
             )
-            if not candidate_sources:
+            if not group or len(group) < 2:
                 continue
-            # Check how many of the candidate sources are unconnected, and don't make the connection
-            # if it will drop the number of unconnected sources below the number of unconnected sinks
-            num_unconnected_candidate_sources = len(
-                [s for s in candidate_sources if s in unconnected_sources]
-            )
-            if num_unconnected_candidate_sources > sink_deficit:
+            if len(group) - 1 > surplus:
                 continue
+            if best_group is None or len(group) > len(best_group):
+                best_sink, best_group = sink, group
 
+        if best_group is not None:
+            sink, group = best_sink, best_group
             logging.info(
-                f"+ Perfectly driving {sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
+                f"+ Width-matched combine of {sink.hier_name_w} from "
+                f"{', '.join(s.hier_name_w for s in group)}"
             )
-            connection_made = True
-
-        if not connection_made:
-            # If no sink can be driven perfectly by multiple sources, then we will just randomly connect
-            # multiple sources to a sink
-            if len(unconnected_sinks) == 1:
-                num_sources = sink_deficit + 1
-            else:
-                num_sources = random.randint(2, sink_deficit + 1)
-            candidate_sources = random.sample(list(unconnected_sources), num_sources)
+        else:
+            # No clean width-matched group available; force a combine and let a
+            # width converter absorb the mismatch. Consume enough sources to make
+            # progress toward balance without overshooting it.
             sink = random.choice(list(unconnected_sinks))
+            num_sources = min(surplus + 1, len(unconnected_sources))
+            group = random.sample(list(unconnected_sources), num_sources)
             logging.info(
-                f"- No perfect multi-source sink found, randomly driving {sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
+                f"- Width-mismatched combine of {sink.hier_name_w} from "
+                f"{', '.join(s.hier_name_w for s in group)}"
             )
-            connection_made = True
 
-        connections[sink] = candidate_sources
+        connections[sink] = group
         unconnected_sinks.remove(sink)
-        for s in candidate_sources:
-            if s in unconnected_sources:
-                unconnected_sources.remove(s)
-
-    assert len(unconnected_sources) >= len(unconnected_sinks)
+        for s in group:
+            unconnected_sources.remove(s)
 
     # Next, handle the case where we have more sinks than sources
     while len(unconnected_sinks) > len(unconnected_sources):
@@ -376,7 +376,7 @@ def port_assigner_axis(
                 f"+ Matching width found to drive {sink.hier_name_w} by {source.hier_name_w}"
             )
         else:
-            source = random.choice(unconnected_sources)
+            source = random.choice(list(unconnected_sources))
             logging.info(
                 f"- No matching width found, randomly driving {sink.hier_name_w} by {source.hier_name_w}"
             )

@@ -105,6 +105,67 @@ def min_subset_sum_by_key(
     return res
 
 
+def max_subset_sum_by_key(
+    items: Iterable[Any],
+    target: int,
+    key: Callable[[Any], int],
+) -> Optional[List[Any]]:
+    """
+    Return a maximal-cardinality subset of `items` whose key-summed value equals `target`.
+
+    This is the counterpart to `min_subset_sum_by_key`: same exact-sum constraint,
+    but it returns the subset using the *most* elements rather than the fewest.
+    It is used when balancing an AXI Stream source surplus, where the goal is to
+    pack as many sources as possible into a single (width-matched) sink.
+
+    Each item is unique by index. Only non-negative integer key values are supported.
+
+    Returns
+    -------
+    list[Any] | None
+        A list of objects that sum to `target` with the most elements, or None if
+        impossible. Returns [] when target == 0.
+
+    Complexity
+    ----------
+    Time  : O(n * target)
+    Space : O(target)
+    """
+
+    objs = list(items)
+    vals = []
+    for o in objs:
+        v = key(o)
+        if not isinstance(v, int) or v < 0:
+            raise ValueError("key(obj) must return a non-negative integer.")
+        vals.append(v)
+
+    # dp[s] = maximal count of items to reach sum s (-1 = unreachable)
+    dp = [-1] * (target + 1)
+    prev = [None] * (target + 1)
+    dp[0] = 0
+
+    # 0-1 knapsack transition, sums iterated downward to avoid reusing an item.
+    for i, a in enumerate(vals):
+        if a == 0 or a > target:
+            continue
+        for s in range(target - a, -1, -1):
+            if dp[s] != -1 and dp[s] + 1 > dp[s + a]:
+                dp[s + a] = dp[s] + 1
+                prev[s + a] = (s, i)
+
+    if dp[target] == -1:
+        return None
+
+    res, s = [], target
+    while s:
+        ps, i = prev[s]
+        res.append(objs[i])
+        s = ps
+    res.reverse()
+    return res
+
+
 def sink_scc_representatives(G):
     """
     Return one representative node from each sink SCC in a directed graph G.
