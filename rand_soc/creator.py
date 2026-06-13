@@ -46,9 +46,15 @@ from .ip.fft import Fft
 class RandomDesign:
     """Creates a random design"""
 
-    def __init__(self, output_dir_path, config_path=None, seed=None, part=None):
+    def __init__(
+        self, output_dir_path, config_path=None, seed=None, part=None, synthesize=True
+    ):
         if config_path is None:
             config_path = ROOT_PATH / "creator.yaml"
+
+        # When False, the generated Tcl stops after the block design is built and
+        # validated, skipping synthesis (fast Vivado check of the design itself).
+        self.synthesize = synthesize
 
         # Enable logging
         self._output_dir_path = pathlib.Path(output_dir_path).resolve()
@@ -161,6 +167,7 @@ class RandomDesign:
             "edif_path": "viv_synth.edf",
             "top": "bd_design_wrapper",
             "io_report_path": "report_io.txt",
+            "synthesize": self.synthesize,
         }
 
         # env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
