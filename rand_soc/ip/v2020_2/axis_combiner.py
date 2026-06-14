@@ -50,12 +50,17 @@ class AxisCombiner(IP):
             )
             self.axi_in_ports[i].connect_internal(f"{axis_combiner_name}/S{i:02d}_AXIS")
 
-        # AXI Out Port (drives the sink)
+        # AXI Out Port: the combiner concatenates its inputs, so its true width is
+        # the sum of the combined widths. The caller wires this to the sink
+        # (through a width converter when needed) rather than connecting here, so
+        # the output leg gets the same converter handling as every other leg.
         self.axi_out = self._create_hier_pin(
-            "M_AXIS", Protocol.AXI_STREAM, Direction.OUTPUT, width=self.port_sink.width
+            "M_AXIS",
+            Protocol.AXI_STREAM,
+            Direction.OUTPUT,
+            width=sum(self.source_widths),
         )
         self.axi_out.connect_internal(f"{axis_combiner_name}/M_AXIS")
-        self.axi_out.connect(self.port_sink)
 
     def get_input_port(self, idx):
         return self.axi_in_ports[idx]

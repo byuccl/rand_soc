@@ -22,6 +22,7 @@ def import_ip(version, versions):
         ("accumulator", ["Accumulator"]),
         ("axi", ["AxiSmartconnect", "AxiInterconnect"]),
         ("axi_cdma", ["AxiCdma"]),
+        ("axi_dma", ["AxiDma"]),
         ("axi_hwicap", ["AxiHwicap"]),
         ("axi_timer", ["AxiTimer"]),
         ("axi_usb2_device", ["AxiUsb2Device"]),
@@ -772,6 +773,10 @@ class RandomDesign:
                     self._connect_axis(
                         source_port_for(driver), combiner.get_input_port(i)
                     )
+                # Drive the sink from the combined (summed-width) output, going
+                # through _connect_axis so a strict sink gets a forced converter
+                # when the concatenated width differs from the sink width.
+                self._connect_axis(combiner.axi_out, in_port)
 
     def _want_converter(self, policy):
         """Whether to insert a width converter for a candidate (mismatched)
@@ -797,7 +802,13 @@ class RandomDesign:
             out_bytes = math.ceil(sink.width / 8)
             lo, hi = sorted((in_bytes, out_bytes))
             ratio_ok = lo > 0 and hi % lo == 0
-            if ratio_ok and self._want_converter(policy):
+            # A strict-width sink (e.g. an AXI DMA stream slave) hard-errors if a
+            # mismatched width propagates onto it, so always insert a converter
+            # there -- even when the byte ratio is non-integer (the Xilinx
+            # converter may reject it; we want to observe that). For non-strict
+            # sinks the converter is optional (random policy) and only attempted
+            # when the byte ratio is integer.
+            if sink.strict_width or (ratio_ok and self._want_converter(policy)):
                 conv = self._new_ip(
                     AxisDwidthConverter, (source.width, sink.width)
                 )

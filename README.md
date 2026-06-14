@@ -63,6 +63,7 @@ reference live in the documentation below.
 |`Accumulator` | Xilinx *Accumulator* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/accumulator.html>) | Full configuration space |
 |`AxiCan` | Xilinx *AXI CAN* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_can.html>) | Full configuration space, but untested as a separate license is required. |
 |`AxiCdma` | Xilinx *AXI AXI Central DMA Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_central_dma.html>) | Full configuration space |
+|`AxiDma` | Xilinx *AXI Direct Memory Access* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_dma.html>) | Full configuration space (SG/direct/Micro/multichannel, MM2S+S2MM, control/status streams) |
 |`AxiEthernetLite` | Xilinx *AXI Ethernet Lite* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_ethernetlite.html>) | Full configuration space |
 |`AxiHwicap` | Xilinx *AXI Hardware ICAP* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_hwicap.html>) | Full configuration space |
 |`AxiIic` | Xilinx *AXI IIC Bus Interface* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_iic.html>) | Full configuration space |

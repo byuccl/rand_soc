@@ -23,12 +23,22 @@ class Port:
 
         self.connected = False
 
+        # When True, a connector driving this sink must deliver an exact width
+        # (forcing a width converter), rather than letting an upstream width
+        # propagate. Set on IP slave ports that strictly validate TDATA width
+        # (e.g. the AXI DMA stream slaves); the lenient default is False.
+        self.strict_width = False
+
 
 class IpPort(Port):
     """IP Port"""
 
-    def __init__(self, ip, name, protocol, direction, *, width=None, addr_segs=None):
+    def __init__(
+        self, ip, name, protocol, direction, *, width=None, addr_segs=None,
+        strict_width=False,
+    ):
         super().__init__(name, protocol, direction, width)
+        self.strict_width = strict_width
         self.ip = ip
         self.ip.ports.append(self)
 

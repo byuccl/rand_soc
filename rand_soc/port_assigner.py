@@ -351,6 +351,21 @@ def port_assigner_axis(
         for s in group:
             unconnected_sources.remove(s)
 
+    # Symmetric to the sinks>sources case below (which reuses already-connected
+    # sources as broadcasters): if a net source surplus remains but every sink is
+    # already connected, reuse an already-connected, cross-IP sink, turning it
+    # into a combiner. Without this a source-heavy design (e.g. several read-only
+    # DMAs) strands a source and fails the Phase 4 balance assertion.
+    while unconnected_sources and not unconnected_sinks:
+        source = unconnected_sources.pop()
+        connected_sinks = [s for s in connections if not _same_ip(source, s)]
+        sink = random.choice(connected_sinks or list(connections))
+        connections[sink].append(source)
+        logging.info(
+            f"+ Combining surplus source {source.hier_name_w} into "
+            f"already-connected sink {sink.hier_name_w}"
+        )
+
     # Next, handle the case where we have more sinks than sources. Extra sinks are
     # driven by reusing an already-connected source (a broadcaster), never a
     # source on the sink's own IP.

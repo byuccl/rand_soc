@@ -70,11 +70,19 @@ class IP:
         self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
 
     def _create_hier_pin(
-        self, name, protocol, direction, width=None, *, addr_segs=None
+        self, name, protocol, direction, width=None, *, addr_segs=None, strict_width=False
     ):
         assert isinstance(protocol, Protocol)
         assert isinstance(direction, Direction)
-        port = IpPort(self, name, protocol, direction, width=width, addr_segs=addr_segs)
+        port = IpPort(
+            self,
+            name,
+            protocol,
+            direction,
+            width=width,
+            addr_segs=addr_segs,
+            strict_width=strict_width,
+        )
         return port
 
     def _connect_internal_pins_interface(self, instance_pin_a, instance_pin_b):
@@ -173,6 +181,7 @@ class IPrandom(IP):
                         addr_segs=[
                             f"{ip_id}/{a}" for a in port_props.get("addr_segs", [])
                         ],
+                        strict_width=port_props.get("strict_width", False),
                     ).connect_internal(port_props["connections"])
 
                     if "clk_pins" in port_props:
@@ -323,6 +332,7 @@ class IPrandom(IP):
             port["protocol"] = item["protocol"]
             port["direction"] = item["direction"]
             port["connections"] = item["connections"]
+            port["strict_width"] = item.get("strict_width", False)
             if "width" in item:
                 port["width"] = eval(str(item["width"]), None, self.config_vars)
             if "clk_pins" in item:
