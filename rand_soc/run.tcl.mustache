@@ -1,3 +1,12 @@
+# Verify the running Vivado matches the version this design was built for. IP
+# VLNVs are version-specific, so a mismatch otherwise produces cryptic
+# "IP definition not found" errors instead of a clear message.
+set expected_vivado_version "{{ vivado_version }}"
+set actual_vivado_version [version -short]
+if {$actual_vivado_version ne $expected_vivado_version} {
+    error "RANDSOC: design built for Vivado $expected_vivado_version but running $actual_vivado_version. Set vivado_version in the config to match your Vivado, or run with the matching Vivado."
+}
+
 create_project test ./test -part {{ part }} -force
 
 create_bd_design {{ bd_name }}

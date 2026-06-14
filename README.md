@@ -25,92 +25,35 @@ The virtual environment will be created in the `.venv` directory.  To activate t
 source .venv/bin/activate
 ```
 
-## Usage Instructions
-
-RandSoC can be run from the command line using the provided `main.py` script: 
-
-```b
-usage: main.py [-h] [--seed SEED] [--part PART] output_dir_path config_path
-
-positional arguments:
-  output_dir_path  Output directory path
-  config_path      Path of rand_soc creator yaml
-
-options:
-  -h, --help       show this help message and exit
-  --seed SEED      Random seed
-  --part PART      Xilinx part name
-```
-
-Alternatively you can run it directly from Python:
-
-```python
-from rand_soc.creator import RandomDesign
-
-design = RandomDesign(output_dir_path, config_path, seed, part)
-
-# Create the design internally
-design.create()
-
-# Write the design out to the output directory
-design.write()
-```
-
-### YAML configuration file
-The design randomization process is controlled by a YAML configuration file.  A default configuration file is provided as `default_config.yaml`.  This file contains:
-```yaml
-available_ip:
-  - class: Accumulator
-  - class: AxiCdma
-  - class: AxiHwicap
-    max: 1
-  - class: AxiTimer
-  - class: Dft
-  - class: Emc
-  - class: Gpio
-  - class: Microblaze
-  - class: Uartlite
-  - class: XadcWiz
-    max: 1
-  - class: AxiEthernetLite
-  - class: AxiIic
-  - class: AxiQuadSpi
-
-
-min_ip: 3
-max_ip: 18
-```
-
-* `available_ip` is a list of the available IP blocks that can be used in the design.  Each entry in the list is a dictionary with the following keys:
-  * `class`: The class name of the IP block.  This should match the class name in the Python code for each IP type.  These python classes are located in the `rand_soc/ip` directory.
-  * `max`: The maximum number of instances of this IP block that can be used in the design.  This is optional.
-* `min_ip`: The minimum number of IP blocks that will be used in the design.
-* `max_ip`: The maximum number of IP blocks that will be used in the design.
-* `axi_types`: A list of AXI interconnect class names to use.  Possible values are `AxiSmartconnect` and `AxiInterconnect`.  If not provided, defaults to `[AxiSmartconnect]`.  If both are listed, the tool will randomly select one to use for the entire design.
-
-When the design is created, the tool will randomly select a number of IP blocks between `min_ip` and `max_ip`, and then randomly select the IP blocks from the `available_ip` list.  The IP blocks are selected with replacement, so it is possible to have multiple instances of the same IP block in the design. 
-
-Additional IP will be added to the project in order to complete the design connectivity.  Currently this includes a clock generator, AXI interconnect, and AXI interrupt controller.  These IP blocks are not included in the initial selection process, so the total number of IP blocks in the design may be greater than `max_ip` after the design is created.
-
-### Running in Vivado
-When run, the tool will create a *design.tcl* file in the output directory.  This file can be run in Vivado to create the design, and perform synthesis to generate a netlist.  To do this, run the following command:
+## Quickstart
 
 ```bash
-vivado -source design.tcl
+make env                                       # one-time: create .venv, install deps
+make run CONFIG=default_config.yaml SEED=0     # generate ./temp/design.tcl
+make vivado                                    # build temp/design.tcl in Vivado
 ```
 
-Alternatively, the provided `Makefile` can be used to run the design in Vivado.  To do this, run the following command:
+A design is produced from a YAML config (which IP, how many, Vivado version,
+interconnect strategy) plus a random seed; the same config + seed + part is fully
+reproducible. The tool randomly selects between `min_ip` and `max_ip` blocks from
+the config's `available_ip` (with replacement) and adds whatever infrastructure
+IP (clock, interconnect, interrupt controller, stream adapters, …) is needed to
+complete connectivity.
 
-```bash
-make vivado
-```
-
-To change the default commands that Vivado runs (i.e. disable synthesis), edit the *run.tcl.mustache* file and remove the lines that you do not want to run.  
+The full CLI, the `RandomDesign` Python API, the Makefile targets (`run`,
+`run-bd`, `vivado`, `smoke`, `vivado-test`, …), and the configuration-file
+reference live in the documentation below.
 
 ## Documentation
 
+- [Documentation index](docs/index.md) — tool overview, how to run (CLI, Python,
+  Makefile targets), and an architecture walkthrough.
+- [Configuration File Reference](docs/config.md) — every key the config YAML
+  accepts (IP selection, Vivado version, AXI no-master strategy, AXIS converters).
 - [AXI4-Stream Connection](docs/axi_stream.md) — how RandSoC wires up AXI-Stream
-  IP, including the source/sink assignment algorithm.
+  IP, including the source/sink assignment algorithm and width converters.
+- [Adding and Defining IP](docs/ip.md) — the IP YAML schema and how to add a new
+  IP block.
 
 ## Supported IP
 
@@ -141,35 +84,8 @@ To change the default commands that Vivado runs (i.e. disable synthesis), edit t
 |`ClkGen` | Xilinx *Clocking Wizard* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/clocking_wizard.html>) |
 |`Intc` | Xilinx *AXI Interrupt Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_intc.html>) |
 
-## IP Configurations
+## Adding new IP
 
-New IP can be added by adding:
-1. A new Python class in the `rand_soc/ip` directory.  Example of the `Gpio` class is provided:
-```python
-from .ip_base import IPrandom
-
-class Gpio(IPrandom):
-    @property
-    def name(self):
-        return "gpio"
-
-    def randomize(self):
-        self.load_data_from_yaml(__file__)
-```
-1. An associated YAML configuration file in the `rand_soc/ip` directory.  This should be named the same as the Python class, but with a `.yaml` extension.  This should contain a list of IP that should be instantiated as part of this logical IP.  Typically this is only one IP, but it can be multiple.  For example, as part of the `Microblaze` IP, the Xilinx Microblaze IP is instantiated, but also the necessary memory blocks that are required as part of the processor.  Each entry in the YAML file should contain:
-* `id`: A unique identifier for the IP block.  Example: `"gpio_0"`
-* `definition`: The definition of the IP block.  Example: `"xilinx.com:ip:axi_gpio:2.0"`
-* `configuration`: A list of configuration parameters for the IP block.  Each item should have:
-    * `name`: The name of the configuration parameter.  Example: `"C_GPIO_WIDTH"`
-    * `internal`: A boolean indicating if the parameter is internal to the RandSoC tool, or whether it should be passed to the IP block in Vivado.
-    * `values`: A list of possible values for the parameter.  Example: `["I", "O", "IO"]`
-    * `values_eval`: An alternative list of possible values for the parameter, but evaluated by the tool, with Python functions, other configuration values, and some helper functions available.  Example: `range(1,33)` and `"[0, all_ones(C_GPIO_WIDTH), randintwidth(C_GPIO_WIDTH)]"`
-    * `enable`: An evaluated boolean expression that determines if the parameter should be included in the design.  Example: `"C_IS_DUAL and (direction == 'I')"`
-    * `format`: The format of the parameter.  Example: `hex`
-* `ports`: A list of ports for the IP block.  This is used to expose ports of the instanced IP to the rest of the design.  Each entry should contain:
-    * `name`: The name of the port.  Example: `GPIO2`
-    * `protocol`: This can be a Xilinx-defined protocol (e.g. `xilinx.com:interface:gpio_rtl:1.0`), or a RandSoC-defined protocol (`clk`, `reset`, `irq`, `data`, `control`)
-    * `direction`: The direction of the port. `I` or `O` for non-interface ports, `Master` or `Slave` for interface ports.
-    * `width`: The width of the port.  Only applicable for non-interface ports.
-    * `connections`: A list of instanced IP ports that this port connects to.  Example: `gpio_0/GPIO2`
-```yaml
+New IP is defined by a small Python class plus a YAML file describing the inner
+Xilinx IP, its randomizable parameters, and ports. See
+[Adding and Defining IP](docs/ip.md) for the full schema and a worked example.

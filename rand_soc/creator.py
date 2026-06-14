@@ -1,5 +1,6 @@
 from collections import defaultdict
 import logging
+import math
 import pathlib
 import random
 import sys
@@ -36,10 +37,12 @@ def import_ip(version, versions):
         ("axi_ethernet_lite", ["AxiEthernetLite"]),
         ("axi_iic", ["AxiIic"]),
         ("axi_quad_spi", ["AxiQuadSpi"]),
+        ("jtag_axi", ["JtagAxi"]),
         # AXI Stream IP (axi-stream branch)
         ("fft", ["Fft"]),
         ("axis_broadcaster", ["AxisBroadcaster"]),
         ("axis_combiner", ["AxisCombiner"]),
+        ("axis_dwidth_converter", ["AxisDwidthConverter"]),
     ]
     versions = versions[versions.index(version) :]
     for lib, ips in ips:
@@ -113,6 +116,11 @@ class RandomDesign:
         self._reset_inst = None
         self._clk_wiz_inst = None
         self._randomized_signal_drivers = {}
+
+        # Config-driven strategy knobs (populated from the config in create()).
+        self._axi_mm_no_master = ["external"]
+        self._axis_io_conv = "random"
+        self._axis_internal_conv = "random"
 
     def write(self):
         """Write the design tcl and impl_constraints tcl to files"""
@@ -197,9 +205,43 @@ class RandomDesign:
 
         creator_yaml = self.get_creator_yaml()
 
+        vivado_version = creator_yaml.get("vivado_version", "v2022_2")
         import_ip(
-            creator_yaml.get("vivado_version", "v2022_2"),
+            vivado_version,
             ["v2024_2", "v2022_2", "v2020_2"],
+        )
+        # Vivado version this design targets (e.g. "v2024_2" -> "2024.2"); the
+        # generated Tcl checks the running Vivado matches, since IP VLNVs are
+        # version-specific and a mismatch otherwise yields cryptic errors.
+        project_config["vivado_version"] = vivado_version.lstrip("v").replace("_", ".")
+
+        # AXI-MM no-master strategy: when a design has no internal AXI master, one
+        # of these options is chosen at random to provide one. "external" brings a
+        # top-level AXI port to package pins (default/legacy); "jtag" instances a
+        # pin-free JTAG-to-AXI master. Default is external-only.
+        self._axi_mm_no_master = creator_yaml.get("axi_mm", {}).get(
+            "no_master", ["external"]
+        )
+
+        # AXIS data-width-converter policies. "yes" inserts a converter on every
+        # width mismatch, "no" never does, "random" decides per connection. YAML
+        # parses bare yes/no as booleans, so normalize those back to strings.
+        def _norm_conv_policy(value):
+            if value is True:
+                return "yes"
+            if value is False:
+                return "no"
+            assert value in ("yes", "no", "random"), (
+                f"axi_stream converter policy must be yes/no/random, got {value!r}"
+            )
+            return value
+
+        axi_stream_cfg = creator_yaml.get("axi_stream") or {}
+        self._axis_io_conv = _norm_conv_policy(
+            axi_stream_cfg.get("io_converters", "random")
+        )
+        self._axis_internal_conv = _norm_conv_policy(
+            axi_stream_cfg.get("internal_converters", "random")
         )
 
         min_ip = creator_yaml["min_ip"]
@@ -716,15 +758,63 @@ class RandomDesign:
 
         for in_port, drivers in driver_map.items():
             if len(drivers) == 1:
-                # Single driver: connect the sink directly to its (resolved) source
-                in_port.connect(source_port_for(drivers[0]))
+                # Single driver: connect the sink to its (resolved) source,
+                # inserting a width converter if needed.
+                self._connect_axis(source_port_for(drivers[0]), in_port)
             else:
-                # Multiple drivers: merge them into the sink with a combiner
+                # Multiple drivers: merge them into the sink with a combiner. Each
+                # combiner input is created at its driver's width, so no converter
+                # is needed on these legs.
                 combiner = self._new_ip(
                     AxisCombiner, (in_port, [d.width for d in drivers])
                 )
                 for i, driver in enumerate(drivers):
-                    combiner.get_input_port(i).connect(source_port_for(driver))
+                    self._connect_axis(
+                        source_port_for(driver), combiner.get_input_port(i)
+                    )
+
+    def _want_converter(self, policy):
+        """Whether to insert a width converter for a candidate (mismatched)
+        connection, given the policy ('yes' | 'no' | 'random')."""
+        if policy == "yes":
+            return True
+        if policy == "no":
+            return False
+        return random.random() < 0.5  # "random"
+
+    def _connect_axis(self, source, sink):
+        """Connect an AXIS ``source`` to a ``sink``, inserting an AXI Stream data
+        width converter when their widths differ and the configured policy asks
+        for one. The policy is the I/O policy when either endpoint is an external
+        port, otherwise the internal policy. A converter is only feasible when the
+        TDATA byte widths have an integer ratio (the Xilinx converter is a byte
+        gearbox); otherwise the ports are connected directly."""
+        is_io = isinstance(source, ExternalPort) or isinstance(sink, ExternalPort)
+        policy = self._axis_io_conv if is_io else self._axis_internal_conv
+
+        if source.width != sink.width:
+            in_bytes = math.ceil(source.width / 8)
+            out_bytes = math.ceil(sink.width / 8)
+            lo, hi = sorted((in_bytes, out_bytes))
+            ratio_ok = lo > 0 and hi % lo == 0
+            if ratio_ok and self._want_converter(policy):
+                conv = self._new_ip(
+                    AxisDwidthConverter, (source.width, sink.width)
+                )
+                self._wire_axis(source, conv.axi_in)
+                self._wire_axis(conv.axi_out, sink)
+                return
+
+        self._wire_axis(source, sink)
+
+    @staticmethod
+    def _wire_axis(source, sink):
+        """Make a single AXIS connection from ``source`` to ``sink``.
+
+        ``sink.connect(source)`` works for every supported case: an IpPort sink
+        delegates external sources correctly, and an ExternalPort sink accepts an
+        IpPort source (source/sink are never both external)."""
+        sink.connect(source)
 
     def _axi(self):
         """Create AXI ports"""
@@ -764,14 +854,29 @@ class RandomDesign:
 
         self._bd_tcl += "\n########## AXI ##########\n"
         if not masters:
-            # If we don't have a master, create a top-level master
-            master = self._create_external_port(
-                "axi_master",
-                Protocol.AXI_MM,
-                Direction.INPUT,
-                properties={"CONFIG.PROTOCOL": "AXI4LITE"},
-            )
-            masters.append(master)
+            # No internal AXI master: provide one per the configured strategy.
+            choice = random.choice(self._axi_mm_no_master)
+            logging.info(f"No AXI master; using '{choice}' no-master strategy")
+            if choice == "jtag":
+                # Pin-free JTAG-to-AXI master (no top-level AXI bus on the pins).
+                # Its address space is mapped by the template's global
+                # assign_bd_address (run before validate_bd_design).
+                jtag = self._new_ip(JtagAxi)
+                masters.append(jtag.master_port)
+            elif choice == "external":
+                # Top-level AXI master port (legacy behavior).
+                master = self._create_external_port(
+                    "axi_master",
+                    Protocol.AXI_MM,
+                    Direction.INPUT,
+                    properties={"CONFIG.PROTOCOL": "AXI4LITE"},
+                )
+                masters.append(master)
+            else:
+                raise ValueError(
+                    f"Unknown axi_mm.no_master option: {choice!r} "
+                    "(expected 'external' or 'jtag')"
+                )
 
         if not slaves:
             # If we don't have a slave, create a top-level slave

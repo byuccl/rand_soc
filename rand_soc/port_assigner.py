@@ -113,6 +113,15 @@ def port_assigner_random(in_ports, out_ports):
     return drivers_for_port
 
 
+def _same_ip(source, sink):
+    """True if a source and sink belong to the same IP (i.e. a self-loop)."""
+    return (
+        isinstance(source, IpPort)
+        and isinstance(sink, IpPort)
+        and source.ip is sink.ip
+    )
+
+
 def port_assigner_axis(
     primary_sources: List[Port],
     primary_sinks: List[Port],
@@ -196,6 +205,10 @@ def port_assigner_axis(
     # Build a directed graph of IP to IP AXI stream connections, and use it to find
     # a minimal set of IP that need to drive sinks to ensure all IP can reach a sink.
     G = nx.DiGraph()
+    # Include every internal IP as a node -- an IP connected only via an external
+    # source adds no IP->IP edge, but its master still must reach a sink. Without
+    # this it would be missed here and later forced to drive its own slave.
+    G.add_nodes_from(internal_ip)
     for sink_port, source_ports in connections.items():
         for source_port in source_ports:
             if isinstance(source_port, IpPort):
@@ -293,12 +306,12 @@ def port_assigner_axis(
 
         # Prefer the sink we can drive with the largest width-matched group,
         # without consuming so many sources that we overshoot below balance.
+        # Candidate sources for a sink never include sources on its own IP.
         best_sink = None
         best_group = None
         for sink in unconnected_sinks:
-            group = max_subset_sum_by_key(
-                unconnected_sources, sink.width, key=lambda p: p.width
-            )
+            pool = [s for s in unconnected_sources if not _same_ip(s, sink)]
+            group = max_subset_sum_by_key(pool, sink.width, key=lambda p: p.width)
             if not group or len(group) < 2:
                 continue
             if len(group) - 1 > surplus:
@@ -313,12 +326,21 @@ def port_assigner_axis(
                 f"{', '.join(s.hier_name_w for s in group)}"
             )
         else:
-            # No clean width-matched group available; force a combine and let a
-            # width converter absorb the mismatch. Consume enough sources to make
-            # progress toward balance without overshooting it.
-            sink = random.choice(list(unconnected_sinks))
-            num_sources = min(surplus + 1, len(unconnected_sources))
-            group = random.sample(list(unconnected_sources), num_sources)
+            # No clean width-matched group available; force a combine from this
+            # sink's cross-IP sources and let a width converter absorb the
+            # mismatch. Consume enough sources to make progress without
+            # overshooting balance.
+            sink = random.choice(
+                [
+                    k
+                    for k in unconnected_sinks
+                    if any(not _same_ip(s, k) for s in unconnected_sources)
+                ]
+                or list(unconnected_sinks)
+            )
+            pool = [s for s in unconnected_sources if not _same_ip(s, sink)]
+            num_sources = min(surplus + 1, len(pool))
+            group = random.sample(pool, max(num_sources, 1)) if pool else []
             logging.info(
                 f"- Width-mismatched combine of {sink.hier_name_w} from "
                 f"{', '.join(s.hier_name_w for s in group)}"
@@ -329,34 +351,38 @@ def port_assigner_axis(
         for s in group:
             unconnected_sources.remove(s)
 
-    # Next, handle the case where we have more sinks than sources
+    # Next, handle the case where we have more sinks than sources. Extra sinks are
+    # driven by reusing an already-connected source (a broadcaster), never a
+    # source on the sink's own IP.
     while len(unconnected_sinks) > len(unconnected_sources):
-        source_deficit = len(unconnected_sinks) - len(unconnected_sources)
         connected_sources = list(set(all_sources) - set(unconnected_sources))
 
+        chosen_sink = None
+        candidate_sources = None
         for sink in unconnected_sinks:
+            pool = [s for s in connected_sources if not _same_ip(s, sink)]
             candidate_sources = min_subset_sum_by_key(
-                connected_sources,
-                sink.width,
-                key=lambda x: x.width,
+                pool, sink.width, key=lambda x: x.width
             )
             if candidate_sources:
+                chosen_sink = sink
                 logging.info(
                     f"+ Perfectly driving {sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
                 )
                 break
 
-        if not candidate_sources:
-            # If no set of sources can perfectly drive a sink, then we will just randomly connect
-            # a source to a sink and add a width converter later
-            candidate_sources = [random.choice(list(connected_sources))]
-            sink = random.choice(list(unconnected_sinks))
+        if candidate_sources is None:
+            # No clean width-matched reuse; drive a sink from one of its cross-IP
+            # connected sources and add a width converter later.
+            chosen_sink = random.choice(list(unconnected_sinks))
+            pool = [s for s in connected_sources if not _same_ip(s, chosen_sink)]
+            candidate_sources = [random.choice(pool or connected_sources)]
             logging.info(
-                f"- No perfect multi-source sink found, randomly driving {sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
+                f"- No perfect multi-source sink found, randomly driving {chosen_sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
             )
 
-        connections[sink] = candidate_sources
-        unconnected_sinks.remove(sink)
+        connections[chosen_sink] = candidate_sources
+        unconnected_sinks.remove(chosen_sink)
 
     # At this point, the number of unconnected sources and sinks should be equal, try and connect them
     # one-by-one, matching widths where possible, otherwise randomly.
@@ -368,15 +394,21 @@ def port_assigner_axis(
     ), f"Unconnected sources ({len(unconnected_sources)}) and sinks ({len(unconnected_sinks)}) should be equal"
     while unconnected_sinks:
         sink = unconnected_sinks.pop()
-        # Look for a source with matching width
-        matches = [port for port in unconnected_sources if port.width == sink.width]
+        # Never drive a sink from a source on its own IP (no self-loops). Phase 2
+        # routes every IP's master to a sink, so a cross-IP source should always
+        # remain here; fall back (with a warning) only if that ever fails.
+        candidates = [s for s in unconnected_sources if not _same_ip(s, sink)]
+        if not candidates:
+            logging.warning(f"  no cross-IP source available for {sink.hier_name_w}")
+            candidates = list(unconnected_sources)
+        matches = [s for s in candidates if s.width == sink.width]
         if matches:
             source = random.choice(matches)
             logging.info(
                 f"+ Matching width found to drive {sink.hier_name_w} by {source.hier_name_w}"
             )
         else:
-            source = random.choice(list(unconnected_sources))
+            source = random.choice(candidates)
             logging.info(
                 f"- No matching width found, randomly driving {sink.hier_name_w} by {source.hier_name_w}"
             )
