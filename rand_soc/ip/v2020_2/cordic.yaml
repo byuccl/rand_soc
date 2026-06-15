@@ -201,15 +201,17 @@
   # Each TDATA field is padded up to a byte boundary, then the fields are
   # concatenated. CARTESIAN carries X (+Y for everything but Square_Root).
   # CORDIC's input interfaces carry per-field metadata (xn_re/xn_im, phase) that
-  # Vivado type-checks, so a foreign-width stream must never land directly on them
-  # -- strict_width forces a width converter to normalise it first (as the AXI DMA
-  # stream slaves do).
+  # Vivado type-checks, so a foreign stream must never land directly on them --
+  # even one whose total TDATA width happens to match (e.g. another CORDIC's
+  # DOUT), since the field layout still differs. converter_req: always forces a
+  # width converter to normalise the stream into a plain (single-field) TDATA
+  # first, regardless of width.
   - name: S_AXIS_CARTESIAN
     protocol: "xilinx.com:interface:axis_rtl:1.0"
     direction: Slave
     enable: has_cartesian
     width: "cartesian_fields * (math.ceil(Input_Width / 8) * 8)"
-    strict_width: true
+    converter_req: always
     connections:
     - cordic_0/S_AXIS_CARTESIAN
 
@@ -218,7 +220,7 @@
     direction: Slave
     enable: has_phase
     width: "math.ceil(Input_Width / 8) * 8"
-    strict_width: true
+    converter_req: always
     connections:
     - cordic_0/S_AXIS_PHASE
 

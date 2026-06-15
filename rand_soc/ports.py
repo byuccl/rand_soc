@@ -1,6 +1,6 @@
 import abc
 
-from rand_soc.typedefs import Direction, NetType, Protocol
+from rand_soc.typedefs import ConverterReq, Direction, NetType, Protocol
 
 
 class Port:
@@ -23,11 +23,12 @@ class Port:
 
         self.connected = False
 
-        # When True, a connector driving this sink must deliver an exact width
-        # (forcing a width converter), rather than letting an upstream width
-        # propagate. Set on IP slave ports that strictly validate TDATA width
-        # (e.g. the AXI DMA stream slaves); the lenient default is False.
-        self.strict_width = False
+        # Whether a connector driving this sink must route through a width
+        # converter rather than letting an upstream stream land directly. Set on
+        # IP slave ports that validate TDATA width and/or field structure (e.g.
+        # the AXI DMA stream slaves, the CORDIC inputs); the lenient default is
+        # NONE. See ConverterReq for the meaning of each level.
+        self.converter_req = ConverterReq.NONE
 
 
 class IpPort(Port):
@@ -35,10 +36,10 @@ class IpPort(Port):
 
     def __init__(
         self, ip, name, protocol, direction, *, width=None, addr_segs=None,
-        strict_width=False,
+        converter_req=ConverterReq.NONE,
     ):
         super().__init__(name, protocol, direction, width)
-        self.strict_width = strict_width
+        self.converter_req = converter_req
         self.ip = ip
         self.ip.ports.append(self)
 

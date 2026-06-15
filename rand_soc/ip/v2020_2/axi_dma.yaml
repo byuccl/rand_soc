@@ -261,7 +261,7 @@
     direction: Slave
     enable: C_INCLUDE_S2MM
     width: C_S_AXIS_S2MM_TDATA_WIDTH
-    strict_width: true
+    converter_req: on_width_diff
     connections:
     - axi_dma_0/S_AXIS_S2MM
 
@@ -270,7 +270,7 @@
     direction: Slave
     enable: "C_SG_INCLUDE_STSCNTRL_STRM == 1 and C_INCLUDE_S2MM == 1"
     width: 32
-    strict_width: true
+    converter_req: on_width_diff
     connections:
     - axi_dma_0/S_AXIS_STS
 

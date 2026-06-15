@@ -11,7 +11,7 @@ import yaml
 import math
 
 
-from rand_soc.typedefs import Direction, Protocol
+from rand_soc.typedefs import ConverterReq, Direction, Protocol
 
 from ..utils import all_ones, randintwidth
 from ..ports import IpPort
@@ -70,7 +70,8 @@ class IP:
         self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
 
     def _create_hier_pin(
-        self, name, protocol, direction, width=None, *, addr_segs=None, strict_width=False
+        self, name, protocol, direction, width=None, *, addr_segs=None,
+        converter_req=ConverterReq.NONE,
     ):
         assert isinstance(protocol, Protocol)
         assert isinstance(direction, Direction)
@@ -81,7 +82,7 @@ class IP:
             direction,
             width=width,
             addr_segs=addr_segs,
-            strict_width=strict_width,
+            converter_req=converter_req,
         )
         return port
 
@@ -181,7 +182,7 @@ class IPrandom(IP):
                         addr_segs=[
                             f"{ip_id}/{a}" for a in port_props.get("addr_segs", [])
                         ],
-                        strict_width=port_props.get("strict_width", False),
+                        converter_req=port_props["converter_req"],
                     ).connect_internal(port_props["connections"])
 
                     if "clk_pins" in port_props:
@@ -332,7 +333,7 @@ class IPrandom(IP):
             port["protocol"] = item["protocol"]
             port["direction"] = item["direction"]
             port["connections"] = item["connections"]
-            port["strict_width"] = item.get("strict_width", False)
+            port["converter_req"] = ConverterReq.from_yaml(item.get("converter_req"))
             if "width" in item:
                 port["width"] = eval(str(item["width"]), None, self.config_vars)
             if "clk_pins" in item:

@@ -11,7 +11,7 @@ import importlib
 from .paths import ROOT_PATH
 from .ports import ExternalPort
 from .port_assigner import port_assigner_axis, port_assigner_random
-from .typedefs import Direction, NetType, Protocol
+from .typedefs import ConverterReq, Direction, NetType, Protocol
 
 
 def import_ip(version, versions):
@@ -806,8 +806,9 @@ class RandomDesign:
                         source_port_for(driver), combiner.get_input_port(i)
                     )
                 # Drive the sink from the combined (summed-width) output, going
-                # through _connect_axis so a strict sink gets a forced converter
-                # when the concatenated width differs from the sink width.
+                # through _connect_axis so the sink's converter_req is honoured
+                # (a forced converter when the concatenated width differs, or
+                # always for a field-checked sink).
                 self._connect_axis(combiner.axi_out, in_port)
 
     def _want_converter(self, policy):
@@ -820,35 +821,49 @@ class RandomDesign:
         return random.random() < 0.5  # "random"
 
     def _connect_axis(self, source, sink):
-        """Connect an AXIS ``source`` to a ``sink``, inserting an AXI Stream data
-        width converter when their widths differ and the configured policy asks
-        for one. The policy is the I/O policy when either endpoint is an external
-        port, otherwise the internal policy. A converter is only feasible when the
+        """Connect an AXIS ``source`` to a ``sink``, optionally routing through an
+        AXI Stream data width converter. The sink's ``converter_req`` decides when
+        a converter is mandatory (see ConverterReq); otherwise one is inserted on
+        a width difference only when the configured policy asks for it. The policy
+        is the I/O policy when either endpoint is an external port, otherwise the
+        internal policy. An opportunistic converter is only feasible when the
         TDATA byte widths have an integer ratio (the Xilinx converter is a byte
         gearbox); otherwise the ports are connected directly."""
         is_io = isinstance(source, ExternalPort) or isinstance(sink, ExternalPort)
         policy = self._axis_io_conv if is_io else self._axis_internal_conv
+
+        # A sink that ALWAYS requires a converter gets one even at matching widths:
+        # the converter flattens any structured-TDATA field map (e.g. CORDIC's
+        # xn_re/xn_im) into a plain stream the sink will accept.
+        if sink.converter_req == ConverterReq.ALWAYS:
+            self._insert_axis_converter(source, sink)
+            return
 
         if source.width != sink.width:
             in_bytes = math.ceil(source.width / 8)
             out_bytes = math.ceil(sink.width / 8)
             lo, hi = sorted((in_bytes, out_bytes))
             ratio_ok = lo > 0 and hi % lo == 0
-            # A strict-width sink (e.g. an AXI DMA stream slave) hard-errors if a
+            # An ON_WIDTH_DIFF sink (e.g. an AXI DMA stream slave) hard-errors if a
             # mismatched width propagates onto it, so always insert a converter
             # there -- even when the byte ratio is non-integer (the Xilinx
-            # converter may reject it; we want to observe that). For non-strict
-            # sinks the converter is optional (random policy) and only attempted
-            # when the byte ratio is integer.
-            if sink.strict_width or (ratio_ok and self._want_converter(policy)):
-                conv = self._new_ip(
-                    AxisDwidthConverter, (source.width, sink.width)
-                )
-                self._wire_axis(source, conv.axi_in)
-                self._wire_axis(conv.axi_out, sink)
+            # converter may reject it; we want to observe that). For lenient sinks
+            # the converter is optional (random policy) and only attempted when the
+            # byte ratio is integer.
+            if sink.converter_req == ConverterReq.ON_WIDTH_DIFF or (
+                ratio_ok and self._want_converter(policy)
+            ):
+                self._insert_axis_converter(source, sink)
                 return
 
         self._wire_axis(source, sink)
+
+    def _insert_axis_converter(self, source, sink):
+        """Insert an AXI Stream data width converter between ``source`` and
+        ``sink`` and wire it up."""
+        conv = self._new_ip(AxisDwidthConverter, (source.width, sink.width))
+        self._wire_axis(source, conv.axi_in)
+        self._wire_axis(conv.axi_out, sink)
 
     @staticmethod
     def _wire_axis(source, sink):

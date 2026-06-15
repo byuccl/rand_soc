@@ -46,6 +46,35 @@ class Protocol(enum.Enum):
         return NetType.INTERFACE if self.is_xilinx_protocol() else NetType.WIRE
 
 
+class ConverterReq(enum.Enum):
+    """Whether a width converter must be inserted on an AXI-Stream sink.
+
+    NONE          -- no converter is required for this sink; one may still be
+                     inserted opportunistically on a width difference per the
+                     config's converter policy (random/yes). The lenient default.
+    ON_WIDTH_DIFF -- a converter is mandatory whenever the source and sink TDATA
+                     widths differ (e.g. the AXI DMA stream slaves, which
+                     hard-error on a propagated width mismatch). Matching widths
+                     connect directly.
+    ALWAYS        -- a converter is mandatory even when the widths already match.
+                     It flattens any structured-TDATA field map (e.g. CORDIC's
+                     xn_re/xn_im fields) into a plain stream the sink accepts, so
+                     a same-width foreign source never lands directly on it.
+    """
+
+    NONE = "none"
+    ON_WIDTH_DIFF = "on_width_diff"
+    ALWAYS = "always"
+
+    @classmethod
+    def from_yaml(cls, value):
+        """Resolve a port's ``converter_req`` yaml value. An absent key (None)
+        defaults to NONE."""
+        if value is None:
+            return cls.NONE
+        return cls(value)
+
+
 class NetType(enum.Enum):
     WIRE = "wire"
     INTERFACE = "interface"
