@@ -95,6 +95,13 @@ class IpPort(Port):
         else:
             self.ip._bd_tcl += f"connect_bd_intf_net [get_bd_intf_pins {self.hier_name}] [get_bd_intf_pins {self.ip.hier_name}/{port_name}]\n"
 
+        # Register AXI-Stream pins for post-validate width verification: compare
+        # the IP's resolved TDATA width against the width the generator declared.
+        if self.protocol == Protocol.AXI_STREAM and self.width is not None:
+            self.ip.design.register_width_check(
+                f"{self.ip.hier_name}/{port_name}", self.width, self.hier_name
+            )
+
 
 class ExternalPort(Port):
     """Top-level port"""

@@ -13,6 +13,11 @@ create_bd_design {{ bd_name }}
 
 {{{ block_diagram }}}
 
+# AXIS width verification runs before validate_bd_design so widths are reported
+# even for designs that fail validation (each IP's TDATA is resolved at configure
+# time, independent of connectivity).
+{{{ width_checks }}}
+
 assign_bd_address
 validate_bd_design
 

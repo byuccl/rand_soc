@@ -1,0 +1,232 @@
+- id: "cordic_0"
+  definition: "xilinx.com:ip:cordic:6.0"
+  configuration:
+
+  ##### (1) Function & architecture #####
+
+  # Master selector. Every interface and most gating below keys off this.
+  - name: Functional_Selection
+    values: [Rotate, Translate, Sin_and_Cos, Sinh_and_Cosh, Arc_Tan, Arc_Tanh, Square_Root]
+
+  # Internal selectors derived from the function. These are not pushed to Vivado
+  # (internal: true); they only drive enable/width logic for the ports below.
+  #   has_cartesian : the S_AXIS_CARTESIAN input exists
+  #   has_phase     : the S_AXIS_PHASE input exists
+  #   cartesian_fields : X only (Square_Root) vs X+Y
+  #   dout_fields      : one result field vs two
+  - name: has_cartesian
+    internal: true
+    value_eval: "1 if Functional_Selection in ('Rotate', 'Translate', 'Arc_Tan', 'Arc_Tanh', 'Square_Root') else 0"
+
+  - name: has_phase
+    internal: true
+    value_eval: "1 if Functional_Selection in ('Rotate', 'Sin_and_Cos', 'Sinh_and_Cosh') else 0"
+
+  - name: cartesian_fields
+    internal: true
+    value_eval: "1 if Functional_Selection == 'Square_Root' else 2"
+
+  - name: dout_fields
+    internal: true
+    value_eval: "1 if Functional_Selection in ('Arc_Tan', 'Arc_Tanh', 'Square_Root') else 2"
+
+  # Square Root supports the Parallel architecture only; every other function
+  # allows both.
+  - name: Architectural_Configuration
+    values_eval: "['Parallel'] if Functional_Selection == 'Square_Root' else ['Word_Serial', 'Parallel']"
+
+  # No_Pipelining is only offered for the Parallel architecture; Word_Serial
+  # requires a pipelined mode (Vivado IP_Flow 19-3461). A No_Pipelining core is
+  # fully combinational -- it has no clock or reset pin at all (see is_combinational
+  # and the aclk/aresetn port gating below).
+  - name: Pipelining_Mode
+    values_eval: >
+      ['Optimal', 'Maximum'] if Architectural_Configuration == 'Word_Serial'
+      else ['No_Pipelining', 'Optimal', 'Maximum']
+
+  # A No_Pipelining (Parallel) core is purely combinational: Vivado drops its aclk
+  # (and aresetn) pins, so we must not create or connect them.
+  - name: is_combinational
+    internal: true
+    value_eval: "1 if Pipelining_Mode == 'No_Pipelining' else 0"
+
+  ##### (2) Number format #####
+
+  # Square Root takes a non-negative operand; the rotation/trig/atan functions
+  # are signed.
+  - name: Data_Format
+    values_eval: >
+      ['UnsignedFraction', 'UnsignedInteger'] if Functional_Selection == 'Square_Root'
+      else ['SignedFraction']
+
+  # Only meaningful when a phase quantity exists (in or out) -- i.e. not Square_Root.
+  - name: Phase_Format
+    enable: "Functional_Selection != 'Square_Root'"
+    values: [Radians, Scaled_Radians]
+    default: Radians
+
+  - name: Input_Width
+    values_eval: range(8, 49)
+
+  - name: Output_Width
+    values_eval: range(8, 49)
+
+  - name: Round_Mode
+    values: [Truncate, Round_Pos_Inf, Round_Pos_Neg_Inf, Nearest_Even]
+
+  ##### (3) Precision / accuracy #####
+
+  # Extends the input range to the full circle. Valid for the rotation/trig
+  # functions and Arc_Tan.
+  - name: Coarse_Rotation
+    enable: "Functional_Selection in ('Rotate', 'Translate', 'Sin_and_Cos', 'Arc_Tan')"
+    values: [false, true]
+    default: false
+
+  # 0 = automatic. Vivado (IP_Flow 19-3460) restricts the legal range to 0, or
+  # 4..48 -- a fixed minimum of 4 iterations. Not available for Square_Root.
+  - name: Iterations
+    enable: "Functional_Selection != 'Square_Root'"
+    values_eval: "[0] + list(range(4, 49))"
+    default: 0
+
+  # 0 = automatic. Extra internal precision bits. Vivado (IP_Flow 19-3460)
+  # restricts the legal range to 0, or Output_Width..48 -- you can only raise the
+  # internal precision above the output width, up to the 48-bit maximum. Not
+  # available for Square_Root.
+  - name: Precision
+    enable: "Functional_Selection != 'Square_Root'"
+    values_eval: "[0] + list(range(Output_Width, 49))"
+    default: 0
+
+  # BRAM is not a legal value for this core (Vivado IP_Flow 19-3461); the valid
+  # set is No_Scale_Compensation, LUT_based, Embedded_Multiplier (note lowercase
+  # 'based').
+  - name: Compensation_Scaling
+    values: [No_Scale_Compensation, LUT_based, Embedded_Multiplier]
+
+  ##### (4) Per-channel signals (CARTESIAN & PHASE inputs only) #####
+
+  # TUSER width is left at the core's auto default for now (range 1..256 when we
+  # revisit), so only the HAS_* enables are randomized here.
+  - name: CARTESIAN_HAS_TLAST
+    enable: has_cartesian
+    values: [false, true]
+    default: false
+
+  - name: CARTESIAN_HAS_TUSER
+    enable: has_cartesian
+    values: [false, true]
+    default: false
+
+  - name: PHASE_HAS_TLAST
+    enable: has_phase
+    values: [false, true]
+    default: false
+
+  - name: PHASE_HAS_TUSER
+    enable: has_phase
+    values: [false, true]
+    default: false
+
+  ##### (5) Standalone options #####
+
+  # A combinational (No_Pipelining) core has no clock, so it cannot implement the
+  # Blocking handshake; force NonBlocking there.
+  - name: Flow_Control
+    values_eval: "['NonBlocking'] if is_combinational else ['Blocking', 'NonBlocking']"
+
+  # Optimization goal and output TREADY are only configurable under Blocking flow
+  # control.
+  - name: Optimize_Goal
+    enable: "Flow_Control == 'Blocking'"
+    values: [Resources, Performance]
+    default: Resources
+
+  - name: Out_TREADY
+    enable: "Flow_Control == 'Blocking'"
+    values: [false, true]
+    default: false
+
+  # Output TLAST is only meaningful when both input channels exist and both carry
+  # TLAST -- which in practice means Rotate with both input TLASTs enabled. The
+  # options pass one input's TLAST through, or combine them with OR / AND.
+  - name: Out_TLAST_Behaviour
+    enable: "has_cartesian and has_phase and CARTESIAN_HAS_TLAST and PHASE_HAS_TLAST"
+    values: [Pass_Cartesian_TLAST, Pass_Phase_TLAST, OR_of_TLAST, AND_of_TLAST]
+    default: Null
+
+  ##### (6) Optional pins #####
+
+  # ACLKEN is held off. The aclken pin is a clock-enable (Vivado type 'ce'); when
+  # exposed it falls into the generic CONTROL random-connection pool, whose only
+  # driver is an event/interrupt-typed output (e.g. the FFT's event_frame_started),
+  # and Vivado rejects the intr->ce connection (BD 41-1308). There is no
+  # clock-enable network in these random designs to drive it compatibly, so it
+  # stays disabled until the framework grows one.
+  - name: ACLKEN
+    values: [false]
+
+  - name: ARESETn
+    values: [false, true]
+
+  ports:
+
+  # A combinational (No_Pipelining) core exposes no clock or reset pin, so these
+  # are created only for sequential cores.
+  - name: aclk
+    protocol: clk
+    direction: I
+    width: 1
+    enable: "not is_combinational"
+    connections:
+    - cordic_0/aclk
+
+  - name: aclken
+    protocol: control
+    direction: I
+    width: 1
+    enable: ACLKEN
+    connections:
+    - cordic_0/aclken
+
+  - name: aresetn
+    protocol: reset_interconnect
+    direction: I
+    width: 1
+    enable: "ARESETn and not is_combinational"
+    connections:
+    - cordic_0/aresetn
+
+  # Each TDATA field is padded up to a byte boundary, then the fields are
+  # concatenated. CARTESIAN carries X (+Y for everything but Square_Root).
+  # CORDIC's input interfaces carry per-field metadata (xn_re/xn_im, phase) that
+  # Vivado type-checks, so a foreign-width stream must never land directly on them
+  # -- strict_width forces a width converter to normalise it first (as the AXI DMA
+  # stream slaves do).
+  - name: S_AXIS_CARTESIAN
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    enable: has_cartesian
+    width: "cartesian_fields * (math.ceil(Input_Width / 8) * 8)"
+    strict_width: true
+    connections:
+    - cordic_0/S_AXIS_CARTESIAN
+
+  - name: S_AXIS_PHASE
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    enable: has_phase
+    width: "math.ceil(Input_Width / 8) * 8"
+    strict_width: true
+    connections:
+    - cordic_0/S_AXIS_PHASE
+
+  # DOUT carries two result fields (rotated X/Y, sin/cos, magnitude+phase) or one
+  # (Arc_Tan/Arc_Tanh phase, Square_Root root).
+  - name: M_AXIS_DOUT
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Master
+    width: "dout_fields * (math.ceil(Output_Width / 8) * 8)"
+    connections:
+    - cordic_0/M_AXIS_DOUT

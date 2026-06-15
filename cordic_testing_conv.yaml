@@ -1,0 +1,21 @@
+# CORDIC-focused stream config: forces CORDIC into the mix alongside other
+# AXI4-Stream producers/consumers (FFT, AXI DMA) and a MicroBlaze/UART subsystem
+# for AXI + interrupt context. Used to validate the cordic IP through Vivado.
+vivado_version: v2024_2
+
+axi_mm:
+  no_master: [external, jtag]
+
+axi_stream:
+  io_converters: yes
+  internal_converters: yes
+
+available_ip:
+  - class: Cordic
+  - class: Fft
+  - class: AxiDma
+  - class: Microblaze
+  - class: Uartlite
+
+min_ip: 4
+max_ip: 8

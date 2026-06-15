@@ -1,0 +1,25 @@
+# Stream-focused config: exercises the AXI4-Stream connection pipeline
+# (port_assigner_axis, broadcaster, combiner, width converters) via the FFT and
+# AXI DMA IP, mixed with a MicroBlaze/UART subsystem for realistic AXI +
+# interrupt context.
+vivado_version: v2024_2
+
+# When a design has no internal AXI master, randomly pick how to provide one:
+# a top-level external AXI port, or a pin-free JTAG-to-AXI master.
+axi_mm:
+  no_master: [external, jtag]
+
+# Insert AXI-Stream data width converters at width mismatches.
+# yes | no | random (random decides per connection).
+axi_stream:
+  io_converters: random        # to/from the 8-bit external stream interfaces
+  internal_converters: random  # internal IP-to-IP stream connections
+
+available_ip:
+  - class: Fft
+  - class: AxiDma
+  - class: Microblaze
+  - class: Uartlite
+
+min_ip: 3
+max_ip: 8

@@ -44,6 +44,7 @@ def import_ip(version, versions):
         ("axis_broadcaster", ["AxisBroadcaster"]),
         ("axis_combiner", ["AxisCombiner"]),
         ("axis_dwidth_converter", ["AxisDwidthConverter"]),
+        ("cordic", ["Cordic"]),
     ]
     versions = versions[versions.index(version) :]
     for lib, ips in ips:
@@ -118,10 +119,40 @@ class RandomDesign:
         self._clk_wiz_inst = None
         self._randomized_signal_drivers = {}
 
+        # AXIS width verification: (inner_ip_pin, declared_width, label) entries,
+        # registered by IpPort.connect_internal for every AXI-Stream hier pin. The
+        # template emits a post-validate Tcl check comparing each IP's resolved
+        # TDATA width to the width the generator declared.
+        self._width_checks = []
+
         # Config-driven strategy knobs (populated from the config in create()).
         self._axi_mm_no_master = ["external"]
         self._axis_io_conv = "random"
         self._axis_internal_conv = "random"
+
+    def register_width_check(self, inner_pin, declared_width, label):
+        """Record an AXI-Stream pin whose IP-resolved TDATA width should be
+        verified against the width the generator declared. Emitted as Tcl by
+        _render_width_checks() and run after validate_bd_design."""
+        self._width_checks.append((inner_pin, declared_width, label))
+
+    def _render_width_checks(self):
+        """Tcl that prints, for each registered AXIS pin, the IP's resolved TDATA
+        width vs the declared width as a grep-able RANDSOC_WIDTH_CHECK line. Each
+        check is wrapped in catch so a missing property never aborts the run."""
+        if not self._width_checks:
+            return ""
+        lines = ["\n########## AXIS width verification ##########"]
+        for inner, width, label in self._width_checks:
+            lines.append(
+                f"if {{[catch {{\n"
+                f"  set __aw [expr {{[get_property CONFIG.TDATA_NUM_BYTES "
+                f"[get_bd_intf_pins {inner}]] * 8}}]\n"
+                f'  set __s [expr {{$__aw == {width} ? "OK" : "MISMATCH"}}]\n'
+                f'  puts "RANDSOC_WIDTH_CHECK {label} declared={width} actual=$__aw $__s"\n'
+                f'}} __err]}} {{ puts "RANDSOC_WIDTH_CHECK {label} declared={width} actual=ERR $__err" }}'
+            )
+        return "\n".join(lines) + "\n"
 
     def write(self):
         """Write the design tcl and impl_constraints tcl to files"""
@@ -287,6 +318,7 @@ class RandomDesign:
         )
 
         project_config["block_diagram"] = self._bd_tcl
+        project_config["width_checks"] = self._render_width_checks()
         self.tcl_str = chevron.render(template, project_config)
 
         for ip in self.ip:
