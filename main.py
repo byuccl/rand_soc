@@ -1,6 +1,5 @@
 import argparse
 import pathlib
-from random import randint
 
 from rand_soc.creator import RandomDesign
 

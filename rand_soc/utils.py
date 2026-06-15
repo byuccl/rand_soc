@@ -210,6 +210,16 @@ def sink_scc_representatives(G):
     # Step 5: Identify sink SCCs (those with no outgoing edges).
     # outdeg[i] == 0 means SCC[i] is a sink in the condensation DAG.
     # Pick one representative node from each sink SCC.
-    reps = [next(iter(comp)) for i, comp in enumerate(sccs) if outdeg[i] == 0]
+    # Choose each representative and order the result deterministically. `comp`
+    # is a set of node objects, so `next(iter(comp))` would pick an id-ordered
+    # (run-to-run nondeterministic) element; key on a stable attribute instead so
+    # generation is reproducible for a fixed --seed.
+    def _key(node):
+        return getattr(node, "hier_name", str(node))
+
+    reps = [
+        min(comp, key=_key) for i, comp in enumerate(sccs) if outdeg[i] == 0
+    ]
+    reps.sort(key=_key)
 
     return reps

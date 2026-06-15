@@ -3,6 +3,7 @@ import logging
 import random
 from typing import List
 import networkx as nx
+from ordered_set import OrderedSet
 
 from .ports import IpPort, Port
 from .ip.ip_base import IP
@@ -137,10 +138,16 @@ def port_assigner_axis(
 
     connections = defaultdict(list)
 
-    all_sources = set(primary_sources)
-    unconnected_sources = set(primary_sources)
-    unconnected_ip = set(internal_ip)
-    unconnected_sinks = set(primary_sinks)
+    # OrderedSet (not a plain set): the assigner makes random.choice / first-match
+    # decisions while iterating these collections, and a plain set of port/IP
+    # objects iterates in id() (memory-address) order, which varies run to run
+    # regardless of PYTHONHASHSEED -- making generation nondeterministic for a
+    # fixed --seed. Insertion order (derived from the seeded construction) is
+    # stable.
+    all_sources = OrderedSet(primary_sources)
+    unconnected_sources = OrderedSet(primary_sources)
+    unconnected_ip = OrderedSet(internal_ip)
+    unconnected_sinks = OrderedSet(primary_sinks)
 
     # Loop through the internal IP, and connect them to the AXI stream network
     # one by one, until no unconnected IP remain.  This is done in sequence to
@@ -370,7 +377,7 @@ def port_assigner_axis(
     # driven by reusing an already-connected source (a broadcaster), never a
     # source on the sink's own IP.
     while len(unconnected_sinks) > len(unconnected_sources):
-        connected_sources = list(set(all_sources) - set(unconnected_sources))
+        connected_sources = list(all_sources - unconnected_sources)
 
         chosen_sink = None
         candidate_sources = None
