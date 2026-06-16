@@ -27,10 +27,9 @@
     values: [0, 1]
     default: 0
 
-  # (6) Width of the buffer-length register (max transfer = 2^width bytes).
-  #     Always present, including under Micro DMA.
-  - name: C_SG_LENGTH_WIDTH
-    values_eval: range(8, 27)
+  # (6) Width of the buffer-length register: see C_SG_LENGTH_WIDTH further down.
+  #     It is defined after the channel burst/width params because under Micro
+  #     DMA its legal range is derived from them.
 
   # (7) Address width, 32..64 inclusive. [logic pending review]
   - name: C_ADDR_WIDTH
@@ -72,12 +71,18 @@
       [w for w in [8, 16, 32, 64, 128, 256, 512, 1024] if w <= C_M_AXI_MM2S_DATA_WIDTH]
 
   # Max burst (beats). AXI 4KB rule: burst <= 32768 / data_width. Base set is
-  # 2..256; Micro DMA allows 16, 32, 64.
+  # 2..256; Micro DMA allows 16, 32, 64. Micro DMA also needs a *lower* bound:
+  # one descriptor = one burst, so the buffer-length register width must be
+  # log2(burst * data_width/8), and the IP enforces that width >= 8 (i.e. a max
+  # transfer of >= 256 bytes). So under Micro DMA keep only bursts with
+  # burst * data_width/8 >= 256 (equivalently burst * data_width >= 2048);
+  # otherwise no legal C_SG_LENGTH_WIDTH exists. See C_SG_LENGTH_WIDTH below.
   - name: C_MM2S_BURST_SIZE
     enable: C_INCLUDE_MM2S
     values_eval: >
       [b for b in ([16, 32, 64] if C_MICRO_DMA else [2, 4, 8, 16, 32, 64, 128, 256])
-       if b <= 32768 // C_M_AXI_MM2S_DATA_WIDTH]
+       if b <= 32768 // C_M_AXI_MM2S_DATA_WIDTH
+       and (not C_MICRO_DMA or b * C_M_AXI_MM2S_DATA_WIDTH >= 2048)]
 
   # Allow unaligned (DRE). Settable for any stream width < 1024 (forced off only
   # at 1024); off under Micro DMA; tool-managed (read-only) under multichannel,
@@ -114,13 +119,15 @@
        [w for w in [8, 16, 32, 64, 128, 256, 512, 1024] if w <= C_M_AXI_S2MM_DATA_WIDTH])
 
   # burst <= 32768 / data_width. Base 2..256; Micro DMA allows 16, 32, 64;
-  # single-interface forces it to equal the read burst.
+  # single-interface forces it to equal the read burst. Micro DMA lower bound
+  # (burst * data_width/8 >= 256) as on the read channel -- see C_MM2S_BURST_SIZE.
   - name: C_S2MM_BURST_SIZE
     enable: C_INCLUDE_S2MM
     values_eval: >
       [C_MM2S_BURST_SIZE] if single_interface else
       [b for b in ([16, 32, 64] if C_MICRO_DMA else [2, 4, 8, 16, 32, 64, 128, 256])
-       if b <= 32768 // C_M_AXI_S2MM_DATA_WIDTH]
+       if b <= 32768 // C_M_AXI_S2MM_DATA_WIDTH
+       and (not C_MICRO_DMA or b * C_M_AXI_S2MM_DATA_WIDTH >= 2048)]
 
   # DRE settable for stream width < 1024; off under Micro; tool-managed (unset)
   # under multichannel; single-interface forces it to equal the read DRE.
@@ -134,6 +141,31 @@
   - name: C_SG_USE_STSAPP_LENGTH
     enable: "C_SG_INCLUDE_STSCNTRL_STRM == 1 and C_INCLUDE_S2MM == 1"
     values: [0, 1]
+
+  # (6, relocated) Width of the buffer-length register (max transfer = 2^width
+  #     bytes). Defined here -- after the channel burst sizes and data widths --
+  #     because Micro DMA constrains it relative to them. The IP's legal range is
+  #     8..26 in every mode.
+  #
+  #     Normal/SG mode: free range 8..26.
+  #
+  #     Micro DMA: a transfer is exactly one burst, so the register only needs to
+  #     address one max-length burst, and the underlying axi_datamover rejects a
+  #     wider one ("generic value N is out of allowable range"):
+  #         cap bytes = max_burst_beats * (memory-map data width / 8)
+  #         max width = log2(cap bytes)
+  #     The register is shared across channels, so when both are enabled the more
+  #     restrictive (smaller) channel sets the cap. We randomize over the legal
+  #     window [8, max width]. The Micro-DMA burst lower bound (see
+  #     C_MM2S_BURST_SIZE) guarantees cap bytes >= 256, so max width >= 8 and this
+  #     window is never empty. burst and byte counts are powers of two, so log2 is
+  #     exact.
+  - name: C_SG_LENGTH_WIDTH
+    values_eval: >
+      range(8, 1 + int(math.log2(min([c for c in
+      [(C_MM2S_BURST_SIZE * C_M_AXI_MM2S_DATA_WIDTH // 8) if C_INCLUDE_MM2S else None,
+      (C_S2MM_BURST_SIZE * C_M_AXI_S2MM_DATA_WIDTH // 8) if C_INCLUDE_S2MM else None]
+      if c is not None])))) if C_MICRO_DMA else range(8, 27)
 
   # (12) Enable Single AXI4 Data Interface: collapse M_AXI_MM2S + M_AXI_S2MM into
   #      one shared M_AXI. Driven by the internal single_interface selector above.
@@ -261,7 +293,7 @@
     direction: Slave
     enable: C_INCLUDE_S2MM
     width: C_S_AXIS_S2MM_TDATA_WIDTH
-    converter_req: on_width_diff
+    converter_req: always
     connections:
     - axi_dma_0/S_AXIS_S2MM
 
@@ -270,7 +302,7 @@
     direction: Slave
     enable: "C_SG_INCLUDE_STSCNTRL_STRM == 1 and C_INCLUDE_S2MM == 1"
     width: 32
-    converter_req: on_width_diff
+    converter_req: always
     connections:
     - axi_dma_0/S_AXIS_STS
 
