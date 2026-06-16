@@ -29,7 +29,7 @@ source .venv/bin/activate
 
 ```bash
 make env                                       # one-time: create .venv, install deps
-make run CONFIG=default_config.yaml SEED=0     # generate ./temp/design.tcl
+make run CONFIG=configs/default.yaml SEED=0     # generate ./temp/design.tcl
 make vivado                                    # build temp/design.tcl in Vivado
 ```
 

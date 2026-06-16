@@ -26,7 +26,7 @@ import sys
 import threading
 
 DEFAULT_PART = "xc7a200tlffv1156-2L"
-DEFAULT_CONFIG = "default_config.yaml"
+DEFAULT_CONFIG = "configs/default.yaml"
 DEFAULT_HOST = "CCL1"
 DEFAULT_REMOTE_DIR = "randsoc_vivado_test"
 DEFAULT_VIVADO = "/tools/Xilinx/Vivado/2024.2/bin/vivado"

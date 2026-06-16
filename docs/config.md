@@ -4,7 +4,7 @@ RandSoC's randomization is driven by a YAML configuration file, passed as the
 second positional argument to [`main.py`](../main.py) (or via `CONFIG=` to the
 [`Makefile`](../Makefile)). This page documents every key the config accepts.
 
-Two example configs ship with the repo: [`default_config.yaml`](../default_config.yaml)
+Two example configs ship with the repo: [`configs/default.yaml`](../configs/default.yaml)
 (a broad peripheral mix) and [`fft_config.yaml`](../fft_config.yaml) (an
 AXI-Stream / FFT focused set).
 

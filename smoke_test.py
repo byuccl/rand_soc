@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 DEFAULT_PART = "xc7a200tlffv1156-2L"
-DEFAULT_CONFIG = "default_config.yaml"
+DEFAULT_CONFIG = "configs/default.yaml"
 OUT_ROOT = pathlib.Path("temp/smoke")
 
 

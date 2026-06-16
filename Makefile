@@ -4,7 +4,7 @@ PART = xc7a200tlffv1156-2L
 SEED = 0
 # Creator config. Override to test other IP sets, e.g.
 # `make vivado-test CONFIG=fft_config.yaml N=50`.
-CONFIG ?= default_config.yaml
+CONFIG ?= configs/default.yaml
 
 run: .venv/bin/activate
 	$(IN_ENV) python main.py ./temp $(CONFIG) --seed $(SEED) --part $(PART)
