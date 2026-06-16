@@ -1,0 +1,79 @@
+- id: "fft_0"
+  definition: "xilinx.com:ip:xfft:9.1"
+  configuration:
+  - name: channels
+    values_eval: range(1, 13)
+
+  - name: transform_length_log2
+    values_eval: range(3, 17)
+    internal: true
+
+  - name: transform_length
+    value_eval: "2 ** transform_length_log2"
+
+  - name: implementation_options
+    values_eval: >
+      ["radix_2_burst_io", "radix_2_lite_burst_io"] +
+      (["pipelined_streaming_io"] if channels == 1 else []) +
+      (["radix_4_burst_io"] if transform_length_log2 >= 6 else [])
+
+  # Run-time configurable transform length requires the (maximum) transform
+  # length to be larger than the architecture's smallest supported length,
+  # otherwise there is nothing to configure. radix_4_burst_io's smallest length
+  # is 64 (log2 6); the others' is 8 (log2 3).
+  - name: run_time_configurable_transform_length
+    values_eval: >
+      [True, False]
+      if transform_length_log2 > (6 if implementation_options == "radix_4_burst_io" else 3)
+      else [False]
+
+  - name: cyclic_prefix_insertion
+    value: false
+
+  ports:
+  - name: aclk
+    protocol: clk
+    direction: I
+    width: 1
+    connections:
+    - fft_0/aclk
+
+  - name: event_frame_started
+    protocol: control
+    direction: O
+    width: 1
+    connections:
+    - fft_0/event_frame_started
+
+  - name: S_AXIS_DATA
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    connections:
+    - fft_0/S_AXIS_DATA
+    width: "channels * 32"
+
+  - name: M_AXIS_DATA
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Master
+    connections:
+    - fft_0/M_AXIS_DATA
+    width: "channels * 32"
+
+  # Todo
+  # - Padding of NFFT?
+  # - Padding of CP_LEN?
+  - name: S_AXIS_CONFIG
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    connections:
+    - fft_0/S_AXIS_CONFIG
+    width: >
+      (5 if run_time_configurable_transform_length else 0) + 
+      (transform_length_log2 if cyclic_prefix_insertion else 0) +
+      channels + 
+      ((2 * math.ceil(transform_length_log2 / 2)) if implementation_options in ("pipelined_streaming_io", "radix_4_burst_io")
+        else (2 * transform_length_log2))
+        
+  
+
+  

@@ -4,6 +4,7 @@
 test
 /designs
 /temp
+/temp_*
 /.venv
 __pycache__/
 *.egg-info/

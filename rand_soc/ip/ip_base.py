@@ -5,11 +5,16 @@ import logging
 import pathlib
 from pprint import pformat
 import random
-
 import yaml
 
+# This import is needed for eval in yaml files
+import math
+
+
+from rand_soc.typedefs import ConverterReq, Direction, Protocol
+
 from ..utils import all_ones, randintwidth
-from ..ports import IpPortInterface, IpPortRegular
+from ..ports import IpPort
 
 
 class IPModuleInstance:
@@ -64,11 +69,21 @@ class IP:
 
         self._bd_tcl += f'set_property -dict "{prop}" [get_bd_cells {self.hier_name}/{instance_name}]\n'
 
-    def _create_hier_pin(self, name, protocol, direction, width=None, addr_segs=None):
-        if protocol.startswith("xilinx.com:"):
-            port = IpPortInterface(self, name, protocol, direction, addr_segs)
-        else:
-            port = IpPortRegular(self, name, protocol, direction, width)
+    def _create_hier_pin(
+        self, name, protocol, direction, width=None, *, addr_segs=None,
+        converter_req=ConverterReq.NONE,
+    ):
+        assert isinstance(protocol, Protocol)
+        assert isinstance(direction, Direction)
+        port = IpPort(
+            self,
+            name,
+            protocol,
+            direction,
+            width=width,
+            addr_segs=addr_segs,
+            converter_req=converter_req,
+        )
         return port
 
     def _connect_internal_pins_interface(self, instance_pin_a, instance_pin_b):
@@ -84,6 +99,51 @@ class IP:
     def bd_str(self):
         """Get the Tcl string to create the IP"""
         return self._bd_tcl
+
+    def has_axis_ports(self):
+        """Check if the IP has any AXI Stream ports"""
+        for port in self.ports:
+            if port.protocol == Protocol.AXI_STREAM:
+                return True
+        return False
+
+    def has_axis_master_ports(self):
+        """Check if the IP has any AXI Stream master ports"""
+        for port in self.ports:
+            if (
+                port.protocol == Protocol.AXI_STREAM
+                and port.direction == Direction.OUTPUT
+            ):
+                return True
+        return False
+
+    def has_axis_slave_ports(self):
+        """Check if the IP has any AXI Stream slave ports"""
+        for port in self.ports:
+            if (
+                port.protocol == Protocol.AXI_STREAM
+                and port.direction == Direction.INPUT
+            ):
+                return True
+        return False
+
+    def get_axis_master_ports(self):
+        """Get all AXI Stream master ports"""
+        return [
+            port
+            for port in self.ports
+            if port.protocol == Protocol.AXI_STREAM
+            and port.direction == Direction.OUTPUT
+        ]
+
+    def get_axis_slave_ports(self):
+        """Get all AXI Stream slave ports"""
+        return [
+            port
+            for port in self.ports
+            if port.protocol == Protocol.AXI_STREAM
+            and port.direction == Direction.INPUT
+        ]
 
 
 class IPrandom(IP):
@@ -116,10 +176,13 @@ class IPrandom(IP):
                 for port_name, port_props in ip_props["ports"].items():
                     self._create_hier_pin(
                         port_name,
-                        port_props["protocol"],
-                        port_props["direction"],
-                        port_props.get("width"),
-                        [f"{ip_id}/{a}" for a in port_props.get("addr_segs", [])],
+                        Protocol(port_props["protocol"]),
+                        Direction.from_str(port_props["direction"]),
+                        width=port_props.get("width"),
+                        addr_segs=[
+                            f"{ip_id}/{a}" for a in port_props.get("addr_segs", [])
+                        ],
+                        converter_req=port_props["converter_req"],
                     ).connect_internal(port_props["connections"])
 
                     if "clk_pins" in port_props:
@@ -206,6 +269,12 @@ class IPrandom(IP):
 
                 elif "value" in item:
                     value = item["value"]
+                elif "value_eval" in item:
+                    try:
+                        value = eval(item["value_eval"], None, self.config_vars)
+                    except Exception as e:
+                        print(f"Error evaluating {item['value_eval']} in {yaml_path}")
+                        raise e
 
                 elif "values" in item:
                     values = item["values"]
@@ -264,6 +333,7 @@ class IPrandom(IP):
             port["protocol"] = item["protocol"]
             port["direction"] = item["direction"]
             port["connections"] = item["connections"]
+            port["converter_req"] = ConverterReq.from_yaml(item.get("converter_req"))
             if "width" in item:
                 port["width"] = eval(str(item["width"]), None, self.config_vars)
             if "clk_pins" in item:

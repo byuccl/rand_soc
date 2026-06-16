@@ -1,0 +1,315 @@
+- id: "axi_dma_0"
+  definition: "xilinx.com:ip:axi_dma:7.1"
+  configuration:
+
+  # (1) Asynchronous clocks (C_PRMRY_IS_ACLK_ASYNC) is intentionally NOT
+  #     randomized. In the IPI/block-design flow it is read-only -- the tool
+  #     derives it from the clock topology. We drive every clock pin from the one
+  #     design clock, so it always resolves to synchronous.
+
+  # (2) Scatter Gather engine. Off => "Direct Register" mode; On => fetches
+  #     descriptors over the M_AXI_SG master.
+  - name: C_INCLUDE_SG
+    values: [0, 1]
+
+  # (3) Micro DMA: a minimal variant. Fully independent of the other modes.
+  - name: C_MICRO_DMA
+    values: [0, 1]
+
+  # (4) Multi-channel (MCDMA-lite). Requires SG; mutually exclusive with Micro DMA.
+  - name: C_ENABLE_MULTI_CHANNEL
+    values_eval: "[0, 1] if (C_INCLUDE_SG == 1 and C_MICRO_DMA == 0) else [0]"
+
+  # (5) Control (M_AXIS_CNTRL) / Status (S_AXIS_STS) sideband streams. SG-only,
+  #     not available under multichannel or Micro DMA. [logic pending review]
+  - name: C_SG_INCLUDE_STSCNTRL_STRM
+    enable: "C_INCLUDE_SG == 1 and C_ENABLE_MULTI_CHANNEL == 0 and C_MICRO_DMA == 0"
+    values: [0, 1]
+    default: 0
+
+  # (6) Width of the buffer-length register: see C_SG_LENGTH_WIDTH further down.
+  #     It is defined after the channel burst/width params because under Micro
+  #     DMA its legal range is derived from them.
+
+  # (7) Address width, 32..64 inclusive. [logic pending review]
+  - name: C_ADDR_WIDTH
+    values_eval: range(32, 65)
+
+  ### (8-9) READ CHANNEL (MM2S) ###
+
+  # Internal selector: makes read-only / write-only / both equally likely (1/3
+  # each) and inherently satisfies "at least one channel".
+  - name: channel_mode
+    internal: true
+    values: ["mm2s", "s2mm", "both"]
+
+  # Internal: when both channels exist, optionally collapse the two memory-mapped
+  # masters into one shared M_AXI (the "Single AXI4 Data Interface" option). When
+  # set, every write-channel setting below is forced to match the read channel;
+  # surfaced to Vivado as C_SINGLE_INTERFACE at (12).
+  - name: single_interface
+    internal: true
+    values_eval: "[0, 1] if channel_mode == 'both' else [0]"
+
+  - name: C_INCLUDE_MM2S
+    value_eval: "1 if channel_mode in ('mm2s', 'both') else 0"
+
+  - name: C_NUM_MM2S_CHANNELS
+    enable: "C_ENABLE_MULTI_CHANNEL == 1 and C_INCLUDE_MM2S == 1"
+    values_eval: range(1, 17)
+
+  # Micro DMA restricts the memory-map width to 32 or 64; otherwise 32..1024.
+  - name: C_M_AXI_MM2S_DATA_WIDTH
+    enable: C_INCLUDE_MM2S
+    values_eval: "[32, 64] if C_MICRO_DMA else [32, 64, 128, 256, 512, 1024]"
+
+  # Stream width <= memory-map width (8..1024). Micro DMA forces them equal.
+  - name: C_M_AXIS_MM2S_TDATA_WIDTH
+    enable: C_INCLUDE_MM2S
+    values_eval: >
+      [C_M_AXI_MM2S_DATA_WIDTH] if C_MICRO_DMA else
+      [w for w in [8, 16, 32, 64, 128, 256, 512, 1024] if w <= C_M_AXI_MM2S_DATA_WIDTH]
+
+  # Max burst (beats). AXI 4KB rule: burst <= 32768 / data_width. Base set is
+  # 2..256; Micro DMA allows 16, 32, 64. Micro DMA also needs a *lower* bound:
+  # one descriptor = one burst, so the buffer-length register width must be
+  # log2(burst * data_width/8), and the IP enforces that width >= 8 (i.e. a max
+  # transfer of >= 256 bytes). So under Micro DMA keep only bursts with
+  # burst * data_width/8 >= 256 (equivalently burst * data_width >= 2048);
+  # otherwise no legal C_SG_LENGTH_WIDTH exists. See C_SG_LENGTH_WIDTH below.
+  - name: C_MM2S_BURST_SIZE
+    enable: C_INCLUDE_MM2S
+    values_eval: >
+      [b for b in ([16, 32, 64] if C_MICRO_DMA else [2, 4, 8, 16, 32, 64, 128, 256])
+       if b <= 32768 // C_M_AXI_MM2S_DATA_WIDTH
+       and (not C_MICRO_DMA or b * C_M_AXI_MM2S_DATA_WIDTH >= 2048)]
+
+  # Allow unaligned (DRE). Settable for any stream width < 1024 (forced off only
+  # at 1024); off under Micro DMA; tool-managed (read-only) under multichannel,
+  # so left unset there.
+  - name: C_INCLUDE_MM2S_DRE
+    enable: "C_INCLUDE_MM2S == 1 and C_ENABLE_MULTI_CHANNEL == 0"
+    values_eval: "[0] if C_MICRO_DMA else ([0, 1] if C_M_AXIS_MM2S_TDATA_WIDTH < 1024 else [0])"
+
+  ### (10-11) WRITE CHANNEL (S2MM) ###
+
+  # Derived from channel_mode (see the read channel); guarantees >= 1 channel.
+  - name: C_INCLUDE_S2MM
+    value_eval: "1 if channel_mode in ('s2mm', 'both') else 0"
+
+  - name: C_NUM_S2MM_CHANNELS
+    enable: "C_ENABLE_MULTI_CHANNEL == 1 and C_INCLUDE_S2MM == 1"
+    values_eval: "[C_NUM_MM2S_CHANNELS] if single_interface else range(1, 17)"
+
+  # Single-interface forces every write setting to equal the read channel;
+  # otherwise Micro DMA restricts to 32 or 64, else 32..1024.
+  - name: C_M_AXI_S2MM_DATA_WIDTH
+    enable: C_INCLUDE_S2MM
+    values_eval: >
+      [C_M_AXI_MM2S_DATA_WIDTH] if single_interface else
+      ([32, 64] if C_MICRO_DMA else [32, 64, 128, 256, 512, 1024])
+
+  # Stream width <= memory-map width (8..1024). Micro DMA forces them equal;
+  # single-interface forces it to equal the read stream width.
+  - name: C_S_AXIS_S2MM_TDATA_WIDTH
+    enable: C_INCLUDE_S2MM
+    values_eval: >
+      [C_M_AXIS_MM2S_TDATA_WIDTH] if single_interface else
+      ([C_M_AXI_S2MM_DATA_WIDTH] if C_MICRO_DMA else
+       [w for w in [8, 16, 32, 64, 128, 256, 512, 1024] if w <= C_M_AXI_S2MM_DATA_WIDTH])
+
+  # burst <= 32768 / data_width. Base 2..256; Micro DMA allows 16, 32, 64;
+  # single-interface forces it to equal the read burst. Micro DMA lower bound
+  # (burst * data_width/8 >= 256) as on the read channel -- see C_MM2S_BURST_SIZE.
+  - name: C_S2MM_BURST_SIZE
+    enable: C_INCLUDE_S2MM
+    values_eval: >
+      [C_MM2S_BURST_SIZE] if single_interface else
+      [b for b in ([16, 32, 64] if C_MICRO_DMA else [2, 4, 8, 16, 32, 64, 128, 256])
+       if b <= 32768 // C_M_AXI_S2MM_DATA_WIDTH
+       and (not C_MICRO_DMA or b * C_M_AXI_S2MM_DATA_WIDTH >= 2048)]
+
+  # DRE settable for stream width < 1024; off under Micro; tool-managed (unset)
+  # under multichannel; single-interface forces it to equal the read DRE.
+  - name: C_INCLUDE_S2MM_DRE
+    enable: "C_INCLUDE_S2MM == 1 and C_ENABLE_MULTI_CHANNEL == 0"
+    values_eval: >
+      [C_INCLUDE_MM2S_DRE] if single_interface else
+      ([0] if C_MICRO_DMA else ([0, 1] if C_S_AXIS_S2MM_TDATA_WIDTH < 1024 else [0]))
+
+  # Use Rxlength in status stream. Requires the status stream and the write channel.
+  - name: C_SG_USE_STSAPP_LENGTH
+    enable: "C_SG_INCLUDE_STSCNTRL_STRM == 1 and C_INCLUDE_S2MM == 1"
+    values: [0, 1]
+
+  # (6, relocated) Width of the buffer-length register (max transfer = 2^width
+  #     bytes). Defined here -- after the channel burst sizes and data widths --
+  #     because Micro DMA constrains it relative to them. The IP's legal range is
+  #     8..26 in every mode.
+  #
+  #     Normal/SG mode: free range 8..26.
+  #
+  #     Micro DMA: a transfer is exactly one burst, so the register only needs to
+  #     address one max-length burst, and the underlying axi_datamover rejects a
+  #     wider one ("generic value N is out of allowable range"):
+  #         cap bytes = max_burst_beats * (memory-map data width / 8)
+  #         max width = log2(cap bytes)
+  #     The register is shared across channels, so when both are enabled the more
+  #     restrictive (smaller) channel sets the cap. We randomize over the legal
+  #     window [8, max width]. The Micro-DMA burst lower bound (see
+  #     C_MM2S_BURST_SIZE) guarantees cap bytes >= 256, so max width >= 8 and this
+  #     window is never empty. burst and byte counts are powers of two, so log2 is
+  #     exact.
+  - name: C_SG_LENGTH_WIDTH
+    values_eval: >
+      range(8, 1 + int(math.log2(min([c for c in
+      [(C_MM2S_BURST_SIZE * C_M_AXI_MM2S_DATA_WIDTH // 8) if C_INCLUDE_MM2S else None,
+      (C_S2MM_BURST_SIZE * C_M_AXI_S2MM_DATA_WIDTH // 8) if C_INCLUDE_S2MM else None]
+      if c is not None])))) if C_MICRO_DMA else range(8, 27)
+
+  # (12) Enable Single AXI4 Data Interface: collapse M_AXI_MM2S + M_AXI_S2MM into
+  #      one shared M_AXI. Driven by the internal single_interface selector above.
+  - name: C_SINGLE_INTERFACE
+    value_eval: "single_interface"
+
+  ports:
+
+  ### Control / clocks / reset ###
+
+  - name: S_AXI_LITE
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Slave
+    connections:
+    - axi_dma_0/S_AXI_LITE
+    addr_seg_name: "axi_dma_0/S_AXI_LITE/Reg"
+
+  - name: s_axi_lite_aclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    connections:
+    - axi_dma_0/s_axi_lite_aclk
+
+  # Each enabled datapath engine exposes its own AXI clock pin. We run them all
+  # off the single design clock (the IP keeps C_PRMRY_IS_ACLK_ASYNC = 0). These
+  # pins exist whenever their engine is present and must be driven, or
+  # validate_bd_design fails with BD 41-758 (unconnected clock pin).
+  - name: m_axi_sg_aclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    enable: C_INCLUDE_SG
+    connections:
+    - axi_dma_0/m_axi_sg_aclk
+
+  - name: m_axi_mm2s_aclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    enable: C_INCLUDE_MM2S
+    connections:
+    - axi_dma_0/m_axi_mm2s_aclk
+
+  - name: m_axi_s2mm_aclk
+    protocol: "clk"
+    direction: I
+    width: 1
+    enable: C_INCLUDE_S2MM
+    connections:
+    - axi_dma_0/m_axi_s2mm_aclk
+
+  - name: axi_resetn
+    protocol: reset_peripheral_n
+    direction: I
+    width: 1
+    connections:
+    - axi_dma_0/axi_resetn
+
+  ### Scatter-gather descriptor master ###
+
+  - name: M_AXI_SG
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Master
+    enable: C_INCLUDE_SG
+    connections:
+    - axi_dma_0/M_AXI_SG
+    addr_seg_name: "axi_dma_0/Data_SG"
+
+  # Shared read+write data master, present only in single-interface mode
+  # (replaces M_AXI_MM2S + M_AXI_S2MM).
+  - name: M_AXI
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Master
+    enable: "single_interface == 1"
+    connections:
+    - axi_dma_0/M_AXI
+
+  ### Read channel (MM2S) ###
+
+  - name: M_AXI_MM2S
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Master
+    enable: "C_INCLUDE_MM2S == 1 and single_interface == 0"
+    connections:
+    - axi_dma_0/M_AXI_MM2S
+    addr_seg_name: "axi_dma_0/Data_MM2S"
+
+  - name: M_AXIS_MM2S
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Master
+    enable: C_INCLUDE_MM2S
+    width: C_M_AXIS_MM2S_TDATA_WIDTH
+    connections:
+    - axi_dma_0/M_AXIS_MM2S
+
+  - name: M_AXIS_CNTRL
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Master
+    enable: "C_SG_INCLUDE_STSCNTRL_STRM == 1 and C_INCLUDE_MM2S == 1"
+    width: 32
+    connections:
+    - axi_dma_0/M_AXIS_CNTRL
+
+  - name: mm2s_introut
+    protocol: "irq"
+    direction: O
+    width: 1
+    enable: C_INCLUDE_MM2S
+    connections:
+    - axi_dma_0/mm2s_introut
+
+  ### Write channel (S2MM) ###
+
+  - name: M_AXI_S2MM
+    protocol: "xilinx.com:interface:aximm_rtl:1.0"
+    direction: Master
+    enable: "C_INCLUDE_S2MM == 1 and single_interface == 0"
+    connections:
+    - axi_dma_0/M_AXI_S2MM
+    addr_seg_name: "axi_dma_0/Data_S2MM"
+
+  - name: S_AXIS_S2MM
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    enable: C_INCLUDE_S2MM
+    width: C_S_AXIS_S2MM_TDATA_WIDTH
+    converter_req: always
+    connections:
+    - axi_dma_0/S_AXIS_S2MM
+
+  - name: S_AXIS_STS
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    enable: "C_SG_INCLUDE_STSCNTRL_STRM == 1 and C_INCLUDE_S2MM == 1"
+    width: 32
+    converter_req: always
+    connections:
+    - axi_dma_0/S_AXIS_STS
+
+  - name: s2mm_introut
+    protocol: "irq"
+    direction: O
+    width: 1
+    enable: C_INCLUDE_S2MM
+    connections:
+    - axi_dma_0/s2mm_introut

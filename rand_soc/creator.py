@@ -1,5 +1,6 @@
 from collections import defaultdict
 import logging
+import math
 import pathlib
 import random
 import sys
@@ -8,7 +9,9 @@ import chevron
 import importlib
 
 from .paths import ROOT_PATH
-from .ports import ExternalPort, ExternalPortInterface, ExternalPortRegular
+from .ports import ExternalPort
+from .port_assigner import port_assigner_axis, port_assigner_random
+from .typedefs import ConverterReq, Direction, NetType, Protocol
 
 
 def import_ip(version, versions):
@@ -19,6 +22,7 @@ def import_ip(version, versions):
         ("accumulator", ["Accumulator"]),
         ("axi", ["AxiSmartconnect", "AxiInterconnect"]),
         ("axi_cdma", ["AxiCdma"]),
+        ("axi_dma", ["AxiDma"]),
         ("axi_hwicap", ["AxiHwicap"]),
         ("axi_timer", ["AxiTimer"]),
         ("axi_usb2_device", ["AxiUsb2Device"]),
@@ -34,6 +38,13 @@ def import_ip(version, versions):
         ("axi_ethernet_lite", ["AxiEthernetLite"]),
         ("axi_iic", ["AxiIic"]),
         ("axi_quad_spi", ["AxiQuadSpi"]),
+        ("jtag_axi", ["JtagAxi"]),
+        # AXI Stream IP (axi-stream branch)
+        ("fft", ["Fft"]),
+        ("axis_broadcaster", ["AxisBroadcaster"]),
+        ("axis_combiner", ["AxisCombiner"]),
+        ("axis_dwidth_converter", ["AxisDwidthConverter"]),
+        ("cordic", ["Cordic"]),
     ]
     versions = versions[versions.index(version) :]
     for lib, ips in ips:
@@ -58,10 +69,25 @@ class RandomDesign:
     """Creates a random design"""
 
     def __init__(
-        self, output_dir_path, config_path=None, seed=None, part=None
+        self, output_dir_path, config_path=None, seed=None, part=None, synthesize=True
     ):
         if config_path is None:
             config_path = ROOT_PATH / "creator.yaml"
+
+        # When False, the generated Tcl stops after the block design is built and
+        # validated, skipping synthesis (fast Vivado check of the design itself).
+        self.synthesize = synthesize
+
+        # Enable logging
+        self._output_dir_path = pathlib.Path(output_dir_path).resolve()
+        log_file = self._output_dir_path / "log.txt"
+        self._output_dir_path.mkdir(parents=True, exist_ok=True)
+        logging.basicConfig(
+            filename=log_file,
+            filemode="w",
+            format="%(asctime)s %(levelname)s: %(message)s",
+            level=logging.DEBUG,
+        )
 
         # Set random seed
         self.seed = seed
@@ -87,21 +113,46 @@ class RandomDesign:
         self.port_types_initialized = set()
         self._ip_idx = 0
         self._axi_complete = False
+        self._axis_complete = False
         self._intc_complete = False
         self._reset_inst = None
         self._clk_wiz_inst = None
-        self._output_dir_path = pathlib.Path(output_dir_path).resolve()
-        self._randomized_signal_drivers = defaultdict(dict)
+        self._randomized_signal_drivers = {}
 
-        # Enable logging
-        log_file = self._output_dir_path / "log.txt"
-        self._output_dir_path.mkdir(parents=True, exist_ok=True)
-        logging.basicConfig(
-            filename=log_file,
-            filemode="w",
-            format="%(asctime)s %(levelname)s: %(message)s",
-            level=logging.DEBUG,
-        )
+        # AXIS width verification: (inner_ip_pin, declared_width, label) entries,
+        # registered by IpPort.connect_internal for every AXI-Stream hier pin. The
+        # template emits a post-validate Tcl check comparing each IP's resolved
+        # TDATA width to the width the generator declared.
+        self._width_checks = []
+
+        # Config-driven strategy knobs (populated from the config in create()).
+        self._axi_mm_no_master = ["external"]
+        self._axis_io_conv = "random"
+        self._axis_internal_conv = "random"
+
+    def register_width_check(self, inner_pin, declared_width, label):
+        """Record an AXI-Stream pin whose IP-resolved TDATA width should be
+        verified against the width the generator declared. Emitted as Tcl by
+        _render_width_checks() and run after validate_bd_design."""
+        self._width_checks.append((inner_pin, declared_width, label))
+
+    def _render_width_checks(self):
+        """Tcl that prints, for each registered AXIS pin, the IP's resolved TDATA
+        width vs the declared width as a grep-able RANDSOC_WIDTH_CHECK line. Each
+        check is wrapped in catch so a missing property never aborts the run."""
+        if not self._width_checks:
+            return ""
+        lines = ["\n########## AXIS width verification ##########"]
+        for inner, width, label in self._width_checks:
+            lines.append(
+                f"if {{[catch {{\n"
+                f"  set __aw [expr {{[get_property CONFIG.TDATA_NUM_BYTES "
+                f"[get_bd_intf_pins {inner}]] * 8}}]\n"
+                f'  set __s [expr {{$__aw == {width} ? "OK" : "MISMATCH"}}]\n'
+                f'  puts "RANDSOC_WIDTH_CHECK {label} declared={width} actual=$__aw $__s"\n'
+                f'}} __err]}} {{ puts "RANDSOC_WIDTH_CHECK {label} declared={width} actual=ERR $__err" }}'
+            )
+        return "\n".join(lines) + "\n"
 
     def write(self):
         """Write the design tcl and impl_constraints tcl to files"""
@@ -174,6 +225,7 @@ class RandomDesign:
             "edif_path": "viv_synth.edf",
             "top": "bd_design_wrapper",
             "io_report_path": "report_io.txt",
+            "synthesize": self.synthesize,
         }
 
         # env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
@@ -185,9 +237,43 @@ class RandomDesign:
 
         creator_yaml = self.get_creator_yaml()
 
+        vivado_version = creator_yaml.get("vivado_version", "v2022_2")
         import_ip(
-            creator_yaml.get("vivado_version", "v2022_2"),
+            vivado_version,
             ["v2024_2", "v2022_2", "v2020_2"],
+        )
+        # Vivado version this design targets (e.g. "v2024_2" -> "2024.2"); the
+        # generated Tcl checks the running Vivado matches, since IP VLNVs are
+        # version-specific and a mismatch otherwise yields cryptic errors.
+        project_config["vivado_version"] = vivado_version.lstrip("v").replace("_", ".")
+
+        # AXI-MM no-master strategy: when a design has no internal AXI master, one
+        # of these options is chosen at random to provide one. "external" brings a
+        # top-level AXI port to package pins (default/legacy); "jtag" instances a
+        # pin-free JTAG-to-AXI master. Default is external-only.
+        self._axi_mm_no_master = creator_yaml.get("axi_mm", {}).get(
+            "no_master", ["external"]
+        )
+
+        # AXIS data-width-converter policies. "yes" inserts a converter on every
+        # width mismatch, "no" never does, "random" decides per connection. YAML
+        # parses bare yes/no as booleans, so normalize those back to strings.
+        def _norm_conv_policy(value):
+            if value is True:
+                return "yes"
+            if value is False:
+                return "no"
+            assert value in ("yes", "no", "random"), (
+                f"axi_stream converter policy must be yes/no/random, got {value!r}"
+            )
+            return value
+
+        axi_stream_cfg = creator_yaml.get("axi_stream") or {}
+        self._axis_io_conv = _norm_conv_policy(
+            axi_stream_cfg.get("io_converters", "random")
+        )
+        self._axis_internal_conv = _norm_conv_policy(
+            axi_stream_cfg.get("internal_converters", "random")
         )
 
         min_ip = creator_yaml["min_ip"]
@@ -232,6 +318,7 @@ class RandomDesign:
         )
 
         project_config["block_diagram"] = self._bd_tcl
+        project_config["width_checks"] = self._render_width_checks()
         self.tcl_str = chevron.render(template, project_config)
 
         for ip in self.ip:
@@ -278,17 +365,27 @@ class RandomDesign:
             # Interrupt ports
             self._interrupts()
 
-            # AXI ports
+            # AXI memory-mapped ports
             self._axi()
+
+            # AXI Stream ports
+            self._axi_stream()
+            # xilinx.com:ip:axis_broadcaster:1.1
+            # xilinx.com:ip:axis_combiner:1.1
+            # self._generic_ports(
+            #     protocol=Protocol.AXI_STREAM,
+            #     max_randomly_generated_inputs=0,
+            #     max_randomly_generated_outputs=0,
+            # )
 
             # Data and control ports
             self._generic_ports(
-                port_type="data",
+                protocol=Protocol.DATA,
                 max_randomly_generated_inputs=128,
                 max_randomly_generated_outputs=32,
             )
             self._generic_ports(
-                port_type="control",
+                protocol=Protocol.CONTROL,
                 max_randomly_generated_inputs=8,
                 max_randomly_generated_outputs=8,
             )
@@ -298,31 +395,120 @@ class RandomDesign:
             logging.error("Unhandled port: %s", port)
         assert not unhandled_ports
 
+    def _axi_stream(self):
+        """Connect AXI Stream ports"""
+
+        if self._axis_complete:
+            return
+
+        # If no IP in the design has any AXI Stream ports, there is no stream
+        # network to build. Skip the stage rather than fabricating external
+        # source/sink ports that have nothing to connect to.
+        if not any(ip.has_axis_ports() for ip in self.ip):
+            logging.info("No AXI Stream ports in design, skipping AXI Stream stage")
+            return
+
+        logging.info("########## AXI Stream ##########")
+
+        assert not self._axis_complete
+        self._axis_complete = True
+
+        # Make sure we have a source IP, if not, create an external interface
+        # Source IP have no input AXI Stream ports, only output ports
+        primary_source_ips = [
+            ip
+            for ip in self.ip
+            if ip.has_axis_master_ports() and not ip.has_axis_slave_ports()
+        ]
+        primary_sources = [
+            port
+            for ip in primary_source_ips
+            for port in ip.ports
+            if port.protocol == Protocol.AXI_STREAM
+            and port.direction == Direction.OUTPUT
+        ]
+        if not primary_sources:
+            # A single external source is enough to seed the network; the
+            # assigner will broadcast it if it needs to drive multiple sinks.
+            primary_sources.append(
+                self._create_external_port(
+                    "external_axis_source",
+                    Protocol.AXI_STREAM,
+                    Direction.INPUT,
+                    width=8,
+                )
+            )
+
+        # Make sure we have a sink IP, if not, create an external interface
+        # Sink IP have no output AXI Stream ports, only input ports
+        primary_sink_ips = [
+            ip
+            for ip in self.ip
+            if ip.has_axis_slave_ports() and not ip.has_axis_master_ports()
+        ]
+        primary_sinks = [
+            port
+            for ip in primary_sink_ips
+            for port in ip.ports
+            if port.protocol == Protocol.AXI_STREAM
+            and port.direction == Direction.INPUT
+        ]
+        if not primary_sinks:
+            primary_sinks.append(
+                self._create_external_port(
+                    "external_axis_sink", Protocol.AXI_STREAM, Direction.OUTPUT, width=8
+                )
+            )
+
+        # Find all internal AXI Stream IP
+        internal_axis_ips = [
+            ip
+            for ip in self.ip
+            if ip not in primary_source_ips
+            and ip not in primary_sink_ips
+            and ip.has_axis_ports()
+        ]
+
+        assignments = port_assigner_axis(
+            primary_sources, primary_sinks, internal_axis_ips
+        )
+        for in_port, drivers in assignments.items():
+            logging.info(f"AXI Stream port {in_port.hier_name_w} driven by:")
+            for driver in drivers:
+                logging.info(f"  {driver.hier_name_w}")
+
+        self._port_connector(Protocol.AXI_STREAM, assignments)
+
     def _generic_ports(
-        self, port_type, max_randomly_generated_inputs, max_randomly_generated_outputs
+        self, protocol, max_randomly_generated_inputs, max_randomly_generated_outputs
     ):
         """Connect data ports."""
+        assert protocol in Protocol
 
-        assert port_type in ("data", "control")
-
-        if port_type in self.port_types_initialized:
+        if protocol in self.port_types_initialized:
             return
-        self.port_types_initialized.add(port_type)
+        self.port_types_initialized.add(protocol)
 
-        logging.info(f"########## Connecting {port_type} ports ##########")
-        self._bd_tcl += f"\n########## {port_type} ports ##########\n"
+        logging.info(f"########## Connecting {protocol} ports ##########")
+        self._bd_tcl += f"\n########## Connecting {protocol} ports ##########\n"
         out_ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == port_type and not p.connected and p.direction == "O"
+            if p.protocol == protocol
+            and not p.connected
+            and p.direction == Direction.OUTPUT
         ]
         in_ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == port_type and not p.connected and p.direction == "I"
+            if p.protocol == protocol
+            and not p.connected
+            and p.direction == Direction.INPUT
         ]
+        # for p in in_ports:
+        #     print(p.name, p.direction, p.width)
         num_in_pins = sum(p.width for p in in_ports)
         num_out_pins = sum(p.width for p in out_ports)
 
@@ -332,7 +518,7 @@ class RandomDesign:
         # in which case the maximum number of inputs will be num_in_pins)
         #
         # If there are no output pins, then at least one primary input will be created
-        if port_type not in self._pi_ports:
+        if protocol not in self._pi_ports:
             min_pis = 0
             max_pis = max_randomly_generated_inputs
 
@@ -349,13 +535,14 @@ class RandomDesign:
 
             pi_width = random.randint(min_pis, max_pis)
             if pi_width:
+                sig_name = f"{protocol.value}_I"
                 logging.info(
-                    f"Creating primary input port: {port_type}_I, width: {pi_width}"
+                    f"Creating primary input port: {sig_name}, width: {pi_width}"
                 )
                 new_port = self._create_external_port(
-                    f"{port_type}_I", port_type, "I", pi_width
+                    sig_name, protocol, Direction.INPUT, pi_width
                 )
-                self._pi_ports[port_type] = new_port
+                self._pi_ports[protocol] = new_port
                 out_ports.insert(0, new_port)
                 num_out_pins = sum(p.width for p in out_ports)
 
@@ -370,17 +557,17 @@ class RandomDesign:
                 po_width = max_randomly_generated_outputs
             else:
                 po_width = out_pins_needed
-            logging.info(
-                f"Creating primary output port: {port_type}_O, width: {po_width}"
-            )
+
+            sig_name = f"{protocol.value}_O"
+            logging.info(f"Creating primary output port: {sig_name}, width: {po_width}")
             new_port = self._create_external_port(
-                f"{port_type}_O", port_type, "O", po_width
+                sig_name, protocol, Direction.OUTPUT, po_width
             )
-            self._po_ports[port_type] = new_port
+            self._po_ports[protocol] = new_port
 
             if po_width < out_pins_needed:
                 logging.info(f"Adding reducer from {out_pins_needed} to {po_width}")
-                reducer = self._new_ip(Reduce, (port_type, out_pins_needed, po_width))
+                reducer = self._new_ip(Reduce, (protocol, out_pins_needed, po_width))
                 in_ports.append(reducer.in_port)
                 reducer.out_port.connect(new_port)
             else:
@@ -394,118 +581,39 @@ class RandomDesign:
         for p in out_ports:
             logging.info(f"  {p.hier_name} {p.width}")
 
-        self._random_port_connector(in_ports, out_ports)
-
-    def _random_port_connector(self, in_ports, out_ports):
-        if not in_ports and not out_ports:
-            return
-
-        logging.info(
-            f"Will randomly connect {len(out_ports)} output ports to {len(in_ports)} input ports"
+        # Make the connection assignments
+        self._randomized_signal_drivers[protocol] = port_assigner_random(
+            in_ports, out_ports
         )
 
-        # Generate list of in and out ports, where each item is a tuple (port, index)
-        # where index is the lowest bit number not connected
-        in_ports_not_driven = [[port, 0] for port in in_ports]
-        random.shuffle(in_ports_not_driven)
+        # Make the connections
+        self._port_connector(protocol, self._randomized_signal_drivers[protocol])
 
-        out_ports_unused = [[port, 0] for port in out_ports]
-        assert out_ports_unused
-
-        # Connect all in ports
-        next_out_port_idx = 0
-
-        for in_port_and_pin_idx in in_ports_not_driven:
-            drivers = []
-            in_port = in_port_and_pin_idx[0]
-            in_width = in_port.width
-            in_width_unconnected = in_width
-            logging.info(
-                f"Connecting drivers of port {in_port.hier_name} [{in_width-1}:0]"
-            )
-
-            num_connected = 0
-
-            while in_width_unconnected:
-                # Once we've used up all the output signals, this flag will switch to True
-                # and we will randomly reuse output signals
-                using_random_output = next_out_port_idx >= len(out_ports_unused)
-
-                # Pick the output port
-                if using_random_output:
-                    out_port = random.choice(out_ports_unused)[0]
-                    out_port_avail = None
-                    # Randomly pick a pin range to use
-                    out_width = min(out_port.width, in_width_unconnected)
-                    out_bit_low = random.randint(0, out_port.width - out_width)
-                    out_bit_high = out_bit_low + out_width - 1
-                else:
-                    out_port = out_ports_unused[next_out_port_idx][0]
-                    # Identify unused pins from this port
-                    out_port_avail = out_ports_unused[next_out_port_idx]
-                    out_bit_high = out_port_avail[0].width - 1
-                    out_bit_low = out_port_avail[1]
-
-                out_width = out_bit_high - out_bit_low + 1
-
-                if out_width == in_width_unconnected:
-                    logging.info(
-                        f"  [{in_width_unconnected-1}:0] <-- {out_port.hier_name} [{out_bit_high}:{out_bit_low}]"
-                    )
-                    drivers.append((out_port, out_bit_high, out_bit_low))
-                    num_connected += out_width
-                    next_out_port_idx += 1
-                    in_width_unconnected = 0
-                    break
-
-                if out_width > in_width_unconnected:
-                    logging.info(
-                        f"  [{in_width_unconnected-1}:0] <-- {out_port.hier_name} [{out_bit_low + in_width_unconnected - 1}:{out_bit_low}]"
-                    )
-                    drivers.append(
-                        (out_port, out_bit_low + in_width_unconnected - 1, out_bit_low)
-                    )
-                    num_connected += in_width_unconnected
-                    if out_port_avail:
-                        out_port_avail[1] += in_width_unconnected
-                    in_width_unconnected = 0
-                    break
-
-                # out_width < in_width_unconnected
-                logging.info(
-                    f"  [{in_width_unconnected-1}:{in_width_unconnected-out_width}] <-- {out_port.hier_name} [{out_bit_high}:{out_bit_low}]"
-                )
-                drivers.append((out_port, out_bit_high, out_bit_low))
-                num_connected += out_width
-                next_out_port_idx += 1
-                in_width_unconnected -= out_width
-
-            assert (
-                num_connected == in_width
-            ), f"num_connected: {num_connected}, in_width: {in_width}"
-
-            # Connect all drivers to the in port
-            self._randomized_signal_drivers[in_port.protocol][in_port.hier_name] = [
-                f"{driver.hier_name}[{bit_high}:{bit_low}]"
-                for (driver, bit_high, bit_low) in drivers
-            ]
-            self._connect_multiple_drivers_to_port(in_port, drivers)
+    def _port_connector(self, protocol, driver_map):
+        """Make multiple port connections for a given protocol.  The driver_map is a
+        dictionary mapping each in_port to a list of (out_port, high_bit, low_bit) tuples.
+        """
+        if protocol == Protocol.AXI_STREAM:
+            self._axi_stream_connector(driver_map)
+        else:
+            for in_port, drivers in driver_map.items():
+                self._connect_multiple_drivers_to_port(in_port, drivers)
 
     def _connect_multiple_drivers_to_port(self, port, drivers):
-        """Connect multiple drivers to a port"""
-        self._new_ip(
-            SliceAndConcat,
-            (port, drivers),
-        )
+        """Connect multiple drivers to a port
+        This function only supports wire ports, not interface ports.
+        """
+        assert port.protocol.get_type() == NetType.WIRE
+        self._new_ip(SliceAndConcat, (port, drivers))
 
     def _clocks(self):
         clock_inputs = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol in ("clk", "clk_locked")
+            if p.protocol in (Protocol.CLOCK, Protocol.CLOCK_LOCKED)
             and not p.connected
-            and p.direction == "I"
+            and p.direction == Direction.INPUT
         ]
 
         # Create single external clock
@@ -514,14 +622,14 @@ class RandomDesign:
         if self._clk_wiz_inst is None:
             self._clk_wiz_inst = self._new_ip(ClkGen)
             logging.info("Creating external clock port: clock")
-            self._create_external_port("clk", "clk", "I", width=1).connect(
-                self._clk_wiz_inst.port_clk_in
-            )
+            self._create_external_port(
+                "clk", Protocol.CLOCK, Direction.INPUT, width=1
+            ).connect(self._clk_wiz_inst.port_clk_in)
 
         for clock_input in clock_inputs:
-            if clock_input.protocol == "clk_locked":
+            if clock_input.protocol == Protocol.CLOCK_LOCKED:
                 driver = self._clk_wiz_inst.port_dcm_locked
-            elif clock_input.protocol == "clk":
+            elif clock_input.protocol == Protocol.CLOCK:
                 driver = self._clk_wiz_inst.port_clk_out
             else:
                 logging.error(
@@ -537,19 +645,19 @@ class RandomDesign:
             self._reset_inst = self._new_ip(SystemReset)
 
         # Create single external reset
-        if "reset" not in self._pi_ports:
+        if Protocol.RESET not in self._pi_ports:
             self._bd_tcl += "\n########## Resets ##########\n"
             logging.info("Creating external reset port: reset")
-            self._pi_ports["reset"] = self._create_external_port(
-                "reset", "reset", "I", 1
+            self._pi_ports[Protocol.RESET] = self._create_external_port(
+                "reset", Protocol.RESET, Direction.INPUT, 1
             )
 
         reset_sources_by_protocol = {
-            "reset": self._pi_ports["reset"],
-            "reset_mb": self._reset_inst.port_mb_reset,
-            "reset_interconnect": self._reset_inst.port_interconnect_aresetn,
-            "reset_peripheral": self._reset_inst.port_peripheral_reset,
-            "reset_peripheral_n": self._reset_inst.port_peripheral_areset_n,
+            Protocol.RESET: self._pi_ports[Protocol.RESET],
+            Protocol.RESET_MICROBLAZE: self._reset_inst.port_mb_reset,
+            Protocol.RESET_INTERCONNECT: self._reset_inst.port_interconnect_aresetn,
+            Protocol.RESET_PERIPHERAL: self._reset_inst.port_peripheral_reset,
+            Protocol.RESET_PERIPHERAL_N: self._reset_inst.port_peripheral_areset_n,
         }
 
         # Collect unconnected reset inputs
@@ -559,7 +667,7 @@ class RandomDesign:
             for p in ip.ports
             if p.protocol in reset_sources_by_protocol
             and not p.connected
-            and p.direction == "I"
+            and p.direction == Direction.INPUT
         ]
 
         for reset_input in reset_inputs:
@@ -575,15 +683,17 @@ class RandomDesign:
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "irq" and not p.connected and p.direction == "O"
+            if p.protocol == Protocol.IRQ
+            and not p.connected
+            and p.direction == Direction.OUTPUT
         ]
         interrupt_inputs = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "xilinx.com:interface:mbinterrupt_rtl:1.0"
+            if p.protocol == Protocol.MB_INTERRUPT
             and not p.connected
-            and p.direction == "Slave"
+            and p.direction == Direction.INPUT
         ]
 
         if not interrupt_outputs and not interrupt_inputs:
@@ -606,7 +716,7 @@ class RandomDesign:
         # If there are no microblaze interrupt inputs, create a top-level output
         if not interrupt_inputs:
             irq_out = self._create_external_port(
-                "irq", "xilinx.com:interface:mbinterrupt_rtl:1.0", "Master"
+                "irq", Protocol.MB_INTERRUPT, Direction.OUTPUT
             )
             interrupt_inputs.append(irq_out)
 
@@ -617,38 +727,25 @@ class RandomDesign:
                 intc.input_ports[i].connect(interrupt_output)
             interrupt_input.connect(intc.port_irq)
 
+    # Interface protocols that have their own dedicated connection handling and
+    # must NOT be blindly exported to the top level.
+    _SPECIALLY_HANDLED_INTERFACES = (
+        Protocol.AXI_STREAM,
+        Protocol.AXI_MM,
+        Protocol.MB_INTERRUPT,
+    )
+
     def _external_interfaces(self):
+        # Any remaining unconnected Xilinx interface port (GPIO, UART, EMC, ULPI,
+        # ICAP/arb, XADC diff IO, CAN, IIC, MII/MDIO, SPI, startup, ...) is simply
+        # brought out to the top level. Interfaces with dedicated handling are
+        # excluded.
         ports = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol
-            in (
-                # GPIO general purpose I/O and 3-state pins
-                "xilinx.com:interface:gpio_rtl:1.0",
-                # UART master interface
-                "xilinx.com:interface:uart_rtl:1.0",
-                # EMC_INTF port
-                "xilinx.com:interface:emc_rtl:1.0",
-                # axi_usb2_device ULPI port, for use with USB PHY
-                "xilinx.com:interface:ulpi_rtl:1.0",
-                # axi_hwicap ICAP and arbiter ports, read/write to FPGA configuration memory
-                "xilinx.com:interface:icap_rtl:1.0",
-                "xilinx.com:interface:arb_rtl:1.0",
-                # XADC input port
-                "xilinx.com:interface:diff_analog_io_rtl:1.0",
-                # CAN
-                "xilinx.com:interface:can_rtl:1.0",
-                # IIC
-                "xilinx.com:interface:iic_rtl:1.0",
-                # EthernetLite
-                "xilinx.com:interface:mii_rtl:1.0",
-                "xilinx.com:interface:mdio_rtl:1.0",
-                # Quad SPI
-                "xilinx.com:interface:spi_rtl:1.0",
-                "xilinx.com:display_startup_io:startup_io_rtl:1.0",
-                "xilinx.com:interface:startup_rtl:1.0",
-            )
+            if p.protocol.get_type() == NetType.INTERFACE
+            and p.protocol not in self._SPECIALLY_HANDLED_INTERFACES
             and not p.connected
         ]
 
@@ -659,23 +756,141 @@ class RandomDesign:
                 f"{port.ip.hier_name}_{port.name}", port.protocol, port.direction
             ).connect(port)
 
+    def _axi_stream_connector(self, driver_map):
+        """Build AXI Stream connections.
+
+        ``driver_map`` maps each sink port to a list of source (driver) ports.
+
+        - A driver that feeds more than one sink gets an AXI Stream Broadcaster
+          (1 source -> N sinks); each sink connects to a distinct output.
+        - A sink fed by more than one driver gets an AXI Stream Combiner
+          (N sources -> 1 sink); each driver connects to a distinct input.
+        """
+        fanout_degree = defaultdict(int)
+        fanout_next_idx = defaultdict(int)
+        broadcasters = {}
+
+        # Count how many sinks each driver feeds (fanout)
+        for in_port, drivers in driver_map.items():
+            for driver in drivers:
+                fanout_degree[driver] += 1
+
+        # Create a broadcaster for each driver that feeds more than one sink
+        for driver, degree in fanout_degree.items():
+            if degree > 1:
+                broadcasters[driver] = self._new_ip(AxisBroadcaster, (driver, degree))
+
+        def source_port_for(driver):
+            """Resolve the port that should actually drive a sink input for this
+            driver, inserting a broadcaster output when the driver fans out."""
+            if fanout_degree[driver] > 1:
+                idx = fanout_next_idx[driver]
+                fanout_next_idx[driver] += 1
+                return broadcasters[driver].get_output_port(idx)
+            return driver
+
+        for in_port, drivers in driver_map.items():
+            if len(drivers) == 1:
+                # Single driver: connect the sink to its (resolved) source,
+                # inserting a width converter if needed.
+                self._connect_axis(source_port_for(drivers[0]), in_port)
+            else:
+                # Multiple drivers: merge them into the sink with a combiner. Each
+                # combiner input is created at its driver's width, so no converter
+                # is needed on these legs.
+                combiner = self._new_ip(
+                    AxisCombiner, (in_port, [d.width for d in drivers])
+                )
+                for i, driver in enumerate(drivers):
+                    self._connect_axis(
+                        source_port_for(driver), combiner.get_input_port(i)
+                    )
+                # Drive the sink from the combined (summed-width) output, going
+                # through _connect_axis so the sink's converter_req is honoured
+                # (a forced converter when the concatenated width differs, or
+                # always for a field-checked sink).
+                self._connect_axis(combiner.axi_out, in_port)
+
+    def _want_converter(self, policy):
+        """Whether to insert a width converter for a candidate (mismatched)
+        connection, given the policy ('yes' | 'no' | 'random')."""
+        if policy == "yes":
+            return True
+        if policy == "no":
+            return False
+        return random.random() < 0.5  # "random"
+
+    def _connect_axis(self, source, sink):
+        """Connect an AXIS ``source`` to a ``sink``, optionally routing through an
+        AXI Stream data width converter. The sink's ``converter_req`` decides when
+        a converter is mandatory (see ConverterReq); otherwise one is inserted on
+        a width difference only when the configured policy asks for it. The policy
+        is the I/O policy when either endpoint is an external port, otherwise the
+        internal policy. An opportunistic converter is only feasible when the
+        TDATA byte widths have an integer ratio (the Xilinx converter is a byte
+        gearbox); otherwise the ports are connected directly."""
+        is_io = isinstance(source, ExternalPort) or isinstance(sink, ExternalPort)
+        policy = self._axis_io_conv if is_io else self._axis_internal_conv
+
+        # A sink that ALWAYS requires a converter gets one even at matching widths:
+        # the converter flattens any structured-TDATA field map (e.g. CORDIC's
+        # xn_re/xn_im) into a plain stream the sink will accept.
+        if sink.converter_req == ConverterReq.ALWAYS:
+            self._insert_axis_converter(source, sink)
+            return
+
+        if source.width != sink.width:
+            in_bytes = math.ceil(source.width / 8)
+            out_bytes = math.ceil(sink.width / 8)
+            lo, hi = sorted((in_bytes, out_bytes))
+            ratio_ok = lo > 0 and hi % lo == 0
+            # An ON_WIDTH_DIFF sink (e.g. an AXI DMA stream slave) hard-errors if a
+            # mismatched width propagates onto it, so always insert a converter
+            # there -- even when the byte ratio is non-integer (the Xilinx
+            # converter may reject it; we want to observe that). For lenient sinks
+            # the converter is optional (random policy) and only attempted when the
+            # byte ratio is integer.
+            if sink.converter_req == ConverterReq.ON_WIDTH_DIFF or (
+                ratio_ok and self._want_converter(policy)
+            ):
+                self._insert_axis_converter(source, sink)
+                return
+
+        self._wire_axis(source, sink)
+
+    def _insert_axis_converter(self, source, sink):
+        """Insert an AXI Stream data width converter between ``source`` and
+        ``sink`` and wire it up."""
+        conv = self._new_ip(AxisDwidthConverter, (source.width, sink.width))
+        self._wire_axis(source, conv.axi_in)
+        self._wire_axis(conv.axi_out, sink)
+
+    @staticmethod
+    def _wire_axis(source, sink):
+        """Make a single AXIS connection from ``source`` to ``sink``.
+
+        ``sink.connect(source)`` works for every supported case: an IpPort sink
+        delegates external sources correctly, and an ExternalPort sink accepts an
+        IpPort source (source/sink are never both external)."""
+        sink.connect(source)
+
     def _axi(self):
         """Create AXI ports"""
         masters = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "xilinx.com:interface:aximm_rtl:1.0"
+            if p.protocol == Protocol.AXI_MM
             and not p.connected
-            and p.direction == "Master"
+            and p.direction == Direction.OUTPUT
         ]
         slaves = [
             p
             for ip in self.ip
             for p in ip.ports
-            if p.protocol == "xilinx.com:interface:aximm_rtl:1.0"
+            if p.protocol == Protocol.AXI_MM
             and not p.connected
-            and p.direction == "Slave"
+            and p.direction == Direction.INPUT
         ]
 
         if not masters and not slaves:
@@ -697,21 +912,36 @@ class RandomDesign:
 
         self._bd_tcl += "\n########## AXI ##########\n"
         if not masters:
-            # If we don't have a master, create a top-level master
-            master = self._create_external_port(
-                "axi_master",
-                "xilinx.com:interface:aximm_rtl:1.0",
-                "Slave",
-                properties={"CONFIG.PROTOCOL": "AXI4LITE"},
-            )
-            masters.append(master)
+            # No internal AXI master: provide one per the configured strategy.
+            choice = random.choice(self._axi_mm_no_master)
+            logging.info(f"No AXI master; using '{choice}' no-master strategy")
+            if choice == "jtag":
+                # Pin-free JTAG-to-AXI master (no top-level AXI bus on the pins).
+                # Its address space is mapped by the template's global
+                # assign_bd_address (run before validate_bd_design).
+                jtag = self._new_ip(JtagAxi)
+                masters.append(jtag.master_port)
+            elif choice == "external":
+                # Top-level AXI master port (legacy behavior).
+                master = self._create_external_port(
+                    "axi_master",
+                    Protocol.AXI_MM,
+                    Direction.INPUT,
+                    properties={"CONFIG.PROTOCOL": "AXI4LITE"},
+                )
+                masters.append(master)
+            else:
+                raise ValueError(
+                    f"Unknown axi_mm.no_master option: {choice!r} "
+                    "(expected 'external' or 'jtag')"
+                )
 
         if not slaves:
             # If we don't have a slave, create a top-level slave
             slave = self._create_external_port(
                 "axi_slave",
-                "xilinx.com:interface:aximm_rtl:1.0",
-                "Master",
+                Protocol.AXI_MM,
+                Direction.OUTPUT,
                 properties={"CONFIG.PROTOCOL": "AXI4LITE"},
             )
             slaves.append(slave)
@@ -766,11 +996,10 @@ class RandomDesign:
     def _create_external_port(
         self, name, protocol, direction, width=None, properties=None
     ):
-        if protocol.startswith("xilinx.com:"):
-            assert width is None
-            port = ExternalPortInterface(self, name, protocol, direction, properties)
-        else:
-            port = ExternalPortRegular(self, name, protocol, direction, width)
+        assert isinstance(protocol, Protocol)
+        assert isinstance(direction, Direction)
+
+        port = ExternalPort(self, name, protocol, direction, width, properties)
         return port
 
     def _new_instance(self, ip_name, instance_name, properties=None):

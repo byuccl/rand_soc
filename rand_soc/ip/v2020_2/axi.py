@@ -1,5 +1,6 @@
 """AXI Smartconnect and AXI Interconnect IP"""
 
+from rand_soc.typedefs import Direction, Protocol
 from ..ip_base import IP
 
 
@@ -30,22 +31,20 @@ class AxiSmartconnect(IP):
             },
         )
 
-        self._create_hier_pin("clk", "clk", "I", 1).connect_internal(f"{axi_name}/aclk")
-        self._create_hier_pin("reset", "reset_interconnect", "I", 1).connect_internal(
-            f"{axi_name}/aresetn"
-        )
+        self._create_hier_pin(
+            "clk", Protocol.CLOCK, Direction.INPUT, 1
+        ).connect_internal(f"{axi_name}/aclk")
+        self._create_hier_pin(
+            "reset", Protocol.RESET_INTERCONNECT, Direction.INPUT, 1
+        ).connect_internal(f"{axi_name}/aresetn")
 
         for i in range(num_masters):
-            port = self._create_hier_pin(
-                f"AXI_M{i}", "xilinx.com:interface:aximm_rtl:1.0", "Slave"
-            )
+            port = self._create_hier_pin(f"AXI_M{i}", Protocol.AXI_MM, Direction.INPUT)
             port.connect_internal(f"{axi_name}/S{i:02}_AXI")
             self.port_masters.append(port)
 
         for i in range(num_slaves):
-            port = self._create_hier_pin(
-                f"AXI_S{i}", "xilinx.com:interface:aximm_rtl:1.0", "Master"
-            )
+            port = self._create_hier_pin(f"AXI_S{i}", Protocol.AXI_MM, Direction.OUTPUT)
             port.connect_internal(f"{axi_name}/M{i:02}_AXI")
             self.port_slaves.append(port)
 
@@ -77,25 +76,23 @@ class AxiInterconnect(IP):
             },
         )
 
-        clk_pin = self._create_hier_pin("clk", "clk", "I", 1)
+        clk_pin = self._create_hier_pin("clk", Protocol.CLOCK, Direction.INPUT, 1)
         clk_pin.connect_internal(f"{axi_name}/ACLK")
 
-        reset_pin = self._create_hier_pin("reset", "reset_interconnect", "I", 1)
+        reset_pin = self._create_hier_pin(
+            "reset", Protocol.RESET_INTERCONNECT, Direction.INPUT, 1
+        )
         reset_pin.connect_internal(f"{axi_name}/ARESETN")
 
         for i in range(num_masters):
-            port = self._create_hier_pin(
-                f"AXI_M{i}", "xilinx.com:interface:aximm_rtl:1.0", "Slave"
-            )
+            port = self._create_hier_pin(f"AXI_M{i}", Protocol.AXI_MM, Direction.INPUT)
             port.connect_internal(f"{axi_name}/S{i:02}_AXI")
             clk_pin.connect_internal(f"{axi_name}/S{i:02}_ACLK")
             reset_pin.connect_internal(f"{axi_name}/S{i:02}_ARESETN")
             self.port_masters.append(port)
 
         for i in range(num_slaves):
-            port = self._create_hier_pin(
-                f"AXI_S{i}", "xilinx.com:interface:aximm_rtl:1.0", "Master"
-            )
+            port = self._create_hier_pin(f"AXI_S{i}", Protocol.AXI_MM, Direction.OUTPUT)
             port.connect_internal(f"{axi_name}/M{i:02}_AXI")
             clk_pin.connect_internal(f"{axi_name}/M{i:02}_ACLK")
             reset_pin.connect_internal(f"{axi_name}/M{i:02}_ARESETN")

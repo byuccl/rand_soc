@@ -1,15 +1,33 @@
+# Verify the running Vivado matches the version this design was built for. IP
+# VLNVs are version-specific, so a mismatch otherwise produces cryptic
+# "IP definition not found" errors instead of a clear message.
+set expected_vivado_version "{{ vivado_version }}"
+set actual_vivado_version [version -short]
+if {$actual_vivado_version ne $expected_vivado_version} {
+    error "RANDSOC: design built for Vivado $expected_vivado_version but running $actual_vivado_version. Set vivado_version in the config to match your Vivado, or run with the matching Vivado."
+}
+
 create_project test ./test -part {{ part }} -force
 
 create_bd_design {{ bd_name }}
 
 {{{ block_diagram }}}
 
+# AXIS width verification runs before validate_bd_design so widths are reported
+# even for designs that fail validation (each IP's TDATA is resolved at configure
+# time, independent of connectivity).
+{{{ width_checks }}}
+
 assign_bd_address
+validate_bd_design
 
 # Save the block design
 regenerate_bd_layout
 save_bd_design
 
+puts "RANDSOC_BD_VALIDATED_OK"
+
+{{#synthesize}}
 make_wrapper -files [get_files test/test.srcs/sources_1/bd/{{ bd_name }}/{{ bd_name }}.bd] -top
 add_files -norecurse test/test.gen/sources_1/bd/{{ bd_name }}/hdl/{{ bd_name }}_wrapper.v
 
@@ -22,4 +40,5 @@ write_verilog {{ verilog_path }} -force
 write_edif {{ edif_path }} -force
 report_io -force -file {{ io_report_path }}
 
-reset_project 
+reset_project
+{{/synthesize}}

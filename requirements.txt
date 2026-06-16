@@ -2,4 +2,6 @@ chevron
 boolean.py
 lxml
 pyyaml
+networkx
+ordered-set
 -e rand_soc
