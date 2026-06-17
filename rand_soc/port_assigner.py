@@ -395,10 +395,14 @@ def port_assigner_axis(
 
         if candidate_sources is None:
             # No clean width-matched reuse; drive a sink from one of its cross-IP
-            # connected sources and add a width converter later.
+            # sources and add a width converter later. Prefer an already-connected
+            # source (a true broadcaster); fall back to any cross-IP source (it is
+            # still paired in Phase 4, so it just drives an extra sink) so a
+            # sink-heavy design with no source connected yet never strands a sink.
             chosen_sink = random.choice(list(unconnected_sinks))
             pool = [s for s in connected_sources if not _same_ip(s, chosen_sink)]
-            candidate_sources = [random.choice(pool or connected_sources)]
+            cross_ip_any = [s for s in all_sources if not _same_ip(s, chosen_sink)]
+            candidate_sources = [random.choice(pool or cross_ip_any or connected_sources or list(all_sources))]
             logging.info(
                 f"- No perfect multi-source sink found, randomly driving {chosen_sink.hier_name_w} by {', '.join([s.hier_name_w for s in candidate_sources])}"
             )

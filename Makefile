@@ -28,16 +28,15 @@ N ?= 30
 smoke: .venv/bin/activate
 	$(IN_ENV) python smoke_test.py -n $(N) --config $(CONFIG) --part $(PART)
 
-# Second-pass test: run N designs through Vivado on a remote host (default CCL1)
-# up to block-design validation, no synthesis. Override with N=, HOST=, JOBS=.
+# Second-pass test: run N designs through Vivado locally up to block-design
+# validation, no synthesis. Override with N=, JOBS=.
 # Add SYNTH=1 to run full synthesis and pass only if synth.dcp is produced;
 # synthesis is much slower, so also bump the per-design TIMEOUT (seconds).
-HOST ?= CCL1
-JOBS ?= 75
+JOBS ?= 4
 SYNTH ?=
 TIMEOUT ?= 900
 vivado-test: .venv/bin/activate
-	$(IN_ENV) python vivado_test.py -n $(N) --config $(CONFIG) --part $(PART) --host $(HOST) --jobs $(JOBS) --timeout $(TIMEOUT) $(if $(SYNTH),--synth,)
+	$(IN_ENV) python vivado_test.py -n $(N) --config $(CONFIG) --part $(PART) --jobs $(JOBS) --timeout $(TIMEOUT) $(if $(SYNTH),--synth,)
 
 env: .venv/bin/activate
 cleanenv:
