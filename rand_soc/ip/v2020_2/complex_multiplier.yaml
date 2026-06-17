@@ -1,0 +1,200 @@
+- id: "cmpy_0"
+  definition: "xilinx.com:ip:cmpy:6.0"
+  configuration:
+
+  ##### (1) Data path #####
+
+  # The Complex Multiplier only supports integer/fixed-point operands (PG104);
+  # "Integer" is the sole Data Type and Has Accumulator is never available, so it
+  # is left at its default (FALSE). Parameter names/values are the User Parameters
+  # from PG104 (Vivado IDE -> User Parameter table).
+  - name: datatype
+    value: Integer
+
+  # Per-operand component widths. Real and imaginary parts of one operand share a
+  # width; the two operands are sized independently. Range 8..63 (PG104).
+  - name: aportwidth
+    values_eval: range(8, 64)
+
+  - name: bportwidth
+    values_eval: range(8, 64)
+
+  ##### (2) Implementation #####
+
+  # Three/four real-multiplier DSP solution (Use_Mults) vs a LUT-only build
+  # (Use_Luts, which always uses the three-multiplier configuration internally).
+  - name: multtype
+    values: [Use_Mults, Use_Luts]
+
+  # AXI handshake optimization. cmpy exposes this independent of flow control
+  # (unlike CORDIC), so it is randomized across the full set.
+  - name: optimizegoal
+    values: [Resources, Performance]
+
+  - name: flowcontrol
+    values: [Blocking, NonBlocking]
+
+  ##### (3) Output / rounding #####
+
+  # Truncate (free) vs unbiased Random_Rounding. Random rounding brings in the
+  # CTRL channel, whose TDATA bit 0 (ROUND_CY) carries the external dither source
+  # (PG104 "Unbiased Rounding Sources"); Truncate has no CTRL channel.
+  - name: roundmode
+    values: [Truncate, Random_Rounding]
+
+  - name: has_ctrl
+    internal: true
+    value_eval: "1 if roundmode == 'Random_Rounding' else 0"
+
+  # Full-precision product is aportwidth + bportwidth + 1 bits; the output may be
+  # any width from 2 up to that full precision, the lower bits being rounded off.
+  - name: outputwidth
+    values_eval: "range(2, aportwidth + bportwidth + 2)"
+
+  ##### (4) Per-channel TLAST / TUSER #####
+
+  # A and B channels always exist. The CTRL channel only exists with random
+  # rounding, so its flags are forced FALSE otherwise (kept defined as plain
+  # FALSE -- harmless to push -- so the TLAST count/behaviour below can reference
+  # them unconditionally, as floating_point.yaml does for its OPERATION channel).
+  - name: hasatlast
+    values: [false, true]
+
+  - name: hasbtlast
+    values: [false, true]
+
+  - name: hasctrltlast
+    values_eval: "[False, True] if has_ctrl else [False]"
+
+  - name: hasatuser
+    values: [false, true]
+
+  - name: hasbtuser
+    values: [false, true]
+
+  - name: hasctrltuser
+    values_eval: "[False, True] if has_ctrl else [False]"
+
+  # TUSER widths over the IP's full 1..256 range (only pushed when the channel's
+  # TUSER is enabled).
+  - name: atuserwidth
+    enable: hasatuser
+    values_eval: range(1, 257)
+
+  - name: btuserwidth
+    enable: hasbtuser
+    values_eval: range(1, 257)
+
+  - name: ctrltuserwidth
+    enable: hasctrltuser
+    values_eval: range(1, 257)
+
+  # Output TLAST behaviour. Present when at least one input channel carries TLAST:
+  # pass one present channel's TLAST through, or OR/AND all of them when two or
+  # more are present. Omitted (-> core default "Null") when no input TLAST exists.
+  - name: tlast_count
+    internal: true
+    value_eval: "hasatlast + hasbtlast + hasctrltlast"
+
+  - name: outtlastbehv
+    enable: "tlast_count >= 1"
+    values_eval: "(['Pass_A_TLAST'] if hasatlast else []) + (['Pass_B_TLAST'] if hasbtlast else []) + (['Pass_CTRL_TLAST'] if hasctrltlast else []) + (['OR_all_TLASTs', 'AND_all_TLASTs'] if tlast_count >= 2 else [])"
+
+  ##### (5) Core latency #####
+
+  # Automatic = fully pipelined. Manual lets the user pin a Minimum Latency; the
+  # core pipelines to at least that many cycles, up to a ceiling of 55. The IDE
+  # widget shows 0..55, but Vivado validation (IP_Flow 19-3458) rejects the low
+  # end under Blocking flow control: a blocking handshake needs at least 4 cycles
+  # of pipeline, so the legal floor is 4 for Blocking and 0 for NonBlocking (where
+  # 0 yields a purely combinational core -- see is_combinational below).
+  - name: latencyconfig
+    values: [Automatic, Manual]
+
+  - name: minimumlatency
+    enable: "latencyconfig == 'Manual'"
+    values_eval: "range(4, 56) if flowcontrol == 'Blocking' else range(0, 56)"
+
+  # A NonBlocking core with a forced Minimum Latency of 0 is purely combinational:
+  # Vivado then drops the aclk pin (PG104 Table 2-1), and with it aclken/aresetn.
+  - name: is_combinational
+    internal: true
+    value_eval: "1 if (flowcontrol == 'NonBlocking' and latencyconfig == 'Manual' and minimumlatency == 0) else 0"
+
+  ##### (6) Optional control pins #####
+
+  - name: aclken
+    values: [false, true]
+
+  - name: aresetn
+    values: [false, true]
+
+  ports:
+
+  # A combinational core (see is_combinational) exposes no clock or reset pin.
+  - name: aclk
+    protocol: clk
+    direction: I
+    width: 1
+    enable: "not is_combinational"
+    connections:
+    - cmpy_0/aclk
+
+  - name: aclken
+    protocol: control
+    direction: I
+    width: 1
+    enable: "aclken and not is_combinational"
+    connections:
+    - cmpy_0/aclken
+
+  - name: aresetn
+    protocol: reset_interconnect
+    direction: I
+    width: 1
+    enable: "aresetn and not is_combinational"
+    connections:
+    - cmpy_0/aresetn
+
+  # Operand streams. Each TDATA packs the real then imaginary component, every
+  # component padded up to a byte boundary (PG104 TDATA Packing), so a channel is
+  # 2 * roundup(width, 8) bits wide. The components carry typed numeric fields
+  # that Vivado type-checks, so (as with CORDIC/Floating-Point) a foreign stream
+  # must never land directly on them even when the byte width matches;
+  # converter_req: always forces a width converter that normalises the source
+  # into a plain TDATA first.
+  - name: S_AXIS_A
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    width: "2 * (math.ceil(aportwidth / 8) * 8)"
+    converter_req: always
+    connections:
+    - cmpy_0/S_AXIS_A
+
+  - name: S_AXIS_B
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    width: "2 * (math.ceil(bportwidth / 8) * 8)"
+    converter_req: always
+    connections:
+    - cmpy_0/S_AXIS_B
+
+  # CTRL carries the rounding-carry (ROUND_CY) selector in a single byte; only
+  # present for random rounding.
+  - name: S_AXIS_CTRL
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    enable: has_ctrl
+    width: 8
+    converter_req: always
+    connections:
+    - cmpy_0/S_AXIS_CTRL
+
+  # DOUT packs the real then imaginary result, each sign-extended to a byte
+  # boundary, so it is 2 * roundup(outputwidth, 8) bits wide.
+  - name: M_AXIS_DOUT
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Master
+    width: "2 * (math.ceil(outputwidth / 8) * 8)"
+    connections:
+    - cmpy_0/M_AXIS_DOUT
