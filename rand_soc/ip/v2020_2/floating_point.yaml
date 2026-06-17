@@ -1,0 +1,440 @@
+- id: "floating_point_0"
+  definition: "xilinx.com:ip:floating_point:7.1"
+  configuration:
+
+  ##### (1) Operation Selection #####
+
+  # Master selector. Almost everything below keys off this. Parameter names and
+  # values are from PG060 Table 4-4 (Vivado IDE -> User Parameter relationship).
+  - name: operation_type
+    values:
+      - Add_Subtract
+      - Multiply
+      - Divide
+      - FMA
+      - Accumulator
+      - Absolute
+      - Logarithm
+      - Exponential
+      - Square_root
+      - Reciprocal
+      - Rec_Square_Root
+      - Float_to_float
+      - Fixed_to_float
+      - Float_to_fixed
+      - Compare
+
+  # Internal selectors derived from the operation. These are not pushed to Vivado
+  # (internal: true); they only drive enable/width logic for the parameters and
+  # ports below.
+  #   has_b           : a second operand (S_AXIS_B) exists
+  #   has_c           : a third operand (S_AXIS_C) exists (FMA only)
+  #   a_is_fixed      : the A operand is an integer/fixed type (Fixed_to_float)
+  #   result_is_fixed : the result is an integer/fixed type (Float_to_fixed)
+  #   has_result_page : the result precision is independently configured
+  #                     (only the three convert ops have a "Precision of Result"
+  #                     page; for every other op the result format is forced = A)
+  - name: has_b
+    internal: true
+    value_eval: "1 if operation_type in ('Add_Subtract', 'Multiply', 'Divide', 'Compare', 'FMA') else 0"
+
+  - name: has_c
+    internal: true
+    value_eval: "1 if operation_type == 'FMA' else 0"
+
+  - name: a_is_fixed
+    internal: true
+    value_eval: "1 if operation_type == 'Fixed_to_float' else 0"
+
+  - name: result_is_fixed
+    internal: true
+    value_eval: "1 if operation_type == 'Float_to_fixed' else 0"
+
+  - name: has_result_page
+    internal: true
+    value_eval: "1 if operation_type in ('Float_to_float', 'Fixed_to_float', 'Float_to_fixed') else 0"
+
+  # Absolute value is purely combinational (latency 0 even at max), so Vivado
+  # gives it no aclk/aclken/aresetn pins. Gate those ports off for it.
+  - name: is_combinational
+    internal: true
+    value_eval: "1 if operation_type == 'Absolute' else 0"
+
+  # Add/Subtract option. Applies to Add_Subtract, FMA and Accumulator; for any
+  # other op it is forced to its harmless default ("Both") so it can still be
+  # referenced by has_operation_stream below. "Both" selects add-vs-subtract
+  # dynamically per transaction, which brings in the OPERATION stream.
+  - name: add_sub_value
+    values_eval: "['Both', 'Add', 'Subtract'] if operation_type in ('Add_Subtract', 'FMA', 'Accumulator') else ['Both']"
+
+  # Compare operator selection. Only meaningful for Compare; forced to its default
+  # ("Programmable") otherwise. "Programmable" selects the comparison dynamically
+  # per transaction, which brings in the OPERATION stream.
+  - name: c_compare_operation
+    values_eval: "['Programmable', 'Unordered', 'Less_Than', 'Equal', 'Less_Than_Or_Equal', 'Greater_Than', 'Not_Equal', 'Greater_Than_Or_Equal', 'Condition_Code'] if operation_type == 'Compare' else ['Programmable']"
+
+  # The OPERATION stream (S_AXIS_OPERATION) is present when the operation is chosen
+  # per transaction: a "Both" add/sub (Add_Subtract/FMA/Accumulator) or a
+  # "Programmable" compare.
+  - name: has_operation_stream
+    internal: true
+    value_eval: "1 if (operation_type in ('Add_Subtract', 'FMA', 'Accumulator') and add_sub_value == 'Both') or (operation_type == 'Compare' and c_compare_operation == 'Programmable') else 0"
+
+  ##### (2) Precision of Inputs #####
+
+  # A precision type. Float ops pick from the floating-point set; Fixed_to_float
+  # (the only op whose A operand is fixed) picks from the integer set. "Custom" is
+  # in both, but means a custom float vs custom fixed format depending on a_is_fixed.
+  # Precision-type set is operation-restricted (confirmed against Vivado):
+  #   Fixed_to_float          -> integer types (A is fixed); the result float
+  #                              exponent is coupled to A's width on the result page
+  #   elementary functions    -> Half/Single/Double only (Custom "not available
+  #     (exp/log/sqrt/recip)     on all operators", PG060)
+  #   everything else         -> Half/Single/Double/Custom (incl. Accumulator,
+  #                              whose MSB/LSB ranges are computed from the
+  #                              exponent/fraction below; and Float_to_fixed,
+  #                              whose fixed result width is coupled to A)
+  - name: a_precision_type
+    values_eval: "['Uint32', 'Int32', 'Uint64', 'Int64', 'Custom'] if operation_type == 'Fixed_to_float' else ['Half', 'Single', 'Double'] if operation_type in ('Exponential', 'Logarithm', 'Square_root', 'Reciprocal', 'Rec_Square_Root') else ['Half', 'Single', 'Double', 'Custom']"
+
+  # Custom width fields. Always computed (internal) so a_total_bits can reference
+  # them, but only pushed to Vivado when a_precision_type == Custom. For a float
+  # the first field is the exponent width; for a fixed type it is the integer
+  # width (GUI relabels the same field). Ranges follow the Custom pages:
+  #   float : exponent 4..15 (GUI 0..64), fraction 4..56 (GUI 0..64)
+  #   fixed : integer  4..48 (GUI 1..64), fraction 0..32 (GUI 0..32)
+  # Custom width fields, with the PG060 Table 4-1 / coupling limits baked in:
+  #   float : exponent 4..16; fraction 4..min(64, 2**(exponent-1) - 3)
+  #           (enforces Minimum Exponent Width = ceil(log2(fraction+3)) + 1)
+  #   fixed : integer 4..64; fraction 0..(64-integer) so total width stays <= 64
+  - name: _a_field1_custom
+    internal: true
+    values_eval: "range(4, 65) if a_is_fixed else range(4, 17)"
+
+  - name: _a_field2_custom
+    internal: true
+    values_eval: "range(0, 65 - _a_field1_custom) if a_is_fixed else range(4, min(64, 2 ** (_a_field1_custom - 1) - 3) + 1)"
+
+  - name: c_a_exponent_width
+    enable: "a_precision_type == 'Custom'"
+    value_eval: "_a_field1_custom"
+
+  - name: c_a_fraction_width
+    enable: "a_precision_type == 'Custom'"
+    value_eval: "_a_field2_custom"
+
+  # Total bits of the A operand (sign + exponent + stored fraction, or integer +
+  # fraction for fixed). The named types map directly; Custom sums the two fields.
+  - name: a_total_bits
+    internal: true
+    value_eval: "{'Half': 16, 'Single': 32, 'Double': 64, 'Uint32': 32, 'Int32': 32, 'Uint64': 64, 'Int64': 64}.get(a_precision_type, _a_field1_custom + _a_field2_custom)"
+
+  # Exponent width of a floating-point A operand (0 for a fixed A). Used to bound
+  # the fixed result width of Float_to_fixed (the float exponent must be wide
+  # enough to normalise the fixed value: max fixed total = 2**(exp-1) - 3, PG060).
+  - name: a_exp
+    internal: true
+    value_eval: "0 if a_is_fixed else {'Half': 5, 'Single': 8, 'Double': 11}.get(a_precision_type, _a_field1_custom)"
+
+  # Fraction width of a floating-point A operand (total - exponent). Used for the
+  # accumulator LSB bound below.
+  - name: a_frac
+    internal: true
+    value_eval: "a_total_bits - a_exp"
+
+  ##### (2b) Precision of Result (convert ops only) #####
+
+  # Result precision type, only present for the three convert ops:
+  #   Float_to_float : Half/Single/Double/Custom (float)
+  #   Fixed_to_float : Single/Double/Custom      (float, no Half)
+  #   Float_to_fixed : Int32/Custom              (fixed)
+  # For every other op there is no result page and the result format is derived
+  # from A by the core (so this param is omitted).
+  # Result precision set (convert ops only), with the conversion coupling applied:
+  #   Float_to_float : full float set (each side coupled to its own fraction)
+  #   Fixed_to_float : float result; only named types whose exponent is wide
+  #                    enough for A's width (>= ceil(log2(a_total+3))+1), + Custom
+  #   Float_to_fixed : fixed result; Int32 only if 32 bits fits A's exponent
+  #                    (max fixed total = 2**(a_exp-1)-3), + Custom
+  - name: _r_min_exp
+    internal: true
+    value_eval: "math.ceil(math.log2(a_total_bits + 3)) + 1 if operation_type == 'Fixed_to_float' else 4"
+
+  - name: _r_max_fixed_total
+    internal: true
+    value_eval: "min(64, 2 ** (a_exp - 1) - 3) if operation_type == 'Float_to_fixed' else 64"
+
+  - name: result_precision_type
+    enable: has_result_page
+    values_eval: "['Half', 'Single', 'Double', 'Custom'] if operation_type == 'Float_to_float' else ([n for n, e in [('Half', 5), ('Single', 8), ('Double', 11)] if e >= _r_min_exp] + ['Custom']) if operation_type == 'Fixed_to_float' else ((['Int32'] if 32 <= _r_max_fixed_total else []) + ['Custom'])"
+
+  # Custom result widths. Float result: exponent >= max(4, _r_min_exp) with the
+  # fraction coupled as on the input side. Fixed result: integer + fraction total
+  # kept within _r_max_fixed_total.
+  - name: _r_field1_custom
+    internal: true
+    values_eval: "range(4, _r_max_fixed_total + 1) if result_is_fixed else range(max(4, _r_min_exp), 17)"
+
+  - name: _r_field2_custom
+    internal: true
+    values_eval: "range(0, _r_max_fixed_total - _r_field1_custom + 1) if result_is_fixed else range(4, min(64, 2 ** (_r_field1_custom - 1) - 3) + 1)"
+
+  - name: c_result_exponent_width
+    enable: "has_result_page and result_precision_type == 'Custom'"
+    value_eval: "_r_field1_custom"
+
+  - name: c_result_fraction_width
+    enable: "has_result_page and result_precision_type == 'Custom'"
+    value_eval: "_r_field2_custom"
+
+  # Total bits of the result. Compare emits a 1/4-bit code in a single byte
+  # (PG060 Fig 3-11). Non-convert ops mirror A. Convert ops use the result page.
+  - name: result_total_bits
+    internal: true
+    value_eval: "8 if operation_type == 'Compare' else a_total_bits if not has_result_page else {'Half': 16, 'Single': 32, 'Double': 64, 'Int32': 32}.get(result_precision_type, _r_field1_custom + _r_field2_custom)"
+
+  ##### (3) Internal precision (Accumulator only) #####
+
+  # Ranges follow PG060 (Accumulator Design Guidelines / Table 3-2), computed from
+  # the A exponent/fraction; emax = 2**(exp-1)-1, emin = 2-2**(exp-1):
+  #   Input MSB : in [emin, emax]            (MSB of the largest accepted input)
+  #   MSB       : in [Input MSB, Input MSB+54](result MSB; <=54 bits of headroom)
+  #   LSB       : in [max(emin-(frac-1), MSB-2097), Input MSB - 1]
+  #               (format LSB floor, plus a fixed max accumulator width cap)
+  # Evaluated in this dependency order (Input MSB -> MSB -> LSB).
+  - name: c_accum_input_msb
+    enable: "operation_type == 'Accumulator'"
+    values_eval: "range(2 - 2 ** (a_exp - 1), 2 ** (a_exp - 1))"
+
+  - name: c_accum_msb
+    enable: "operation_type == 'Accumulator'"
+    values_eval: "range(c_accum_input_msb, c_accum_input_msb + 55)"
+
+  - name: c_accum_lsb
+    enable: "operation_type == 'Accumulator'"
+    values_eval: "range(max((2 - 2 ** (a_exp - 1)) - (a_frac - 1), c_accum_msb - 2097), c_accum_input_msb)"
+
+  ##### (4) Optimizations #####
+
+  # Architecture: latency- vs speed-optimized. Per PG060 the choice only exists
+  # for add/subtract, Accumulator, and double-precision multiply; left at default
+  # (Speed_optimized) elsewhere.
+  - name: c_optimization
+    enable: "operation_type in ('Add_Subtract', 'Accumulator') or (operation_type == 'Multiply' and a_precision_type == 'Double')"
+    values: [Speed_Optimized, Low_Latency]
+
+  # DSP slice usage. The legal set depends on BOTH operation and precision; this
+  # table was read off the Vivado IDE per operation:
+  #   FMA            : Medium/Full              (all precisions; No_Usage invalid)
+  #   Multiply       : No/Med/Full/Max          (Medium dropped for Half & Custom)
+  #   Logarithm      : No/Med (Half)            ; No/Med/Full (Single/Double)
+  #   Add_Subtract   : No/Med/Full (Half,Single); No/Full (Double); No (Custom)
+  #   Exponential    : Full (Half)              ; No/Med/Full (Single/Double)
+  #   Reciprocal     : No (Half); No/Full (Single); Full (Double)   [& Rec_Sqrt]
+  #   Accumulator    : No/Med/Full              (Single/Double only)
+  #   everything else: No_Usage
+  - name: c_mult_usage
+    values_eval: "['Medium_Usage', 'Full_Usage'] if operation_type == 'FMA' else (['No_Usage', 'Full_Usage', 'Max_Usage'] if a_precision_type in ('Half', 'Custom') else ['No_Usage', 'Medium_Usage', 'Full_Usage', 'Max_Usage']) if operation_type == 'Multiply' else (['No_Usage', 'Medium_Usage'] if a_precision_type == 'Half' else ['No_Usage', 'Medium_Usage', 'Full_Usage']) if operation_type == 'Logarithm' else (['No_Usage', 'Medium_Usage', 'Full_Usage'] if a_precision_type in ('Half', 'Single') else ['No_Usage', 'Full_Usage'] if a_precision_type == 'Double' else ['No_Usage']) if operation_type == 'Add_Subtract' else (['Full_Usage'] if a_precision_type == 'Half' else ['No_Usage', 'Medium_Usage', 'Full_Usage']) if operation_type == 'Exponential' else (['No_Usage'] if a_precision_type == 'Half' else ['No_Usage', 'Full_Usage'] if a_precision_type == 'Single' else ['Full_Usage']) if operation_type in ('Reciprocal', 'Rec_Square_Root') else ['No_Usage', 'Medium_Usage', 'Full_Usage'] if operation_type == 'Accumulator' else ['No_Usage']"
+
+  # Block memory usage is only configurable for the Exponential operator (PG060).
+  - name: c_bram_usage
+    values_eval: "['No_Usage', 'Full_Usage'] if operation_type == 'Exponential' else ['No_Usage']"
+
+  ##### (5) Interface Options #####
+
+  - name: flow_control
+    values: [Blocking, NonBlocking]
+
+  # Optimize goal applies in Blocking mode (Non-Blocking has no back-pressure).
+  - name: axi_optimize_goal
+    enable: "flow_control == 'Blocking'"
+    values: [Resources, Performance]
+
+  # RESULT TREADY only exists in Blocking mode; Non-Blocking has no TREADY at all.
+  - name: has_result_tready
+    enable: "flow_control == 'Blocking'"
+    values: [false, true]
+
+  # Latency is fixed at the core's maximum: a manual c_latency/c_rate has a valid
+  # range that depends on the operation+precision, and Vivado *errors* (it does
+  # not clamp) on out-of-range values, so it cannot be randomized blindly.
+  - name: maximum_latency
+    value: true
+
+  - name: has_aclken
+    values: [false, true]
+
+  - name: has_aresetn
+    values: [false, true]
+
+  # Optional output exception flags. Each only exists for the operations that can
+  # raise it (PG060 exception sections); omitted (-> core default False) elsewhere.
+  - name: c_has_underflow
+    enable: "operation_type in ('Add_Subtract', 'Multiply', 'Divide', 'FMA', 'Accumulator', 'Square_root', 'Reciprocal', 'Rec_Square_Root', 'Exponential', 'Logarithm', 'Float_to_float', 'Fixed_to_float')"
+    values: [false, true]
+
+  - name: c_has_overflow
+    enable: "operation_type in ('Add_Subtract', 'Multiply', 'Divide', 'FMA', 'Accumulator', 'Square_root', 'Reciprocal', 'Rec_Square_Root', 'Exponential', 'Logarithm', 'Float_to_float', 'Fixed_to_float')"
+    values: [false, true]
+
+  - name: c_has_invalid_op
+    enable: "operation_type not in ('Absolute', 'FMA')"
+    values: [false, true]
+
+  - name: c_has_divide_by_zero
+    enable: "operation_type in ('Divide', 'Reciprocal', 'Rec_Square_Root', 'Logarithm')"
+    values: [false, true]
+
+  - name: c_has_accum_overflow
+    enable: "operation_type == 'Accumulator'"
+    values: [false, true]
+
+  - name: c_has_accum_input_overflow
+    enable: "operation_type == 'Accumulator'"
+    values: [false, true]
+
+  # Per-channel TLAST. The b/c/operation flags are forced False when that channel
+  # is absent (kept defined so result_tlast_behv can count them). The accumulator
+  # has no TLAST options (TLAST is mandatory there), so has_a_tlast is omitted for
+  # it and the core wires TLAST automatically.
+  - name: has_a_tlast
+    enable: "operation_type != 'Accumulator'"
+    values: [false, true]
+
+  - name: has_b_tlast
+    values_eval: "[False, True] if has_b else [False]"
+
+  - name: has_c_tlast
+    values_eval: "[False, True] if has_c else [False]"
+
+  - name: has_operation_tlast
+    values_eval: "[False, True] if has_operation_stream else [False]"
+
+  # A-channel TLAST as an always-defined int (0 for the accumulator, where the
+  # user param is omitted) so the count below never references a missing name.
+  - name: _a_tlast
+    internal: true
+    value_eval: "has_a_tlast if operation_type != 'Accumulator' else 0"
+
+  # Count only the data channels (A/B/C): result TLAST is passed from / combined
+  # over those, never the OPERATION channel, so this also guarantees the
+  # result_tlast_behv value list below is non-empty whenever it is enabled.
+  - name: tlast_count
+    internal: true
+    value_eval: "_a_tlast + has_b_tlast + has_c_tlast"
+
+  # Output TLAST behavior. Present when at least one input TLAST exists (and not
+  # for the accumulator, whose result TLAST is automatic). Pass a present input's
+  # TLAST (the OPERATION channel is not a pass option), or OR/AND all of them when
+  # two or more are present. Value strings confirmed against Vivado.
+  - name: result_tlast_behv
+    enable: "operation_type != 'Accumulator' and tlast_count >= 1"
+    values_eval: "(['Pass_A_TLAST'] if _a_tlast else []) + (['Pass_B_TLAST'] if has_b_tlast else []) + (['Pass_C_TLAST'] if has_c_tlast else []) + (['OR_all_TLASTs', 'AND_all_TLASTs'] if tlast_count >= 2 else [])"
+
+  # Per-channel TUSER (present flag + width). b/c/operation flags are forced False
+  # when the channel is absent; widths are only pushed when the flag is set.
+  - name: has_a_tuser
+    values: [false, true]
+
+  - name: has_b_tuser
+    values_eval: "[False, True] if has_b else [False]"
+
+  - name: has_c_tuser
+    values_eval: "[False, True] if has_c else [False]"
+
+  - name: has_operation_tuser
+    values_eval: "[False, True] if has_operation_stream else [False]"
+
+  # TUSER widths. The IP accepts 1..256, but a width converter inserted on the
+  # stream rejects too many TUSER bits per byte (TUSER_BITS_PER_BYTE), which a
+  # large TUSER on a narrow stream (especially the 1-byte OPERATION channel)
+  # exceeds. Cap each channel's TUSER to 16 bits per data byte (well under the
+  # converter limit) so the value stays converter-safe while still randomized.
+  - name: a_tuser_width
+    enable: has_a_tuser
+    values_eval: "range(1, min(256, 16 * math.ceil(a_total_bits / 8)) + 1)"
+
+  - name: b_tuser_width
+    enable: has_b_tuser
+    values_eval: "range(1, min(256, 16 * math.ceil(a_total_bits / 8)) + 1)"
+
+  - name: c_tuser_width
+    enable: has_c_tuser
+    values_eval: "range(1, min(256, 16 * math.ceil(a_total_bits / 8)) + 1)"
+
+  - name: operation_tuser_width
+    enable: has_operation_tuser
+    values_eval: "range(1, 17)"
+
+  ports:
+
+  - name: aclk
+    protocol: clk
+    direction: I
+    width: 1
+    enable: "not is_combinational"
+    connections:
+    - floating_point_0/aclk
+
+  - name: aclken
+    protocol: control
+    direction: I
+    width: 1
+    enable: "has_aclken and not is_combinational"
+    connections:
+    - floating_point_0/aclken
+
+  - name: aresetn
+    protocol: reset_interconnect
+    direction: I
+    width: 1
+    enable: "has_aresetn and not is_combinational"
+    connections:
+    - floating_point_0/aresetn
+
+  # Operand streams. Each TDATA carries a typed numeric field that Vivado
+  # type-checks, so (as with CORDIC/Convolution) a foreign stream must never land
+  # directly on it even when the byte width matches; converter_req: always forces
+  # a width converter that normalises the source into a plain TDATA first.
+  - name: S_AXIS_A
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    width: "math.ceil(a_total_bits / 8) * 8"
+    converter_req: always
+    connections:
+    - floating_point_0/S_AXIS_A
+
+  - name: S_AXIS_B
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    enable: has_b
+    width: "math.ceil(a_total_bits / 8) * 8"
+    converter_req: always
+    connections:
+    - floating_point_0/S_AXIS_B
+
+  - name: S_AXIS_C
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    enable: has_c
+    width: "math.ceil(a_total_bits / 8) * 8"
+    converter_req: always
+    connections:
+    - floating_point_0/S_AXIS_C
+
+  # OPERATION carries the per-transaction op selector in a single byte (PG060).
+  - name: S_AXIS_OPERATION
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    enable: has_operation_stream
+    width: 8
+    converter_req: always
+    connections:
+    - floating_point_0/S_AXIS_OPERATION
+
+  - name: M_AXIS_RESULT
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Master
+    width: "math.ceil(result_total_bits / 8) * 8"
+    connections:
+    - floating_point_0/M_AXIS_RESULT
