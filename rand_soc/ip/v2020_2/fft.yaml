@@ -38,8 +38,14 @@
     connections:
     - fft_0/aclk
 
+  # Vivado types this pin as 'intr' (an interrupt), not a generic control wire.
+  # Classifying it as IRQ routes it through the interrupt path (Intc -> the
+  # MicroBlaze interrupt input, or a top-level irq export) instead of the generic
+  # CONTROL pool. In the CONTROL pool it was the only available driver, and
+  # Vivado rejects wiring an intr source onto a control/ce input such as a
+  # CORDIC/Convolution-Encoder aclken (BD 41-1308, incompatible intr->ce).
   - name: event_frame_started
-    protocol: control
+    protocol: irq
     direction: O
     width: 1
     connections:

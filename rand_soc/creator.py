@@ -45,6 +45,7 @@ def import_ip(version, versions):
         ("axis_combiner", ["AxisCombiner"]),
         ("axis_dwidth_converter", ["AxisDwidthConverter"]),
         ("cordic", ["Cordic"]),
+        ("convolution", ["ConvolutionEncoder"]),
     ]
     versions = versions[versions.index(version) :]
     for lib, ips in ips:

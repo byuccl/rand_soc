@@ -158,14 +158,14 @@
 
   ##### (6) Optional pins #####
 
-  # ACLKEN is held off. The aclken pin is a clock-enable (Vivado type 'ce'); when
-  # exposed it falls into the generic CONTROL random-connection pool, whose only
-  # driver is an event/interrupt-typed output (e.g. the FFT's event_frame_started),
-  # and Vivado rejects the intr->ce connection (BD 41-1308). There is no
-  # clock-enable network in these random designs to drive it compatibly, so it
-  # stays disabled until the framework grows one.
+  # The aclken pin is a clock-enable (Vivado type 'ce'). It falls into the
+  # generic CONTROL random-connection pool; previously the only driver there was
+  # the FFT's event_frame_started, which Vivado rejected as an intr->ce
+  # connection (BD 41-1308) -- so ACLKEN was held off. Now that event_frame_started
+  # is correctly classified as IRQ (see fft.yaml), the CONTROL pool supplies a
+  # plain wire driver compatible with a ce pin, so ACLKEN can be randomized.
   - name: ACLKEN
-    values: [false]
+    values: [false, true]
 
   - name: ARESETn
     values: [false, true]
