@@ -60,11 +60,10 @@ def import_ip(version, versions):
                 for cls_name in ips:
                     cls = getattr(module, cls_name, None)
                     if not cls:
-                        print(f"{cls_name} not found\n")
+                        logging.warning("%s not found in %s", cls_name, name)
                     globals()[cls_name] = cls
                 break
-            except ModuleNotFoundError as e:
-                print(f"import failed: {e}\n")
+            except ModuleNotFoundError:
                 continue
 
 
@@ -207,7 +206,6 @@ class RandomDesign:
         ip_list = yaml_file["available_ip"]
         for ip in ip_list:
             assert "class" in ip, f"IP {ip} does not have a class"
-            print(ip["class"])
             ip["class"] = getattr(sys.modules[__name__], ip["class"])
         return ip_list
 
@@ -903,14 +901,7 @@ class RandomDesign:
 
         # Incremental AXI not supported
         if self._axi_complete:
-            print("AXI processing called again")
-            print("Masters:")
-            for master in masters:
-                print(master)
-            print("Slaves:")
-            for slave in slaves:
-                print(slave)
-            assert False
+            assert False, "AXI processing called again"
         self._axi_complete = True
 
         self._bd_tcl += "\n########## AXI ##########\n"
