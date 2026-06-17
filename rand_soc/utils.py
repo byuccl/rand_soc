@@ -16,6 +16,28 @@ def all_ones(width):
     return 2**width - 1
 
 
+def randpuncture(input_rate, output_rate):
+    """Random valid puncture-code pair for the Convolution Encoder.
+
+    PG026 rule: each of the two codes is ``input_rate`` (n) bits long and the
+    combined number of 1-bits across both equals ``output_rate`` (m), with
+    n < m < 2n. We pick m of the 2n bit positions uniformly at random; positions
+    [0, n) form code0 and [n, 2n) form code1. The exact bit order is irrelevant
+    to validity (only length and total popcount matter), so any such pattern is
+    legal. Returns the two codes as zero-padded n-bit binary strings (puncture
+    codes have no radix parameter, so they are entered as bit strings).
+    """
+    positions = random.sample(range(2 * input_rate), output_rate)
+    code0 = code1 = 0
+    for p in positions:
+        if p < input_rate:
+            code0 |= 1 << p
+        else:
+            code1 |= 1 << (p - input_rate)
+    fmt = "0{}b".format(input_rate)
+    return format(code0, fmt), format(code1, fmt)
+
+
 def pull_from_list(lst, new_list, fcn):
     lst_copy = []
     for item in lst:

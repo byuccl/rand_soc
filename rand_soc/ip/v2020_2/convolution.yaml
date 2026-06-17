@@ -1,0 +1,149 @@
+- id: "conv_encoder_0"
+  definition: "xilinx.com:ip:convolution:9.0"
+  configuration:
+
+  # Config names below are the CONFIG.* user-parameter names from PG026
+  # (Convolutional Encoder v9.0), Table 4-1 -- all lowercase.
+
+  ##### (1) Data Rates and Puncturing #####
+
+  # Whether the core punctures the rate-1/2 encoded data before output. Both
+  # modes are supported; the input_rate / output_rate ranges and the puncture
+  # codes below switch on this.
+  - name: punctured
+    values: [false, true]
+
+  # Dual-channel (two bits at a time) output. Vivado greys this out unless the
+  # core is punctured, so gate it on punctured.
+  - name: dual_output
+    enable: punctured
+    values: [false, true]
+    default: false
+
+  # Input rate n. Non-punctured cores are rate 1/m, so the input rate is fixed at
+  # 1 (the field is disabled in the GUI). When punctured it can range 2..12,
+  # giving a rate n/m core.
+  - name: input_rate
+    values_eval: "range(2, 13) if punctured else [1]"
+
+  # Output rate m. Non-punctured: 2..7 (rate 1/2 .. 1/7). Punctured: PG026
+  # requires n < m < 2n, i.e. m in [input_rate+1, 2*input_rate-1].
+  - name: output_rate
+    values_eval: "range(input_rate + 1, 2 * input_rate) if punctured else range(2, 8)"
+
+  # Puncture pattern codes. They must be generated jointly: each is input_rate
+  # bits long and the total number of 1-bits across both equals output_rate
+  # (PG026). randpuncture() returns the valid pair as zero-padded n-bit binary
+  # strings (puncture codes have no radix parameter, unlike the convolution
+  # codes). The pair is computed once in an internal var and split into the two
+  # fields. Only evaluated when punctured; otherwise both default to 0.
+  - name: _puncture_pattern
+    internal: true
+    enable: punctured
+    value_eval: "randpuncture(input_rate, output_rate)"
+    default: 0
+
+  - name: puncture_code0
+    enable: punctured
+    value_eval: "_puncture_pattern[0]"
+    default: 0
+
+  - name: puncture_code1
+    enable: punctured
+    value_eval: "_puncture_pattern[1]"
+    default: 0
+
+  ##### (2) Convolution #####
+
+  # Constraint length: length of the constraint register plus 1. PG026 allows
+  # 3..9 inclusive.
+  - name: constraint_length
+    values_eval: "range(3, 10)"
+
+  # Codes are entered in binary, octal or decimal -- the radix is only an input
+  # format and does not change the generated hardware. Decimal lets us feed a
+  # plain random integer (randintwidth) with no zero-padded string formatting.
+  - name: convolution_code_radix
+    value: Decimal
+
+  # Generator polynomials, one per convolution_codeN field (0..6). Each is a
+  # random value of constraint_length bits (decimal radix). The core uses only as
+  # many as the mode needs -- output_rate of them when non-punctured, two when
+  # punctured -- and ignores the rest; generating all seven at the correct width
+  # keeps every field valid regardless of which are active.
+  - name: convolution_code0
+    value_eval: "randintwidth(constraint_length)"
+  - name: convolution_code1
+    value_eval: "randintwidth(constraint_length)"
+  - name: convolution_code2
+    value_eval: "randintwidth(constraint_length)"
+  - name: convolution_code3
+    value_eval: "randintwidth(constraint_length)"
+  - name: convolution_code4
+    value_eval: "randintwidth(constraint_length)"
+  - name: convolution_code5
+    value_eval: "randintwidth(constraint_length)"
+  - name: convolution_code6
+    value_eval: "randintwidth(constraint_length)"
+
+  ##### (3) Optional Pins #####
+
+  # Output AXI-Stream TREADY handshake on M_AXIS_DATA.
+  - name: tready
+    values: [false, true]
+    default: true
+
+  # Clock-enable pin. Randomized per the design decision to expose it (unlike
+  # CORDIC, where it is held off).
+  - name: aclken
+    values: [false, true]
+
+  ports:
+
+  - name: aclk
+    protocol: clk
+    direction: I
+    width: 1
+    connections:
+    - conv_encoder_0/aclk
+
+  - name: aclken
+    protocol: control
+    direction: I
+    width: 1
+    enable: aclken
+    connections:
+    - conv_encoder_0/aclken
+
+  # Active-Low synchronous clear. Always present (not an optional pin).
+  - name: aresetn
+    protocol: reset_interconnect
+    direction: I
+    width: 1
+    connections:
+    - conv_encoder_0/aresetn
+
+  # S_AXIS_DATA is always one byte (8 bits) regardless of input_rate -- Vivado
+  # reports TDATA_NUM_BYTES=1 even for punctured rates 9-12 (confirmed by the
+  # width-check probe). Its TDATA carries a typed "data_in" field that Vivado
+  # type-checks, so a foreign stream -- e.g. another encoder's M_AXIS "data_out"
+  # field -- must never land on it directly even when the byte width matches
+  # (Vivado convolution:9.0-309 "field width mismatch"). converter_req: always
+  # forces a width converter that normalises the source into a plain single-field
+  # TDATA first, exactly as CORDIC does for its typed inputs.
+  - name: S_AXIS_DATA
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Slave
+    width: 8
+    converter_req: always
+    connections:
+    - conv_encoder_0/S_AXIS_DATA
+
+  # M_AXIS_DATA output is always zero-padded to one byte (PG026, "Output Data
+  # Channel TDATA Structure"), so a flat 8 bits regardless of mode.
+  - name: M_AXIS_DATA
+    protocol: "xilinx.com:interface:axis_rtl:1.0"
+    direction: Master
+    width: 8
+    connections:
+    - conv_encoder_0/M_AXIS_DATA

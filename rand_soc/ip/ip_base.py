@@ -13,7 +13,7 @@ import math
 
 from rand_soc.typedefs import ConverterReq, Direction, Protocol
 
-from ..utils import all_ones, randintwidth
+from ..utils import all_ones, randintwidth, randpuncture
 from ..ports import IpPort
 
 
@@ -222,6 +222,7 @@ class IPrandom(IP):
         self.config_vars = {}
         self.config_vars["all_ones"] = all_ones
         self.config_vars["randintwidth"] = randintwidth
+        self.config_vars["randpuncture"] = randpuncture
 
         with open(yaml_path, "r") as f:
             ip_data = yaml.safe_load(f)
