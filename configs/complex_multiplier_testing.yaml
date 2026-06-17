@@ -1,0 +1,22 @@
+# Complex-Multiplier-focused stream config: forces the Complex Multiplier into
+# the mix alongside other AXI4-Stream producers/consumers (FFT, AXI DMA) and a
+# MicroBlaze/UART subsystem for AXI + interrupt context. Used to validate the
+# complex_multiplier IP through Vivado.
+vivado_version: v2024_2
+
+axi_mm:
+  no_master: [external, jtag]
+
+axi_stream:
+  io_converters: random
+  internal_converters: random
+
+available_ip:
+  - class: ComplexMultiplier
+  - class: Fft
+  - class: AxiDma
+  - class: Microblaze
+  - class: Uartlite
+
+min_ip: 5
+max_ip: 12
