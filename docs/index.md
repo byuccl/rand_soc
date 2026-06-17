@@ -12,10 +12,10 @@ This is the documentation index. See also:
 - **[Configuration File Reference](config.md)** — every key the config YAML accepts.
 - **[AXI4-Stream Connection](axi_stream.md)** — how stream IP are wired (the
   source/sink assignment algorithm, broadcasters, combiners, width converters).
-- **[Adding and Defining IP](ip.md)** — the IP YAML schema and how to add a new
-  IP block.
-- The repository [`README.md`](../README.md) — install/dependencies and the full
-  supported-IP table.
+- **[Adding and Defining IP](ip.md)** — the IP YAML schema, how to add a new IP
+  block, and the complete [Supported IP](ip.md#supported-ip) list.
+- The repository [`README.md`](../README.md) — install/dependencies and a project
+  overview.
 
 ## Running the tool
 
@@ -112,4 +112,4 @@ falling back to older versions when a given version lacks that module. This lets
 a version-specific variant override the base while unchanged IP fall through to a
 single shared copy.
 
-To add new IP, see the "IP Configurations" section of the [README](../README.md).
+To add new IP, see [Adding and Defining IP](ip.md).

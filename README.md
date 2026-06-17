@@ -52,38 +52,18 @@ reference live in the documentation below.
   accepts (IP selection, Vivado version, AXI no-master strategy, AXIS converters).
 - [AXI4-Stream Connection](docs/axi_stream.md) — how RandSoC wires up AXI-Stream
   IP, including the source/sink assignment algorithm and width converters.
-- [Adding and Defining IP](docs/ip.md) — the IP YAML schema and how to add a new
-  IP block.
+- [Adding and Defining IP](docs/ip.md) — the IP YAML schema, how to add a new IP
+  block, and the **complete [Supported IP](docs/ip.md#supported-ip) list**
+  (randomized IP plus the IP added as needed).
 
 ## Supported IP
 
-### Randomized IP
-| Python Class | Description | Supported Configurations |
-|---------|-------------|--------------------------|
-|`Accumulator` | Xilinx *Accumulator* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/accumulator.html>) | Full configuration space |
-|`AxiCan` | Xilinx *AXI CAN* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_can.html>) | Full configuration space, but untested as a separate license is required. |
-|`AxiCdma` | Xilinx *AXI AXI Central DMA Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_central_dma.html>) | Full configuration space |
-|`AxiDma` | Xilinx *AXI Direct Memory Access* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_dma.html>) | Full configuration space (SG/direct/Micro/multichannel, MM2S+S2MM, control/status streams) |
-|`AxiEthernetLite` | Xilinx *AXI Ethernet Lite* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_ethernetlite.html>) | Full configuration space |
-|`AxiHwicap` | Xilinx *AXI Hardware ICAP* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_hwicap.html>) | Full configuration space |
-|`AxiIic` | Xilinx *AXI IIC Bus Interface* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_iic.html>) | Full configuration space |
-|`AxiQuadSpi` | Xilinx *AXI Quad SPI* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_quadspi.html>) | Full configuration space |
-|`AxiTimer` | Xilinx *AXI Timer/Counter* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_timer.html>) | Full configuration space |
-|`AxiUsb2Device` | Xilinx *AXI USB 2.0 Device Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_usb2_device.html>) | Full configuration space, but untested as a separate license is required. |
-|`Dft` | Xilinx *Discrete Fourier Transform (DFT)* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/dft.html>) | Full configuration space |
-|`Emc` | Xilinx *AXI External Memory Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_emc.html>) | Only number of banks. Other options not yet enumerated. |
-|`Gpio` | Xilinx *AXI General Purpose IO* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_gpio.html>) | Full configuration space |
-|`Microblaze` | Xilinx *AMD MicroBlaze™ Processor* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/microblaze.html>) | All configurations with local memory bus (No AXI DDR support) |
-|`Uartlite` | Xilinx *AXI UART Lite* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_uartlite.html>) | Full configuration space |
-|`XadcWiz` | Xilinx *XADC Wizard* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/xadc-wizard.html>) | Full configuration space |
-
-### IP Added as Needed
-| Python Class | Description |
-|---------|-------------|
-|`AxiSmartconnect` | Xilinx *AXI SmartConnect* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/smartconnect.html>) |
-|`AxiInterconnect` | Xilinx *AXI Interconnect* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi-interconnect.html>) |
-|`ClkGen` | Xilinx *Clocking Wizard* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/clocking_wizard.html>) |
-|`Intc` | Xilinx *AXI Interrupt Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_intc.html>) |
+RandSoC supports a range of randomly-configured Xilinx IP (GPIO, UART, FFT,
+CORDIC, Convolution Encoder, MicroBlaze, the AXI DMA family, …) plus the
+infrastructure IP added as a design requires it (interconnect, clocking,
+interrupt controller, and the AXI-Stream helpers). The full, canonical tables —
+with per-IP descriptions, links, and supported-configuration notes — live in
+[Adding and Defining IP → Supported IP](docs/ip.md#supported-ip).
 
 ## Adding new IP
 

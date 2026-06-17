@@ -1,9 +1,62 @@
 # Adding and Defining IP
 
-This page describes how IP is defined in RandSoC and how to add a new IP block.
-For the list of IP that already ships, see the "Supported IP" section of the
-[README](../README.md). For how IP is loaded per Vivado version, see the IP and
-version-system section of the [documentation index](index.md).
+This page describes the IP RandSoC supports and how to add a new IP block. The
+[Supported IP](#supported-ip) section below is the complete, canonical list. For
+how IP is loaded per Vivado version, see the IP and version-system section of the
+[documentation index](index.md).
+
+## Supported IP
+
+The registry that backs these tables is `import_ip()` in
+[`rand_soc/creator.py`](../rand_soc/creator.py); keep them in sync when adding or
+removing an IP.
+
+### Randomized IP
+
+These are the IP that can be drawn and randomly configured from a config's
+`available_ip` list.
+
+| Python Class | Description | Supported Configurations |
+|---------|-------------|--------------------------|
+|`Accumulator` | Xilinx *Accumulator* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/accumulator.html>) | Full configuration space |
+|`AxiCan` | Xilinx *AXI CAN* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_can.html>) | Full configuration space, but untested as a separate license is required. |
+|`AxiCdma` | Xilinx *AXI Central DMA Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_central_dma.html>) | Full configuration space |
+|`AxiDma` | Xilinx *AXI Direct Memory Access* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_dma.html>) | Full configuration space (SG/direct/Micro/multichannel, MM2S+S2MM, control/status streams) |
+|`AxiEthernetLite` | Xilinx *AXI Ethernet Lite* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_ethernetlite.html>) | Full configuration space |
+|`AxiHwicap` | Xilinx *AXI Hardware ICAP* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_hwicap.html>) | Full configuration space |
+|`AxiIic` | Xilinx *AXI IIC Bus Interface* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_iic.html>) | Full configuration space |
+|`AxiQuadSpi` | Xilinx *AXI Quad SPI* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_quadspi.html>) | Full configuration space |
+|`AxiTimer` | Xilinx *AXI Timer/Counter* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_timer.html>) | Full configuration space |
+|`AxiUsb2Device` | Xilinx *AXI USB 2.0 Device Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_usb2_device.html>) | Full configuration space, but untested as a separate license is required. |
+|`ConvolutionEncoder` | Xilinx *Convolution Encoder* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/convolution.html>) | Constraint length 3–9 with up to seven code vectors, optional puncturing (dual output, input/output rates, random puncture patterns), and optional TREADY/ACLKEN. |
+|`Cordic` | Xilinx *CORDIC* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/cordic.html>) | All functions (Rotate, Translate, Sin/Cos, Sinh/Cosh, Arc Tan, Arc Tanh, Square Root), word-serial/parallel architecture, pipelining modes, 8–48-bit input/output, rounding/scaling modes, optional coarse rotation and TLAST/TUSER. |
+|`Dft` | Xilinx *Discrete Fourier Transform (DFT)* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/dft.html>) | Full configuration space |
+|`Emc` | Xilinx *AXI External Memory Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_emc.html>) | Only number of banks. Other options not yet enumerated. |
+|`Fft` | Xilinx *Fast Fourier Transform (FFT)* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/fast-fourier-transform.html>) | 1–12 channels, transform length 8–65536 (log2 3–16), the implementation options, and optional run-time-configurable transform length. Cyclic-prefix insertion is disabled. |
+|`Gpio` | Xilinx *AXI General Purpose IO* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_gpio.html>) | Full configuration space |
+|`Microblaze` | Xilinx *AMD MicroBlaze™ Processor* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/microblaze.html>) | All configurations with local memory bus (No AXI DDR support) |
+|`Uartlite` | Xilinx *AXI UART Lite* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_uartlite.html>) | Full configuration space |
+|`XadcWiz` | Xilinx *XADC Wizard* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/xadc-wizard.html>) | Full configuration space |
+
+### IP Added as Needed
+
+These are not drawn from `available_ip`; the connection logic instances them as
+the design requires (interconnect/clocking/interrupt infrastructure, the AXI-Stream
+helpers, and the generic-wire glue built from `xlslice`/`xlconcat`).
+
+| Python Class | Description |
+|---------|-------------|
+|`AxiSmartconnect` | Xilinx *AXI SmartConnect* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/smartconnect.html>) |
+|`AxiInterconnect` | Xilinx *AXI Interconnect* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi-interconnect.html>) |
+|`AxisBroadcaster` | Xilinx *AXI4-Stream Broadcaster* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi4-stream-infrastructure.html>) — fans one stream source out to multiple sinks. |
+|`AxisCombiner` | Xilinx *AXI4-Stream Combiner* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi4-stream-infrastructure.html>) — merges multiple stream sources into one. |
+|`AxisDwidthConverter` | Xilinx *AXI4-Stream Data Width Converter* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi4-stream-infrastructure.html>) — resolves TDATA width mismatches between a stream source and sink. |
+|`ClkGen` | Xilinx *Clocking Wizard* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/clocking_wizard.html>) |
+|`Intc` | Xilinx *AXI Interrupt Controller* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/axi_intc.html>) |
+|`JtagAxi` | Xilinx *JTAG to AXI Master* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/jtag-to-axi-master.html>) — pin-free AXI master used by the no-master strategy. |
+|`SystemReset` | Xilinx *Processor System Reset* (<https://www.amd.com/en/products/adaptive-socs-and-fpgas/intellectual-property/proc_sys_reset.html>) — the single design-wide reset. |
+|`Reduce` | Generic-wire reducer built from `xlslice`/`xlconcat` primitives; narrows a wide signal down to a smaller sink. |
+|`SliceAndConcat` | Generic-wire glue built from `xlslice`/`xlconcat` primitives; drives a port from one or more narrower drivers. |
 
 ## Two kinds of IP
 
