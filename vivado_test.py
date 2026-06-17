@@ -1,20 +1,17 @@
-"""Run generated designs through Vivado on a remote host up to block-design
-validation (no synthesis), and report which ones validate.
+"""Run generated designs through Vivado up to block-design validation (no
+synthesis by default), and report which ones validate.
 
 For each seed this:
-  1. generates the design locally with --no-synth,
-  2. copies all designs to the remote host (rsync over ssh),
-  3. runs `vivado -mode batch -source design.tcl` on each remotely, and
-  4. checks the Vivado output for the RANDSOC_BD_VALIDATED_OK sentinel.
+  1. generates the design locally with --no-synth, and
+  2. runs `vivado -mode batch -source design.tcl` locally on each design.
+  3. checks the Vivado output for the RANDSOC_BD_VALIDATED_OK sentinel.
 
 This is the Vivado-level counterpart to smoke_test.py: smoke_test checks that
 the Tcl is generated; this checks that Vivado accepts and validates the design
 (IP configuration, interface/width compatibility, connectivity) -- without
 paying for synthesis.
 
-Vivado runs remotely because that's where the toolchain and licenses live; the
-default host is CCL1 (see ~/.ssh/config). Exit code is non-zero if any design
-fails to validate.
+Exit code is non-zero if any design fails to validate.
 """
 
 import argparse
@@ -27,17 +24,13 @@ import threading
 
 DEFAULT_PART = "xc7a200tlffv1156-2L"
 DEFAULT_CONFIG = "configs/default.yaml"
-DEFAULT_HOST = "CCL1"
-DEFAULT_REMOTE_DIR = "randsoc_vivado_test"
 DEFAULT_VIVADO = "/tools/Xilinx/Vivado/2024.2/bin/vivado"
 SENTINEL = "RANDSOC_BD_VALIDATED_OK"
-# Echoed by the remote shell only if synth.dcp exists after a --synth run, so a
-# design counts as passing only when synthesis actually produced the checkpoint.
 DCP_MARKER = "RANDSOC_SYNTH_DCP_OK"
 DCP_NAME = "synth.dcp"
 OUT_ROOT = pathlib.Path("temp/vivado_test")
 
-# Live local `ssh` subprocesses, so Ctrl+C can terminate them, and a flag to
+# Live local Vivado subprocesses, so Ctrl+C can terminate them, and a flag to
 # stop launching new work once we're shutting down.
 _live_procs = set()
 _live_lock = threading.Lock()
@@ -54,52 +47,8 @@ def _bar(done, total, valid, width=30):
     )
 
 
-def open_master(host):
-    """Pre-open a multiplex master connection so the parallel job connections
-    reuse it (one auth, no MaxStartups handshake burst, and no 75-way race to
-    create the master). Returns the master Popen, or None if it couldn't start.
-    """
-    try:
-        proc = subprocess.Popen(
-            ["ssh", "-N", "-o", "ControlMaster=auto", host],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except OSError:
-        return None
-    return proc
-
-
-def close_master(host, master_proc):
-    """Tear down the multiplex master connection."""
-    subprocess.run(
-        ["ssh", "-O", "exit", host],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if master_proc and master_proc.poll() is None:
-        master_proc.terminate()
-
-
-def shutdown_remote(host, remote_dir, timeout=30):
-    """On interrupt, kill the remote Vivado jobs we launched. They are tagged via
-    `-tclargs <remote_dir>`, so `pkill -f <remote_dir>` matches exactly our runs
-    (both the wrapping shell and vivado) and nothing else on the shared host.
-    """
-    print(f"  killing remote Vivado jobs on {host}...")
-    try:
-        subprocess.run(
-            ["ssh", host, f"pkill -u $USER -f {remote_dir}"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=timeout,
-        )
-    except subprocess.SubprocessError:
-        pass
-
-
 def terminate_local_procs():
-    """Terminate all in-flight local ssh subprocesses."""
+    """Terminate all in-flight local Vivado subprocesses."""
     with _live_lock:
         procs = list(_live_procs)
     for proc in procs:
@@ -131,42 +80,25 @@ def generate(seed, config, part, synth=False):
     return False, lines[-1] if lines else f"exit {proc.returncode}"
 
 
-def run_remote(seed, host, remote_dir, vivado, timeout, synth=False):
-    """Run Vivado for one seed on the remote host.
+def run_local(seed, vivado, timeout, synth=False):
+    """Run Vivado for one seed on the local machine.
 
     Returns (ok, detail). In validation mode (synth=False) success is the
-    RANDSOC_BD_VALIDATED_OK sentinel in the Vivado console output. In synth mode
-    success is the existence of the synth.dcp checkpoint: the remote shell echoes
-    DCP_MARKER iff the file is present after Vivado exits, so a design only passes
-    when synthesis actually produced the checkpoint -- not merely when validation
-    or `wait_on` returned. On failure we surface the first ERROR line.
-
-    The vivado invocation is tagged with `-tclargs <remote_dir>` so a Ctrl+C
-    cleanup can `pkill` exactly our jobs. We use Popen (not subprocess.run) so the
-    local ssh client can be terminated on interrupt.
+    RANDSOC_BD_VALIDATED_OK sentinel in the Vivado console output. In synth
+    mode success is the existence of synth.dcp after Vivado exits and no ERROR
+    lines in the output. On failure we surface the first ERROR line.
     """
     if _shutdown.is_set():
         return False, "cancelled"
 
-    rel_dir = f"{remote_dir}/seed_{seed}"
-    vivado_cmd = (
-        f"{vivado} -mode batch -nojournal "
-        f"-log vivado.log -source design.tcl -tclargs {remote_dir}"
-    )
-    if synth:
-        # Run Vivado, then echo the marker only if the checkpoint exists. The
-        # brace group keeps the dcp check running regardless of Vivado's exit
-        # code, so a synthesis that aborts is reported as a missing-dcp failure.
-        remote_cmd = (
-            f"cd {rel_dir} && {{ {vivado_cmd}; "
-            f"[ -f {DCP_NAME} ] && echo {DCP_MARKER}; }}"
-        )
-        success_marker = DCP_MARKER
-    else:
-        remote_cmd = f"cd {rel_dir} && {vivado_cmd}"
-        success_marker = SENTINEL
+    local_dir = OUT_ROOT / f"seed_{seed}"
+    cmd = [
+        vivado, "-mode", "batch", "-nojournal",
+        "-log", "vivado.log", "-source", "design.tcl",
+    ]
     proc = subprocess.Popen(
-        ["ssh", host, remote_cmd],
+        cmd,
+        cwd=str(local_dir),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -187,15 +119,11 @@ def run_remote(seed, host, remote_dir, vivado, timeout, synth=False):
         return False, "cancelled"
 
     output = output or ""
-    # Save the full Vivado output locally so failures can be inspected without
-    # querying the remote host.
     try:
-        (OUT_ROOT / f"seed_{seed}" / "vivado_output.log").write_text(output)
+        (local_dir / "vivado_output.log").write_text(output)
     except OSError:
         pass
 
-    # Collect real ERROR lines (the actual abort cause), skipping the "failed due
-    # to earlier errors" cascade lines.
     lines = [l.strip() for l in output.splitlines()]
     errors = [
         l
@@ -203,25 +131,24 @@ def run_remote(seed, host, remote_dir, vivado, timeout, synth=False):
         if l.startswith("ERROR:") and "due to earlier errors" not in l
     ]
 
-    # Pass criteria:
-    #  - validation mode: the sentinel printed (an earlier error would have
-    #    aborted the Tcl before it).
-    #  - synth mode: synth.dcp exists (DCP_MARKER) AND no ERROR was logged.
-    #    Vivado batch mode does not abort on every error and can exit 0, so the
-    #    file check alone is not enough -- a design that logged a real ERROR but
-    #    still produced a checkpoint must be failed, not passed.
-    if success_marker in output and not (synth and errors):
-        return True, ""
+    if synth:
+        dcp_ok = (local_dir / DCP_NAME).exists()
+        if dcp_ok and not errors:
+            return True, ""
+        if errors:
+            return False, errors[0]
+        crit = [l for l in lines if "CRITICAL WARNING:" in l]
+        if crit:
+            return False, crit[0]
+        return False, f"no {DCP_NAME} produced (vivado exit {proc.returncode})"
 
-    # Failure: surface the most informative line. Prefer a real ERROR, then a
-    # CRITICAL WARNING, then the missing marker / exit code.
+    if SENTINEL in output:
+        return True, ""
     if errors:
         return False, errors[0]
     crit = [l for l in lines if "CRITICAL WARNING:" in l]
     if crit:
         return False, crit[0]
-    if synth:
-        return False, f"no {DCP_NAME} produced (vivado exit {proc.returncode})"
     return False, f"no sentinel (vivado exit {proc.returncode})"
 
 
@@ -231,15 +158,9 @@ def main():
     parser.add_argument("--start", type=int, default=0, help="First seed")
     parser.add_argument("--part", default=DEFAULT_PART, help="Xilinx part name")
     parser.add_argument("--config", default=DEFAULT_CONFIG, help="Creator config yaml")
-    parser.add_argument("--host", default=DEFAULT_HOST, help="Remote ssh host")
+    parser.add_argument("--vivado", default=DEFAULT_VIVADO, help="Path to vivado binary")
     parser.add_argument(
-        "--remote-dir",
-        default=DEFAULT_REMOTE_DIR,
-        help="Remote working dir (relative to remote home)",
-    )
-    parser.add_argument("--vivado", default=DEFAULT_VIVADO, help="Remote vivado path")
-    parser.add_argument(
-        "--jobs", type=int, default=75, help="Parallel remote Vivado runs"
+        "--jobs", type=int, default=4, help="Parallel Vivado runs"
     )
     parser.add_argument(
         "--timeout", type=int, default=900, help="Per-design Vivado timeout (s)"
@@ -257,7 +178,7 @@ def main():
 
     seeds = list(range(args.start, args.start + args.num))
 
-    # 1. Generate all designs locally (--no-synth)
+    # 1. Generate all designs locally
     if not args.keep and OUT_ROOT.exists():
         shutil.rmtree(OUT_ROOT)
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -280,33 +201,9 @@ def main():
         print(f"\n{len(gen_failures)} design(s) failed to generate; aborting.")
         return 1
 
-    # 2. Copy designs to the remote host
-    print(f"Copying designs to {args.host}:{args.remote_dir}/ ...")
-    rsync = subprocess.run(
-        [
-            "rsync",
-            "-az",
-            "--delete",
-            f"{OUT_ROOT}/",
-            f"{args.host}:{args.remote_dir}/",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if rsync.returncode != 0:
-        print(f"rsync failed:\n{rsync.stderr}")
-        return 1
-
-    # 3. Run Vivado validation remotely, with a live progress bar
+    # 2. Run Vivado locally, with a live progress bar
     action = "synthesis" if args.synth else "validation"
-    print(
-        f"Running Vivado {action} on {args.host} "
-        f"({args.jobs} parallel)...\n"
-    )
-
-    # Pre-open the multiplex master so all job connections reuse it (avoids a
-    # 75-way race to create it, and the MaxStartups handshake burst).
-    master_proc = open_master(args.host)
+    print(f"Running Vivado {action} locally ({args.jobs} parallel)...\n")
 
     is_tty = sys.stdout.isatty()
     total = len(seeds)
@@ -320,10 +217,8 @@ def main():
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs)
     futs = {
         executor.submit(
-            run_remote,
+            run_local,
             s,
-            args.host,
-            args.remote_dir,
             args.vivado,
             args.timeout,
             args.synth,
@@ -346,7 +241,6 @@ def main():
                 line += f"  {short}"
 
             if is_tty:
-                # Clear the bar, print the status line above it, redraw the bar
                 sys.stdout.write("\r\033[K" + line + "\n" + _bar(done, total, valid))
                 sys.stdout.flush()
             else:
@@ -360,20 +254,17 @@ def main():
         print("\nInterrupted -- shutting down cleanly:")
         terminate_local_procs()
         executor.shutdown(wait=False, cancel_futures=True)
-        shutdown_remote(args.host, args.remote_dir)
-        close_master(args.host, master_proc)
-        print(f"  {done}/{total} finished before interrupt; remote jobs killed.")
+        print(f"  {done}/{total} finished before interrupt; local Vivado jobs killed.")
         return 130
     finally:
         if not interrupted:
             executor.shutdown(wait=True)
-            close_master(args.host, master_proc)
 
     if is_tty:
         sys.stdout.write("\n")
         sys.stdout.flush()
 
-    # 4. Report (to console and to a local results.log)
+    # 3. Report (to console and to a local results.log)
     results.sort()
     failures = [(s, d) for s, ok, d in results if not ok]
     passed = len(results) - len(failures)
