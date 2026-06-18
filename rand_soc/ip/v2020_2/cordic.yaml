@@ -186,7 +186,7 @@
     protocol: control
     direction: I
     width: 1
-    enable: ACLKEN
+    enable: "ACLKEN and Flow_Control == 'Blocking'"
     connections:
     - cordic_0/aclken
 
@@ -194,7 +194,7 @@
     protocol: reset_interconnect
     direction: I
     width: 1
-    enable: "ARESETn and not is_combinational"
+    enable: "ARESETn and not is_combinational and Flow_Control == 'Blocking'"
     connections:
     - cordic_0/aresetn
 
