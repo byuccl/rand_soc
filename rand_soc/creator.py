@@ -226,6 +226,7 @@ class RandomDesign:
             "edif_path": "viv_synth.edf",
             "top": "bd_design_wrapper",
             "io_report_path": "report_io.txt",
+            "utilization_path": "synth_utilization.txt",
             "synthesize": self.synthesize,
         }
 
