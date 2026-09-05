@@ -144,6 +144,28 @@ class IP:
             if port.protocol == Protocol.AXI_STREAM
             and port.direction == Direction.INPUT
         ]
+        
+def sample_value(values, item, internal, customization_p):
+    """Radomly determine to customize or not, and then sample a value accordingly."""
+    if internal or "unset" not in item:
+        return random.choice(values), False
+
+    unset_value = item["unset"]
+    try:
+        unset_idx = values.index(unset_value)
+    except ValueError:
+        unset_idx = None
+
+    pool_size = len(values) - (1 if unset_idx is not None else 0)
+    # The list could be empty if the IP configuration narrows based
+    # on other configuration options.
+    if pool_size == 0 or random.random() >= customization_p:
+        return unset_value, True
+
+    idx = random.randrange(pool_size)
+    if unset_idx is not None and idx >= unset_idx:
+        idx += 1
+    return values[idx], False
 
 
 class IPrandom(IP):
@@ -213,6 +235,7 @@ class IPrandom(IP):
             else:
                 self._connect_internal_pins_regular(f, t)
 
+
     def load_data_from_yaml(self, module_path):
         """Read the <component>.yaml file"""
 
@@ -223,6 +246,8 @@ class IPrandom(IP):
         self.config_vars["all_ones"] = all_ones
         self.config_vars["randintwidth"] = randintwidth
         self.config_vars["randpuncture"] = randpuncture
+
+        customization_p = random.random()
 
         with open(yaml_path, "r") as f:
             ip_data = yaml.safe_load(f)
@@ -265,6 +290,12 @@ class IPrandom(IP):
                 else:
                     internal = False
 
+                # Whether this config item ends up omitted from the CONFIG.*
+                # dict sent to Vivado (customize-vs-omit scheme below, for
+                # enabled non-internal `values`/`values_eval` items only --
+                # every other branch always sets its value explicitly).
+                omitted = False
+
                 if not enabled:
                     value = item["default"]
 
@@ -282,7 +313,9 @@ class IPrandom(IP):
                     assert isinstance(
                         values, list
                     ), f"values of {name} must be a list: {values}"
-                    value = random.choice(values)
+                    value, omitted = sample_value(
+                        values, item, internal, customization_p
+                    )
 
                 elif "values_eval" in item:
                     try:
@@ -290,7 +323,9 @@ class IPrandom(IP):
                     except Exception as e:
                         print(f"Error evaluating {item['values_eval']} in {yaml_path}")
                         raise e
-                    value = random.choice(values)
+                    value, omitted = sample_value(
+                        values, item, internal, customization_p
+                    )
                 else:
                     raise NotImplementedError(f"{item} must have a value or values")
 
@@ -307,6 +342,8 @@ class IPrandom(IP):
 
                 config_item["value"] = value
                 self.config_vars[name] = value
+                if omitted:
+                    config_item["internal"] = True
 
                 # print(f"self.config: {self.config}")
                 # print(f"self.config_vars: {self.config_vars}")

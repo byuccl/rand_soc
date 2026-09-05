@@ -2,6 +2,7 @@
   definition: "xilinx.com:ip:xfft:9.1"
   configuration:
   - name: channels
+    unset: 1
     values_eval: range(1, 13)
 
   - name: transform_length_log2
@@ -12,6 +13,7 @@
     value_eval: "2 ** transform_length_log2"
 
   - name: implementation_options
+    unset: automatically_select
     values_eval: >
       ["radix_2_burst_io", "radix_2_lite_burst_io"] +
       (["pipelined_streaming_io"] if channels == 1 else []) +
@@ -22,6 +24,7 @@
   # otherwise there is nothing to configure. radix_4_burst_io's smallest length
   # is 64 (log2 6); the others' is 8 (log2 3).
   - name: run_time_configurable_transform_length
+    unset: false
     values_eval: >
       [True, False]
       if transform_length_log2 > (6 if implementation_options == "radix_4_burst_io" else 3)

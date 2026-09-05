@@ -2,27 +2,34 @@
   definition: "xilinx.com:ip:axi_timer:2.0"
   configuration:
   - name: mode_64bit
+    unset: 0
     values: [true, false]
 
   - name: COUNT_WIDTH
+    unset: 32
     enable: "mode_64bit == False"
     values: [8, 16, 32]
 
   - name: TRIG0_ASSERT
+    unset: Active_High
     values: ["Active_Low", "Active_High"]
 
   - name: GEN0_ASSERT
+    unset: Active_High
     values: ["Active_Low", "Active_High"]
 
   - name: enable_timer2
+    unset: 1
     enable: "mode_64bit == False"
     values: [true, false]
 
   - name: TRIG1_ASSERT
+    unset: Active_High
     enable: "(mode_64bit == False) and enable_timer2"
     values: ["Active_Low", "Active_High"]
 
   - name: GEN1_ASSERT
+    unset: Active_High
     enable: "(mode_64bit == False) and enable_timer2"
     values: ["Active_Low", "Active_High"]
 

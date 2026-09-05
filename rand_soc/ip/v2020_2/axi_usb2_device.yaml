@@ -2,27 +2,34 @@
   definition: "xilinx.com:ip:axi_usb2_device:5.0"
   configuration:
   - name: C_INCLUDE_DMA
+    unset: 0
     values: [true, false]
 
   - name: C_DMA_UA_TRANS_SUPPORT
+    unset: 0
     enable: C_INCLUDE_DMA
     values: [true, false]
     
   - name: C_INCLUDE_USBERR_LOGIC
+    unset: 0
     values: [true, false]
 
   - name: C_PHY_RESET_TYPE
+    unset: 0
     values: [true, false]
 
   - name: C_M_AXI_ADDR_WIDTH
+    unset: 32
     enable: C_INCLUDE_DMA
     values_eval: range(32,65)
 
   - name: C_M_AXI_THREAD_ID_WIDTH
+    unset: 1
     enable: C_INCLUDE_DMA
     values_eval: range(0,17)
 
   - name: C_INCLUDE_DEBUG
+    unset: 0
     values: [true, false]
 
   ports:

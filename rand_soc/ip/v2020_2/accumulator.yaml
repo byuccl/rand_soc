@@ -2,65 +2,82 @@
   definition: "xilinx.com:ip:c_accum:12.0"
   configuration:
   - name: Implementation
+    unset: Fabric
     values: ["Fabric", "DSP48"]
 
   - name: Input_Type
+    unset: Signed
     values: ["Signed", "Unsigned"]
 
   - name: Input_Width
+    unset: 16
     values_eval: "range(1 if Input_Type == 'Unsigned' else 2, 257 if Implementation == 'Fabric' else (49 if Input_Type == 'Signed' else 48))"
 
   - name: Output_Width
+    unset: 16
     values_eval: "range(Input_Width,259 if Implementation == 'Fabric' else 49)"
 
   - name: Accum_Mode
+    unset: Add
     values: ["Add", "Subtract", "Add_Subtract"]
 
   - name: Latency_Configuration
+    unset: Manual
     values: ["Automatic", "Manual"]
 
   - name: Latency
+    unset: 1
     values_eval: "range(1,min(Output_Width,32)) if Implementation == 'Fabric' else range(1,3)"
     enable: "Latency_Configuration == 'Manual'"
 
   - name: Scale
+    unset: 0
     values_eval: range(0,9)
     enable: "Implementation == 'Fabric' and Latency_Configuration == 'Manual' and Latency == 1"
 
   - name: CE # Clock Enable
+    unset: false
     values: [false, true]
 
   - name: C_In # Carry In
+    unset: false
     values: [false, true]
 
   - name: SCLR # Synchronous Clear
+    unset: false
     values: [false, true]
 
   - name: SSET
+    unset: false
     values: [false, true]
     enable: "Implementation == 'Fabric' and ((Latency_Configuration == 'Automatic' and Output_Width <= 12) or (Latency_Configuration == 'Manual' and Latency == 1))"
     default: false
 
   - name: SINIT
+    unset: false
     values: [false, true]
     enable: "(Implementation == 'Fabric') and not (SSET or SCLR) and ((Latency_Configuration == 'Automatic' and Output_Width <= 12) or (Latency_Configuration == 'Manual' and Latency == 1))"
     default: false
 
   - name: SINIT_Value
+    unset: 0
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
     enable: SINIT
     format: hex_no_prefix
 
   - name: AINIT_Value
+    unset: 0
     values_eval: "[0, all_ones(Output_Width), randintwidth(Output_Width)]"
     enable: "not SINIT and (Implementation == 'Fabric') and not (SSET or SCLR or SINIT)"
     format: hex_no_prefix
 
 
   - name: Bypass
+    unset: true
     values: [false, true]
 
   - name: Bypass_Sense
+    unset: Active_High
     enable: Bypass
     values: [Active_Low, Active_High]
   

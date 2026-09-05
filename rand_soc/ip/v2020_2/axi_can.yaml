@@ -2,15 +2,19 @@
   definition: "xilinx.com:ip:can:5.0"
   configuration:
     - name: Number_of_Acceptance_Filters
+      unset: 0
       values: [0,1,2,3,4]
           
     - name: Cs_Mtbf_Stages
+      unset: 2
       values: [2, 4]
 
     - name: Tx_Fifo_Depth
+      unset: 2
       values_eval: "[2, 4, 8, 16, 32, 64] if Cs_Mtbf_Stages == 2 else [4, 8, 16, 32, 64]"
 
     - name: Rx_Fifo_Depth
+      unset: 2
       values_eval: "[2, 4, 8, 16, 32, 64] if Cs_Mtbf_Stages == 2 else [4, 8, 16, 32, 64]"
 
 

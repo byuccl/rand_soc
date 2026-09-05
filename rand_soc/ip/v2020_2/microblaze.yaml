@@ -4,171 +4,217 @@
 
   ### GENERAL ###
   - name: C_USE_BARREL
+    unset: 0
     values: [true, false]
 
   - name: C_USE_FPU
+    unset: 0
     values: [0, 1, 2]
 
   - name: C_USE_HW_MUL
+    unset: 0
     values: [0, 1, 2]
 
   - name: C_USE_DIV
+    unset: 0
     values: [true, false]
 
   - name: C_USE_MSR_INSTR
+    unset: 0
     values: [true, false]
 
   - name: C_USE_PCMP_INSTR
+    unset: 0
     values: [true, false]
 
   - name: C_USE_REORDER_INSTR
+    unset: 1
     values : [true, false]
 
   - name: C_ADDR_SIZE
+    unset: 32
     values: [32, 36, 40, 44, 48, 52, 64]
 
   - name: C_AREA_OPTIMIZED
+    unset: 0
     values: [0, 1, 2]
 
   - name: C_USE_BRANCH_TARGET_CACHE
+    unset: 0
     enable: "C_AREA_OPTIMIZED != 1"
     values_eval: "[True] if C_AREA_OPTIMIZED == 2 else [True, False]"
 
   - name: C_BRANCH_TARGET_CACHE_SIZE
+    unset: 0
     enable: "C_AREA_OPTIMIZED != 1"
     values_eval: range(0, 8)
 
   - name: C_FAULT_TOLERANT
+    unset: 0
     values: [true, false]
 
   ### EXCEPTION ###
   - name: C_FPU_EXCEPTION
+    unset: 0
     enable: C_USE_FPU
     values: [true, false]
 
   - name: C_DIV_ZERO_EXCEPTION
+    unset: 0
     enable: C_USE_DIV
     values: [true, false]
 
   - name: C_M_AXI_I_BUS_EXCEPTION
+    unset: 0
     enable: C_FAULT_TOLERANT
     values: [true, false]
 
   - name: C_M_AXI_D_BUS_EXCEPTION
+    unset: 0
     enable: C_FAULT_TOLERANT
     values: [true, false]
 
   - name: C_ILL_OPCODE_EXCEPTION
+    unset: 0
     values: [true, false]
 
   - name: C_UNALIGNED_EXCEPTIONS
+    unset: 0
     values: [true, false]
 
   - name: C_OPCODE_0x0_ILLEGAL
+    unset: 0
     enable: C_ILL_OPCODE_EXCEPTION
     values: [true, false]
 
   - name: C_USE_STACK_PROTECTION
+    unset: 0
     values: [true, false]
 
   ### MMU ###
   - name: C_USE_MMU
+    unset: 0
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION"
     values_eval: range(0, 4)
 
   - name: C_MMU_DTLB_SIZE
+    unset: 4
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values: [1, 2, 4, 8]
 
   - name: C_MMU_ITLB_SIZE
+    unset: 2
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values: [1, 2, 4, 8]
 
   - name: C_MMU_TLB_ACCESS
+    unset: 3
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values_eval: range(0, 4)
 
   - name: C_MMU_ZONES
+    unset: 16
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values_eval: range(0, 17)
 
   - name: C_MMU_PRIVILEGED_INSTR
+    unset: 0
     enable: "C_AREA_OPTIMIZED != 1 and not C_USE_STACK_PROTECTION and C_USE_MMU > 1"
     values_eval: "range(0, 4 if (C_USE_MMU == 3 and C_ADDR_SIZE > 32) else 2)"
 
   ### DEBUG MODULE ###
   - name: C_DEBUG_ENABLED
+    unset: 1
     values: [0, 1, 2]
 
   - name: C_NUMBER_OF_PC_BRK
+    unset: 1
     enable: C_DEBUG_ENABLED
     values_eval: range(0, 9)
 
   - name: C_NUMBER_OF_WR_ADDR_BRK
+    unset: 0
     enable: C_DEBUG_ENABLED
     values_eval: range(0, 5)
 
   - name: C_NUMBER_OF_RD_ADDR_BRK
+    unset: 0
     enable: C_DEBUG_ENABLED
     values_eval: range(0, 5)
 
   - name: C_DEBUG_EVENT_COUNTERS
+    unset: 5
     enable: C_DEBUG_ENABLED == 2
     values_eval: range(0, 49)
 
   - name: C_DEBUG_LATENCY_COUNTERS
+    unset: 1
     enable: C_DEBUG_ENABLED == 2
     values_eval: range(0, 8)
 
   - name: C_DEBUG_COUNTER_WIDTH
+    unset: 32
     enable: C_DEBUG_ENABLED == 2
     values: [32, 48, 64]
 
   - name: C_DEBUG_EXTERNAL_TRACE
+    unset: 0
     enable: C_DEBUG_ENABLED == 2
     values: [true, false]
 
   - name: C_DEBUG_TRACE_SIZE
+    unset: 8192
     enable: C_DEBUG_ENABLED == 2
     values_eval: "[32, 64, 128, 256, 8192] if C_DEBUG_EXTERNAL_TRACE else [0, 8192, 16384, 32768, 65536, 131072]"
 
   - name: C_DEBUG_PROFILE_SIZE
+    unset: 0
     enable: C_DEBUG_ENABLED == 2
     values: [0, 4096, 8192, 16384, 32768, 65536, 131072]
 
 
   ### INTERRUPT/RESET ###
   - name: C_USE_INTERRUPT
+    unset: 0
     values: [0, 1, 2]
 
   - name: C_RESET_MSR_EIP
+    unset: 0
     values: [true, false]
 
   - name: C_RESET_MSR_EE
+    unset: 0
     values: [true, false]
 
   - name: C_RESET_MSR_DCE
+    unset: 0
     values: [true, false]
 
   - name: C_RESET_MSR_ICE
+    unset: 0
     values: [true, false]
 
   - name: C_RESET_MSR_BIP
+    unset: 0
     values: [true, false]
 
   - name: C_RESET_MSR_IE
+    unset: 0
     values: [true, false]
 
   ### PVR ###
   - name: C_PVR
+    unset: 0
     values: [0, 1, 2]
 
   - name: C_PVR_USER1
+    unset: 0
     enable: C_PVR
     values_eval: range(0x0, 0xff)
     format: hex
 
   - name: C_PVR_USER2
+    unset: 0
     enable: C_PVR == 2
     values_eval: range(0x0, 0xffffffff)
     format: hex
@@ -181,6 +227,7 @@
     value: true # Always enable data memory
 
   - name: C_D_AXI
+    unset: 0
     values: [true]
 
 
@@ -220,6 +267,7 @@
   definition: "xilinx.com:ip:lmb_v10:3.0"
   configuration:
   - name: C_EXT_RESET_HIGH
+    unset: 1
     values: [true, false]
 
   internal_connections:
@@ -241,9 +289,11 @@
   definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
   configuration:
   - name: C_NUM_LMB
+    unset: 1
     values: [1]
 
   - name: C_MASK
+    unset: 8388608
     values_eval: range(0x0, 0xfffffffffffffff)
     format: hex
 
@@ -270,6 +320,7 @@
   definition: "xilinx.com:ip:lmb_v10:3.0"
   configuration:
   - name: C_EXT_RESET_HIGH
+    unset: 1
     values: [true, false]
 
   internal_connections:
@@ -290,9 +341,11 @@
   definition: "xilinx.com:ip:lmb_bram_if_cntlr:4.0"
   configuration:
   - name: C_NUM_LMB
+    unset: 1
     values: [1]
 
   - name: C_MASK
+    unset: 8388608
     values_eval: range(0x0, 0xfffffffffffffff)
     format: hex
 
@@ -319,16 +372,20 @@
   definition: "xilinx.com:ip:blk_mem_gen:8.4"
   configuration:
   - name: use_bram_block
+    unset: BRAM_Controller
     values: ["BRAM_Controller"]
 
   - name: Memory_Type
+    unset: Single_Port_RAM
     values_eval: "['True_Dual_Port_RAM'] if C_D_LMB else ['Single_Port_RAM']"
 
   - name: Assume_Synchronous_Clk
+    unset: false
     enable: C_I_LMB and C_D_LMB
     values: [true, false]
 
   - name: EN_SAFETY_CKT
+    unset: true
     enable: "use_bram_block == 'BRAM_Controller'"
     values: [true, false]
 
@@ -349,9 +406,11 @@
   definition: "xilinx.com:ip:mdm:3.2"
   configuration:
   - name: C_DBG_REG_ACCESS
+    unset: 0
     values: [false]
 
   - name: C_JTAG_CHAIN
+    unset: 2
     values: [1, 2, 3, 4]
 
   internal_connections:

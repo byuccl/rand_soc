@@ -14,9 +14,11 @@
   # Per-operand component widths. Real and imaginary parts of one operand share a
   # width; the two operands are sized independently. Range 8..63 (PG104).
   - name: aportwidth
+    unset: 16
     values_eval: range(8, 64)
 
   - name: bportwidth
+    unset: 16
     values_eval: range(8, 64)
 
   ##### (2) Implementation #####
@@ -24,14 +26,17 @@
   # Three/four real-multiplier DSP solution (Use_Mults) vs a LUT-only build
   # (Use_Luts, which always uses the three-multiplier configuration internally).
   - name: multtype
+    unset: Use_Mults
     values: [Use_Mults, Use_Luts]
 
   # AXI handshake optimization. cmpy exposes this independent of flow control
   # (unlike CORDIC), so it is randomized across the full set.
   - name: optimizegoal
+    unset: Resources
     values: [Resources, Performance]
 
   - name: flowcontrol
+    unset: NonBlocking
     values: [Blocking, NonBlocking]
 
   ##### (3) Output / rounding #####
@@ -40,6 +45,7 @@
   # CTRL channel, whose TDATA bit 0 (ROUND_CY) carries the external dither source
   # (PG104 "Unbiased Rounding Sources"); Truncate has no CTRL channel.
   - name: roundmode
+    unset: Truncate
     values: [Truncate, Random_Rounding]
 
   - name: has_ctrl
@@ -49,6 +55,7 @@
   # Full-precision product is aportwidth + bportwidth + 1 bits; the output may be
   # any width from 2 up to that full precision, the lower bits being rounded off.
   - name: outputwidth
+    unset: 33
     values_eval: "range(2, aportwidth + bportwidth + 2)"
 
   ##### (4) Per-channel TLAST / TUSER #####
@@ -58,34 +65,43 @@
   # FALSE -- harmless to push -- so the TLAST count/behaviour below can reference
   # them unconditionally, as floating_point.yaml does for its OPERATION channel).
   - name: hasatlast
+    unset: false
     values: [false, true]
 
   - name: hasbtlast
+    unset: false
     values: [false, true]
 
   - name: hasctrltlast
+    unset: false
     values_eval: "[False, True] if has_ctrl else [False]"
 
   - name: hasatuser
+    unset: false
     values: [false, true]
 
   - name: hasbtuser
+    unset: false
     values: [false, true]
 
   - name: hasctrltuser
+    unset: false
     values_eval: "[False, True] if has_ctrl else [False]"
 
   # TUSER widths over the IP's full 1..256 range (only pushed when the channel's
   # TUSER is enabled).
   - name: atuserwidth
+    unset: 1
     enable: hasatuser
     values_eval: range(1, 257)
 
   - name: btuserwidth
+    unset: 1
     enable: hasbtuser
     values_eval: range(1, 257)
 
   - name: ctrltuserwidth
+    unset: 1
     enable: hasctrltuser
     values_eval: range(1, 257)
 
@@ -97,6 +113,7 @@
     value_eval: "hasatlast + hasbtlast + hasctrltlast"
 
   - name: outtlastbehv
+    unset: "Null"
     enable: "tlast_count >= 1"
     values_eval: "(['Pass_A_TLAST'] if hasatlast else []) + (['Pass_B_TLAST'] if hasbtlast else []) + (['Pass_CTRL_TLAST'] if hasctrltlast else []) + (['OR_all_TLASTs', 'AND_all_TLASTs'] if tlast_count >= 2 else [])"
 
@@ -109,9 +126,11 @@
   # of pipeline, so the legal floor is 4 for Blocking and 0 for NonBlocking (where
   # 0 yields a purely combinational core -- see is_combinational below).
   - name: latencyconfig
+    unset: Automatic
     values: [Automatic, Manual]
 
   - name: minimumlatency
+    unset: 6
     enable: "latencyconfig == 'Manual'"
     values_eval: "range(4, 56) if flowcontrol == 'Blocking' else range(0, 56)"
 
@@ -124,9 +143,11 @@
   ##### (6) Optional control pins #####
 
   - name: aclken
+    unset: false
     values: [false, true]
 
   - name: aresetn
+    unset: false
     values: [false, true]
 
   ports:

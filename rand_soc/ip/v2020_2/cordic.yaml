@@ -6,6 +6,7 @@
 
   # Master selector. Every interface and most gating below keys off this.
   - name: Functional_Selection
+    unset: Rotate
     values: [Rotate, Translate, Sin_and_Cos, Sinh_and_Cosh, Arc_Tan, Arc_Tanh, Square_Root]
 
   # Internal selectors derived from the function. These are not pushed to Vivado
@@ -33,6 +34,7 @@
   # Square Root supports the Parallel architecture only; every other function
   # allows both.
   - name: Architectural_Configuration
+    unset: Parallel
     values_eval: "['Parallel'] if Functional_Selection == 'Square_Root' else ['Word_Serial', 'Parallel']"
 
   # No_Pipelining is only offered for the Parallel architecture; Word_Serial
@@ -40,6 +42,7 @@
   # fully combinational -- it has no clock or reset pin at all (see is_combinational
   # and the aclk/aresetn port gating below).
   - name: Pipelining_Mode
+    unset: Maximum
     values_eval: >
       ['Optimal', 'Maximum'] if Architectural_Configuration == 'Word_Serial'
       else ['No_Pipelining', 'Optimal', 'Maximum']
@@ -55,23 +58,28 @@
   # Square Root takes a non-negative operand; the rotation/trig/atan functions
   # are signed.
   - name: Data_Format
+    unset: SignedFraction
     values_eval: >
       ['UnsignedFraction', 'UnsignedInteger'] if Functional_Selection == 'Square_Root'
       else ['SignedFraction']
 
   # Only meaningful when a phase quantity exists (in or out) -- i.e. not Square_Root.
   - name: Phase_Format
+    unset: Radians
     enable: "Functional_Selection != 'Square_Root'"
     values: [Radians, Scaled_Radians]
     default: Radians
 
   - name: Input_Width
+    unset: 16
     values_eval: range(8, 49)
 
   - name: Output_Width
+    unset: 16
     values_eval: range(8, 49)
 
   - name: Round_Mode
+    unset: Truncate
     values: [Truncate, Round_Pos_Inf, Round_Pos_Neg_Inf, Nearest_Even]
 
   ##### (3) Precision / accuracy #####
@@ -79,6 +87,7 @@
   # Extends the input range to the full circle. Valid for the rotation/trig
   # functions and Arc_Tan.
   - name: Coarse_Rotation
+    unset: true
     enable: "Functional_Selection in ('Rotate', 'Translate', 'Sin_and_Cos', 'Arc_Tan')"
     values: [false, true]
     default: false
@@ -86,6 +95,7 @@
   # 0 = automatic. Vivado (IP_Flow 19-3460) restricts the legal range to 0, or
   # 4..48 -- a fixed minimum of 4 iterations. Not available for Square_Root.
   - name: Iterations
+    unset: 0
     enable: "Functional_Selection != 'Square_Root'"
     values_eval: "[0] + list(range(4, 49))"
     default: 0
@@ -95,6 +105,7 @@
   # internal precision above the output width, up to the 48-bit maximum. Not
   # available for Square_Root.
   - name: Precision
+    unset: 0
     enable: "Functional_Selection != 'Square_Root'"
     values_eval: "[0] + list(range(Output_Width, 49))"
     default: 0
@@ -103,6 +114,7 @@
   # set is No_Scale_Compensation, LUT_based, Embedded_Multiplier (note lowercase
   # 'based').
   - name: Compensation_Scaling
+    unset: No_Scale_Compensation
     values: [No_Scale_Compensation, LUT_based, Embedded_Multiplier]
 
   ##### (4) Per-channel signals (CARTESIAN & PHASE inputs only) #####
@@ -110,21 +122,25 @@
   # TUSER width is left at the core's auto default for now (range 1..256 when we
   # revisit), so only the HAS_* enables are randomized here.
   - name: CARTESIAN_HAS_TLAST
+    unset: false
     enable: has_cartesian
     values: [false, true]
     default: false
 
   - name: CARTESIAN_HAS_TUSER
+    unset: false
     enable: has_cartesian
     values: [false, true]
     default: false
 
   - name: PHASE_HAS_TLAST
+    unset: false
     enable: has_phase
     values: [false, true]
     default: false
 
   - name: PHASE_HAS_TUSER
+    unset: false
     enable: has_phase
     values: [false, true]
     default: false
@@ -134,16 +150,19 @@
   # A combinational (No_Pipelining) core has no clock, so it cannot implement the
   # Blocking handshake; force NonBlocking there.
   - name: Flow_Control
+    unset: NonBlocking
     values_eval: "['NonBlocking'] if is_combinational else ['Blocking', 'NonBlocking']"
 
   # Optimization goal and output TREADY are only configurable under Blocking flow
   # control.
   - name: Optimize_Goal
+    unset: Performance
     enable: "Flow_Control == 'Blocking'"
     values: [Resources, Performance]
     default: Resources
 
   - name: Out_TREADY
+    unset: false
     enable: "Flow_Control == 'Blocking'"
     values: [false, true]
     default: false
@@ -152,6 +171,7 @@
   # TLAST -- which in practice means Rotate with both input TLASTs enabled. The
   # options pass one input's TLAST through, or combine them with OR / AND.
   - name: Out_TLAST_Behaviour
+    unset: "Null"
     enable: "has_cartesian and has_phase and CARTESIAN_HAS_TLAST and PHASE_HAS_TLAST"
     values: [Pass_Cartesian_TLAST, Pass_Phase_TLAST, OR_of_TLAST, AND_of_TLAST]
     default: Null
@@ -165,9 +185,11 @@
   # is correctly classified as IRQ (see fft.yaml), the CONTROL pool supplies a
   # plain wire driver compatible with a ce pin, so ACLKEN can be randomized.
   - name: ACLKEN
+    unset: false
     values: [false, true]
 
   - name: ARESETn
+    unset: false
     values: [false, true]
 
   ports:

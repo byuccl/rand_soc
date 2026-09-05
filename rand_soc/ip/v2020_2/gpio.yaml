@@ -6,6 +6,7 @@
     values: ["I", "O", "IO"]
 
   - name: C_GPIO_WIDTH
+    unset: 32
     values_eval: range(1,33)
 
   - name: C_ALL_INPUTS
@@ -22,17 +23,21 @@
     format: hex
 
   - name: C_DOUT_DEFAULT
+    unset: 0
     values_eval: "[0, all_ones(C_GPIO_WIDTH), randintwidth(C_GPIO_WIDTH)]"
     enable: "direction in ('O', 'IO')"
     format: hex
   
   - name: C_INTERRUPT_PRESENT
+    unset: 0
     values: [true, false]
 
   - name: C_IS_DUAL
+    unset: 0
     values: [true, false]
 
   - name: C_GPIO2_WIDTH
+    unset: 32
     values_eval: range(1,33)
     enable: C_IS_DUAL
 
@@ -50,6 +55,7 @@
     format: hex
 
   - name: C_DOUT_DEFAULT_2
+    unset: 0
     values_eval: "[0, all_ones(C_GPIO_WIDTH), randintwidth(C_GPIO_WIDTH)]"
     enable: "C_IS_DUAL and (direction in ('O', 'IO'))"
     format: hex

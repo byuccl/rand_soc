@@ -2,75 +2,96 @@
   definition: "xilinx.com:ip:xadc_wiz:3.3"
   configuration:
   - name: INTERFACE_SELECTION
+    unset: Enable_AXI
     values: ["Enable_AXI", "ENABLE_DRP", "None"]
 
   - name: XADC_STARUP_SELECTION
+    unset: single_channel
     values: ["simultaneous_sampling", "single_channel", "channel_sequencer"]
 
   - name: TIMING_MODE
+    unset: Continuous
     values: ["Event", "Continuous"]
 
   - name: ENABLE_RESET
+    unset: false
     enable: "INTERFACE_SELECTION != 'Enable_AXI'"
     values: [true, false]
 
   - name: ENABLE_TEMP_BUS
+    unset: false
     enable: "INTERFACE_SELECTION == 'Enable_AXI'"
     values: [true, false]
   
   - name: ENABLE_JTAG_ARBITER
+    unset: false
     enable: "INTERFACE_SELECTION != 'Enable_AXI'"
     values: [true, false]
 
   - name: ENABLE_CONVST
+    unset: true
     enable: "TIMING_MODE == 'Event'"
     values: ["true", "false"]
 
   - name: ENABLE_DCLK
+    unset: true
     enable: "INTERFACE_SELECTION == 'None' and TIMING_MODE == 'Continuous'"
     values: [true, false]
 
   - name: OT_ALARM
+    unset: true
     values: [true, false]
 
   - name: USER_TEMP_ALARM
+    unset: true
     values: [true, false]
 
   - name: VCCINT_ALARM
+    unset: true
     values: [true, false]
 
   - name: VCCAUX_ALARM
+    unset: true
     values: [true, false]
 
   - name: ENABLE_VBRAM_ALARM
+    unset: false
     values: [true, false]
 
   - name: CHANNEL_AVERAGING
+    unset: "None"
     values: ["None", 16, 64, 256]
 
   - name: ADC_OFFSET_CALIBRATION
+    unset: false
     enable: "XADC_STARUP_SELECTION in ['single_channel', 'channel_sequencer']"
     values: [true, false]
 
   - name: ADC_OFFSET_AND_GAIN_CALIBRATION
+    unset: true
     enable: "XADC_STARUP_SELECTION in ['single_channel', 'channel_sequencer']"
     values: [true, false]
 
   - name: SENSOR_OFFSET_AND_GAIN_CALIBRATION
+    unset: true
     enable: "XADC_STARUP_SELECTION in ['single_channel', 'channel_sequencer']"
     values: [true, false]
 
   - name: SENSOR_OFFSET_CALIBRATION
+    unset: false
     enable: "XADC_STARUP_SELECTION in ['single_channel', 'channel_sequencer']"
     values: [true, false]
 
   - name: ENABLE_CALIBRATION_AVERAGING
+    unset: true
     values: [true, false]
 
   - name: POWER_DOWN_ADCB
+    unset: false
     values: [true, false]
 
   - name: POWER_DOWN_ADCA
+    unset: false
     enable: POWER_DOWN_ADCB
     values: [true, false]
 

@@ -2,69 +2,85 @@
   definition: "xilinx.com:ip:axi_quad_spi:3.2"
   configuration:
     - name: C_XIP_MODE
+      unset: 0
       values: [0, 1]
           
     - name: C_XIP_PERF_MODE
+      unset: 1
       values: [0, 1]
       enable: "C_XIP_MODE == 1"
       default: 0
 
     - name: C_SPI_MEM_ADDR_BITS
+      unset: 24
       values: [24, 32]
       enable: "C_XIP_MODE == 1"
     
     - name: C_TYPE_OF_AXI4_INTERFACE
+      unset: 0
       values: [0, 1]
       enable: "C_XIP_MODE == 0"
       default: 0
 
     - name: C_SPI_MODE
+      unset: 0
       values: [0, 1, 2]
 
     - name: C_NUM_TRANSFER_BITS
+      unset: 8
       values: [8, 16, 32]
       enable: "C_SPI_MODE == 0"
 
     - name: Master_mode
+      unset: 1
       values: [0, 1]
       enable: "C_XIP_MODE == 0 and C_SPI_MODE == 0"
       default: 1
 
     - name: C_SCK_RATIO
+      unset: 16
       values_eval: "[2, 4, 8, 16] if Master_mode else [4, 8, 16]"
       enable: "C_SPI_MODE == 0"
 
     - name: Multiples16
+      unset: 1
       values_eval: "range(1, 129)"
       enable: "C_SPI_MODE == 0 and C_SCK_RATIO == 16"
 
     - name: C_SPI_MEMORY
+      unset: 1
       values_eval: "[0, 1, 2, 3, 4] if C_XIP_MODE == 0 else ([1, 2, 3, 4] if C_SPI_MEM_ADDR_BITS == 24 else [2, 3, 4])"
       enable: "C_XIP_MODE == 1 or C_SPI_MODE != 0"
 
     - name: C_NUM_SS_BITS
+      unset: 1
       values_eval: "range(1, 33)"
       enable: "C_XIP_MODE == 0 and Master_mode == 16"
 
     - name: C_BYTE_LEVEL_INTERRUPT_EN
+      unset: 0
       values: [0, 1]
       enable: "C_SPI_MODE == 0"
 
     - name: FIFO_INCLUDED
+      unset: 1
       values: [0, 1]
       enable: "C_XIP_MODE == 0 and C_SPI_MODE == 0"
       default: 1
 
     - name: C_FIFO_DEPTH
+      unset: 16
       values: [16, 256]
       enable: "FIFO_INCLUDED == 1"
 
     - name: C_USE_STARTUP
+      unset: 1
       values: [0, 1]
       enable: "Master_mode == 1"
       default: 0
 
     - name: C_SHARED_STARTUP
+      unset: 0
       values: [0, 1]
       enable: "C_USE_STARTUP == 1"
 

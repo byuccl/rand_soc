@@ -11,11 +11,13 @@
   # modes are supported; the input_rate / output_rate ranges and the puncture
   # codes below switch on this.
   - name: punctured
+    unset: false
     values: [false, true]
 
   # Dual-channel (two bits at a time) output. Vivado greys this out unless the
   # core is punctured, so gate it on punctured.
   - name: dual_output
+    unset: false
     enable: punctured
     values: [false, true]
     default: false
@@ -24,11 +26,13 @@
   # 1 (the field is disabled in the GUI). When punctured it can range 2..12,
   # giving a rate n/m core.
   - name: input_rate
+    unset: 1
     values_eval: "range(2, 13) if punctured else [1]"
 
   # Output rate m. Non-punctured: 2..7 (rate 1/2 .. 1/7). Punctured: PG026
   # requires n < m < 2n, i.e. m in [input_rate+1, 2*input_rate-1].
   - name: output_rate
+    unset: 2
     values_eval: "range(input_rate + 1, 2 * input_rate) if punctured else range(2, 8)"
 
   # Puncture pattern codes. They must be generated jointly: each is input_rate
@@ -58,6 +62,7 @@
   # Constraint length: length of the constraint register plus 1. PG026 allows
   # 3..9 inclusive.
   - name: constraint_length
+    unset: 7
     values_eval: "range(3, 10)"
 
   # Codes are entered in binary, octal or decimal -- the radix is only an input
@@ -90,12 +95,14 @@
 
   # Output AXI-Stream TREADY handshake on M_AXIS_DATA.
   - name: tready
+    unset: true
     values: [false, true]
     default: true
 
   # Clock-enable pin. Randomized per the design decision to expose it (unlike
   # CORDIC, where it is held off).
   - name: aclken
+    unset: false
     values: [false, true]
 
   ports:

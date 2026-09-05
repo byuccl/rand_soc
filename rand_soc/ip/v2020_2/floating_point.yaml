@@ -7,6 +7,7 @@
   # Master selector. Almost everything below keys off this. Parameter names and
   # values are from PG060 Table 4-4 (Vivado IDE -> User Parameter relationship).
   - name: operation_type
+    unset: Add_Subtract
     values:
       - Add_Subtract
       - Multiply
@@ -65,12 +66,14 @@
   # referenced by has_operation_stream below. "Both" selects add-vs-subtract
   # dynamically per transaction, which brings in the OPERATION stream.
   - name: add_sub_value
+    unset: Both
     values_eval: "['Both', 'Add', 'Subtract'] if operation_type in ('Add_Subtract', 'FMA', 'Accumulator') else ['Both']"
 
   # Compare operator selection. Only meaningful for Compare; forced to its default
   # ("Programmable") otherwise. "Programmable" selects the comparison dynamically
   # per transaction, which brings in the OPERATION stream.
   - name: c_compare_operation
+    unset: Programmable
     values_eval: "['Programmable', 'Unordered', 'Less_Than', 'Equal', 'Less_Than_Or_Equal', 'Greater_Than', 'Not_Equal', 'Greater_Than_Or_Equal', 'Condition_Code'] if operation_type == 'Compare' else ['Programmable']"
 
   # The OPERATION stream (S_AXIS_OPERATION) is present when the operation is chosen
@@ -95,6 +98,7 @@
   #                              exponent/fraction below; and Float_to_fixed,
   #                              whose fixed result width is coupled to A)
   - name: a_precision_type
+    unset: Single
     values_eval: "['Uint32', 'Int32', 'Uint64', 'Int64', 'Custom'] if operation_type == 'Fixed_to_float' else ['Half', 'Single', 'Double'] if operation_type in ('Exponential', 'Logarithm', 'Square_root', 'Reciprocal', 'Rec_Square_Root') else ['Half', 'Single', 'Double', 'Custom']"
 
   # Custom width fields. Always computed (internal) so a_total_bits can reference
@@ -165,6 +169,7 @@
     value_eval: "min(64, 2 ** (a_exp - 1) - 3) if operation_type == 'Float_to_fixed' else 64"
 
   - name: result_precision_type
+    unset: Single
     enable: has_result_page
     values_eval: "['Half', 'Single', 'Double', 'Custom'] if operation_type == 'Float_to_float' else ([n for n, e in [('Half', 5), ('Single', 8), ('Double', 11)] if e >= _r_min_exp] + ['Custom']) if operation_type == 'Fixed_to_float' else ((['Int32'] if 32 <= _r_max_fixed_total else []) + ['Custom'])"
 
@@ -203,14 +208,17 @@
   #               (format LSB floor, plus a fixed max accumulator width cap)
   # Evaluated in this dependency order (Input MSB -> MSB -> LSB).
   - name: c_accum_input_msb
+    unset: 32
     enable: "operation_type == 'Accumulator'"
     values_eval: "range(2 - 2 ** (a_exp - 1), 2 ** (a_exp - 1))"
 
   - name: c_accum_msb
+    unset: 32
     enable: "operation_type == 'Accumulator'"
     values_eval: "range(c_accum_input_msb, c_accum_input_msb + 55)"
 
   - name: c_accum_lsb
+    unset: -31
     enable: "operation_type == 'Accumulator'"
     values_eval: "range(max((2 - 2 ** (a_exp - 1)) - (a_frac - 1), c_accum_msb - 2097), c_accum_input_msb)"
 
@@ -220,6 +228,7 @@
   # for add/subtract, Accumulator, and double-precision multiply; left at default
   # (Speed_optimized) elsewhere.
   - name: c_optimization
+    unset: Speed_Optimized
     enable: "operation_type in ('Add_Subtract', 'Accumulator') or (operation_type == 'Multiply' and a_precision_type == 'Double')"
     values: [Speed_Optimized, Low_Latency]
 
@@ -234,24 +243,29 @@
   #   Accumulator    : No/Med/Full              (Single/Double only)
   #   everything else: No_Usage
   - name: c_mult_usage
+    unset: Full_Usage
     values_eval: "['Medium_Usage', 'Full_Usage'] if operation_type == 'FMA' else (['No_Usage', 'Full_Usage', 'Max_Usage'] if a_precision_type in ('Half', 'Custom') else ['No_Usage', 'Medium_Usage', 'Full_Usage', 'Max_Usage']) if operation_type == 'Multiply' else (['No_Usage', 'Medium_Usage'] if a_precision_type == 'Half' else ['No_Usage', 'Medium_Usage', 'Full_Usage']) if operation_type == 'Logarithm' else (['No_Usage', 'Medium_Usage', 'Full_Usage'] if a_precision_type in ('Half', 'Single') else ['No_Usage', 'Full_Usage'] if a_precision_type == 'Double' else ['No_Usage']) if operation_type == 'Add_Subtract' else (['Full_Usage'] if a_precision_type == 'Half' else ['No_Usage', 'Medium_Usage', 'Full_Usage']) if operation_type == 'Exponential' else (['No_Usage'] if a_precision_type == 'Half' else ['No_Usage', 'Full_Usage'] if a_precision_type == 'Single' else ['Full_Usage']) if operation_type in ('Reciprocal', 'Rec_Square_Root') else ['No_Usage', 'Medium_Usage', 'Full_Usage'] if operation_type == 'Accumulator' else ['No_Usage']"
 
   # Block memory usage is only configurable for the Exponential operator (PG060).
   - name: c_bram_usage
+    unset: No_Usage
     values_eval: "['No_Usage', 'Full_Usage'] if operation_type == 'Exponential' else ['No_Usage']"
 
   ##### (5) Interface Options #####
 
   - name: flow_control
+    unset: Blocking
     values: [Blocking, NonBlocking]
 
   # Optimize goal applies in Blocking mode (Non-Blocking has no back-pressure).
   - name: axi_optimize_goal
+    unset: Resources
     enable: "flow_control == 'Blocking'"
     values: [Resources, Performance]
 
   # RESULT TREADY only exists in Blocking mode; Non-Blocking has no TREADY at all.
   - name: has_result_tready
+    unset: true
     enable: "flow_control == 'Blocking'"
     values: [false, true]
 
@@ -262,34 +276,42 @@
     value: true
 
   - name: has_aclken
+    unset: false
     values: [false, true]
 
   - name: has_aresetn
+    unset: false
     values: [false, true]
 
   # Optional output exception flags. Each only exists for the operations that can
   # raise it (PG060 exception sections); omitted (-> core default False) elsewhere.
   - name: c_has_underflow
+    unset: false
     enable: "operation_type in ('Add_Subtract', 'Multiply', 'Divide', 'FMA', 'Accumulator', 'Square_root', 'Reciprocal', 'Rec_Square_Root', 'Exponential', 'Logarithm', 'Float_to_float', 'Fixed_to_float')"
     values: [false, true]
 
   - name: c_has_overflow
+    unset: false
     enable: "operation_type in ('Add_Subtract', 'Multiply', 'Divide', 'FMA', 'Accumulator', 'Square_root', 'Reciprocal', 'Rec_Square_Root', 'Exponential', 'Logarithm', 'Float_to_float', 'Fixed_to_float')"
     values: [false, true]
 
   - name: c_has_invalid_op
+    unset: false
     enable: "operation_type not in ('Absolute', 'FMA')"
     values: [false, true]
 
   - name: c_has_divide_by_zero
+    unset: false
     enable: "operation_type in ('Divide', 'Reciprocal', 'Rec_Square_Root', 'Logarithm')"
     values: [false, true]
 
   - name: c_has_accum_overflow
+    unset: false
     enable: "operation_type == 'Accumulator'"
     values: [false, true]
 
   - name: c_has_accum_input_overflow
+    unset: false
     enable: "operation_type == 'Accumulator'"
     values: [false, true]
 
@@ -298,16 +320,20 @@
   # has no TLAST options (TLAST is mandatory there), so has_a_tlast is omitted for
   # it and the core wires TLAST automatically.
   - name: has_a_tlast
+    unset: false
     enable: "operation_type != 'Accumulator'"
     values: [false, true]
 
   - name: has_b_tlast
+    unset: false
     values_eval: "[False, True] if has_b else [False]"
 
   - name: has_c_tlast
+    unset: false
     values_eval: "[False, True] if has_c else [False]"
 
   - name: has_operation_tlast
+    unset: false
     values_eval: "[False, True] if has_operation_stream else [False]"
 
   # A-channel TLAST as an always-defined int (0 for the accumulator, where the
@@ -328,21 +354,26 @@
   # TLAST (the OPERATION channel is not a pass option), or OR/AND all of them when
   # two or more are present. Value strings confirmed against Vivado.
   - name: result_tlast_behv
+    unset: "Null"
     enable: "operation_type != 'Accumulator' and tlast_count >= 1"
     values_eval: "(['Pass_A_TLAST'] if _a_tlast else []) + (['Pass_B_TLAST'] if has_b_tlast else []) + (['Pass_C_TLAST'] if has_c_tlast else []) + (['OR_all_TLASTs', 'AND_all_TLASTs'] if tlast_count >= 2 else [])"
 
   # Per-channel TUSER (present flag + width). b/c/operation flags are forced False
   # when the channel is absent; widths are only pushed when the flag is set.
   - name: has_a_tuser
+    unset: false
     values: [false, true]
 
   - name: has_b_tuser
+    unset: false
     values_eval: "[False, True] if has_b else [False]"
 
   - name: has_c_tuser
+    unset: false
     values_eval: "[False, True] if has_c else [False]"
 
   - name: has_operation_tuser
+    unset: false
     values_eval: "[False, True] if has_operation_stream else [False]"
 
   # TUSER widths. The IP accepts 1..256, but a width converter inserted on the
@@ -351,18 +382,22 @@
   # exceeds. Cap each channel's TUSER to 16 bits per data byte (well under the
   # converter limit) so the value stays converter-safe while still randomized.
   - name: a_tuser_width
+    unset: 1
     enable: has_a_tuser
     values_eval: "range(1, min(256, 16 * math.ceil(a_total_bits / 8)) + 1)"
 
   - name: b_tuser_width
+    unset: 1
     enable: has_b_tuser
     values_eval: "range(1, min(256, 16 * math.ceil(a_total_bits / 8)) + 1)"
 
   - name: c_tuser_width
+    unset: 1
     enable: has_c_tuser
     values_eval: "range(1, min(256, 16 * math.ceil(a_total_bits / 8)) + 1)"
 
   - name: operation_tuser_width
+    unset: 1
     enable: has_operation_tuser
     values_eval: "range(1, 17)"
 

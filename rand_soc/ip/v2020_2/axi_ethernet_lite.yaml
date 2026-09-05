@@ -2,25 +2,32 @@
   definition: "xilinx.com:ip:axi_ethernetlite:3.0"
   configuration:
     - name: C_S_AXI_PROTOCOL
+      unset: AXI4LITE
       values: ["AXI4LITE", "AXI4"]
 
     - name: C_DUPLEX
+      unset: 1
       values: [0, 1]
 
     - name: C_TX_PING_PONG
+      unset: 1
       values: [0, 1]
 
     - name: C_RX_PING_PONG
+      unset: 1
       values: [0, 1]
 
     - name: C_INCLUDE_INTERNAL_LOOPBACK
+      unset: 0
       values: [0, 1]
       enable: "C_DUPLEX == 1"
 
     - name: C_INCLUDE_GLOBAL_BUFFERS
+      unset: 1
       values: [0, 1]
 
     - name: C_INCLUDE_MDIO
+      unset: 1
       values: [0, 1]
 
   ports:

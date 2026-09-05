@@ -2,26 +2,33 @@
   definition: "xilinx.com:ip:axi_cdma:4.1"
   configuration:
   - name: C_INCLUDE_SG
+    unset: 1
     values: [false]
 
   - name: C_USE_DATAMOVER_LITE
+    unset: 0
     enable: "C_INCLUDE_SG == False"
     values: [true, false]
 
   - name: C_INCLUDE_DRE
+    unset: 0
     enable: "C_INCLUDE_SG or (C_USE_DATAMOVER_LITE == False)"
     values: [true, false]
 
   - name: C_M_AXI_DATA_WIDTH
+    unset: 32
     values_eval: "[32, 64] if (C_INCLUDE_SG == False) and C_USE_DATAMOVER_LITE else [32, 64, 128, 256, 512]"
   
   - name: C_M_AXI_MAX_BURST_LEN
+    unset: 16
     values_eval: "[16, 32, 64] if (C_INCLUDE_SG == False) and C_USE_DATAMOVER_LITE else [2, 4, 8, 16, 32, 64]"
 
   - name: C_INCLUDE_SF
+    unset: 0
     values: [true, false]
 
   - name: C_ADDR_WIDTH
+    unset: 32
     values_eval: range(32,65)
 
 

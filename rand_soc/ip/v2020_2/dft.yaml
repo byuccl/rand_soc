@@ -2,21 +2,27 @@
   definition: "xilinx.com:ip:dft:4.2"
   configuration:
   - name: Data_Width
+    unset: 18
     values_eval: range(8,19)
 
   - name: Speed_Optimization
+    unset: Area
     values: ["Area", "Speed"]
 
   - name: Clock_Enable
+    unset: false
     values: [true, false]
 
   - name: Synchronous_Clear
+    unset: true
     values: [true, false]
 
   - name: Support_Size_5G
+    unset: false
     values: [true, false]
 
   - name: Support_Size_1536
+    unset: false
     enable: "Support_Size_5G == False"
     values: [true, false]
 

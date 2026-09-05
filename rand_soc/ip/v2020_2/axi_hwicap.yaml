@@ -2,36 +2,46 @@
   definition: "xilinx.com:ip:axi_hwicap:3.0"
   configuration:
   - name: C_ICAP_EXTERNAL
+    unset: 0
     values: [true, false]
 
   - name: C_MODE
+    unset: 0
     values: [true, false]
 
   - name: C_NOREAD
+    unset: 0
     values: [true, false]
 
   - name: C_ICAP_DWIDTH
+    unset: 32
     values: [8, 16, 32]
 
   - name: C_INCLUDE_STARTUP
+    unset: 0
     values: [true, false]
 
   - name: C_SHARED_STARTUP
+    unset: 0
     enable: C_INCLUDE_STARTUP
     values: [false]
 
   - name: C_OPERATION
+    unset: 0
     values: [true, false]
 
   - name: C_WRITE_FIFO_DEPTH
+    unset: 64
     enable: "C_MODE == False"
     values: [64, 128, 256, 512, 1024]
 
   - name: C_READ_FIFO_DEPTH
+    unset: 128
     enable: "C_NOREAD == False"
     values: [128, 256]
 
   - name: C_BRAM_SRL_FIFO_TYPE
+    unset: 1
     enable: "C_NOREAD == False"
     values: [0, 1]
 
